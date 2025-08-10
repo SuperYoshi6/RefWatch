@@ -149,6 +149,10 @@ fun GameScreenWithPager(
                     showSettingsDialog = false
                     showResetConfirmDialog = true // Show confirmation for reset
                 },
+                onResetGame = {
+                    showSettingsDialog = false
+                    gameViewModel.resetGame()
+                },
                 onToggleTimer = {
                     showSettingsDialog = false // Also dismiss menu on timer toggle
                     onToggleTimer()

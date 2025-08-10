@@ -35,7 +35,6 @@ data class Game(
     var venue: String? = null,             // e.g., "Field 3, West Park"
     var gameDateTimeEpochMillis: Long? = null, // Start date & time of the match, UTC epoch ms
     var notes: String? = null,
-
     // Live State Fields (updated by watch, synced via phone to Firebase)
     val inAddedTime: Boolean = false, // Is the current playable period in added time?
     var hasExtraTime: Boolean = false, // True if extra time has been initiated
@@ -52,10 +51,11 @@ data class Game(
     var displayedTimeMillis: Long = 45,
     var actualTimeElapsedInPeriodMillis: Long = 0L,
     var isTimerRunning: Boolean = false,
-    // Tell Firestore to ignore this field during automatic toObject() mapping.
-    // We will populate it manually.
-    @get:Exclude // Crucial for Firestore to ignore this field during toObject()
-    val events: List<GameEvent> = emptyList()
+
+    @get:Exclude
+    val needsSyncWithPhone: Boolean = false, // Store locally on watch, needs sync with phone
+    @get:Exclude
+    val events: List<GameEvent> = emptyList() // We will sync this one manually
 )  {
     companion object {
         fun defaults(): Game {
@@ -85,7 +85,7 @@ data class Game(
             game.penaltiesTakenHome = 0
             game.penaltiesTakenAway = 0
             game.status = GameStatus.SCHEDULED
-            game.currentPhase = GamePhase.PRE_GAME
+            game.currentPhase = GamePhase.NOT_STARTED
             // displayedTimeMillis, actualTimeElapsedInPeriodMillis, isTimerRunning already defaulted
             return game
         }

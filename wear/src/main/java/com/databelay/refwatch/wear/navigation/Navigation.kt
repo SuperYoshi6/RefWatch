@@ -44,7 +44,9 @@ import com.databelay.refwatch.wear.presentation.screens.LogCardScreen
 import com.databelay.refwatch.wear.presentation.screens.PreGameSetupScreen
 import kotlinx.coroutines.delay
 import androidx.navigation.plusAssign
+import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameStatus
+import com.databelay.refwatch.common.isKickoffSelection
 import com.databelay.refwatch.wear.presentation.screens.SimpleTestScreenWithNextButton
 
 const val TAG = "NavigationRoutes"
@@ -58,13 +60,10 @@ fun NavigationRoutes() {
 
     // Determine start destination based on whether a game is resumable
 
-    val startDestination = remember(activeGame.id) {
-        Log.d("${TAG}:startDestination", "Current start route: ${navController.currentDestination?.route}")
-        if (activeGame.status != GameStatus.IN_PROGRESS)
-            WearNavRoutes.GAME_LIST_SCREEN
-        else mapGamePhaseToRoute(activeGame.currentPhase)
+    val startDestination = remember(activeGame.currentPhase) {
+        mapGamePhaseToRoute(activeGame.currentPhase)
     }
-
+    Log.d("${TAG}:startDestination", "Current start route: ${navController.currentDestination?.route}")
 /*    // Add the destination changed listener (for debugging)
     DisposableEffect(navController) {
         val listener = NavController.OnDestinationChangedListener { controller, destination, arguments ->
@@ -96,6 +95,7 @@ fun NavigationRoutes() {
                     viewModel = gameViewModel, // Pass the shared ViewModel
                     onGameSelected = { selectedGame ->
                         gameViewModel.selectGameToStart(selectedGame) // ViewModel updates activeGame
+                        gameViewModel.proceedToNextPhaseManager(gameViewModel.activeGame.value.copy())
                         navController.navigate(WearNavRoutes.PRE_GAME_SETUP_SCREEN)
                         // popUpTo can be tricky here if startDestination was PRE_GAME_SETUP_SCREEN
                     },
@@ -109,6 +109,7 @@ fun NavigationRoutes() {
                     },
                     onNavigateToNewGame = {
                         gameViewModel.createNewDefaultGame() // Prepare a new default game
+                        gameViewModel.proceedToNextPhaseManager(gameViewModel.activeGame.value.copy())
                         navController.navigate(WearNavRoutes.PRE_GAME_SETUP_SCREEN)
                     }
                 )
@@ -118,7 +119,7 @@ fun NavigationRoutes() {
                 PreGameSetupScreen(
                     gameViewModel = gameViewModel, // Pass the ViewModel
                     onCreateMatch = {
-                        gameViewModel.activeGame.value.currentPhase = GamePhase.KICK_OFF_SELECTION_FIRST_HALF
+                        gameViewModel.proceedToNextPhaseManager(gameViewModel.activeGame.value.copy())
                         navController.navigate(WearNavRoutes.KICK_OFF_SELECTION_SCREEN) {
                             popUpTo(WearNavRoutes.GAME_LIST_SCREEN) {inclusive = false}
                             launchSingleTop = true
@@ -133,10 +134,11 @@ fun NavigationRoutes() {
                     onConfirm = {
                         gameViewModel.proceedToNextPhaseManager(gameViewModel.activeGame.value.copy())
                         navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
-                            popUpTo(WearNavRoutes.GAME_LIST_SCREEN) {inclusive = false}
+                            popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
                             launchSingleTop = true
                         }
-                    }
+                    },
+                    onSetKickOffTeam = { team->gameViewModel.setKickOffTeam(team)}
                 )
             }
             composable(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
@@ -147,7 +149,6 @@ fun NavigationRoutes() {
                     onAddGoal = { team -> gameViewModel.addGoal(team) },
                     onEndPhase = { gameViewModel.proceedToNextPhaseManager(gameViewModel.activeGame.value.copy()) },
                     onNavigateToLogCard = { team: Team, cardType: CardType ->
-
                         navController.navigate(WearNavRoutes.logCardRoute(team, cardType))
                     },
                     onNavigateToGameLog = { navController.navigate(WearNavRoutes.gameLogRoute(activeGame.id)) },
@@ -277,9 +278,7 @@ fun logBackStack(navController: NavController, contextMessage: String = "") {
         stack.forEachIndexed { index, navBackStackEntry ->
             val entryDestination = navBackStackEntry.destination
             val route = entryDestination.route
-            val arguments = navBackStackEntry.arguments?.let { bundle ->
-                bundle.keySet().joinToString(", ") { key -> "$key=${bundle.get(key)}" }
-            } ?: "null"
+            val arguments = navBackStackEntry.arguments?.toString() ?: "null"
             // Using displayName for a more user-friendly class name if available
             val destDisplayName = entryDestination.displayName
 
@@ -294,11 +293,13 @@ fun logBackStack(navController: NavController, contextMessage: String = "") {
 
 fun mapGamePhaseToRoute(phase:GamePhase) : String {
     return when (phase) {
-        GamePhase.GAME_ENDED, GamePhase.ABANDONED, GamePhase.NOT_STARTED -> WearNavRoutes.GAME_LIST_SCREEN
+        GamePhase.FIRST_HALF, GamePhase.HALF_TIME, GamePhase.SECOND_HALF,
+            GamePhase.EXTRA_TIME_FIRST_HALF, GamePhase.EXTRA_TIME_HALF_TIME, GamePhase.EXTRA_TIME_SECOND_HALF,
+            GamePhase.PENALTIES, GamePhase.GAME_ENDED -> WearNavRoutes.GAME_IN_PROGRESS_SCREEN
+        GamePhase.ABANDONED, GamePhase.NOT_STARTED -> WearNavRoutes.GAME_LIST_SCREEN
         GamePhase.PRE_GAME -> WearNavRoutes.PRE_GAME_SETUP_SCREEN
         GamePhase.KICK_OFF_SELECTION_FIRST_HALF,
         GamePhase.KICK_OFF_SELECTION_EXTRA_TIME,
         GamePhase.KICK_OFF_SELECTION_PENALTIES -> WearNavRoutes.KICK_OFF_SELECTION_SCREEN
-        else -> WearNavRoutes.GAME_IN_PROGRESS_SCREEN
     }
 }

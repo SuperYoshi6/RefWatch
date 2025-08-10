@@ -6,9 +6,11 @@ import androidx.core.content.edit
 import com.databelay.refwatch.common.AppJsonConfiguration // Assuming your common Json object
 import com.databelay.refwatch.common.Game // Your common Game class
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString // Ensure this is the one from AppJsonConfiguration if it's custom
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,6 +36,7 @@ class GameStorageWear @Inject constructor(
     private val KEY_GAMES_LIST = "syncedGamesList"
     private val KEY_DATA_FETCH_STATUS = "dataFetchStatus" // For persisting status
 
+
     // Use your common JSON configuration
     private val json = AppJsonConfiguration // Assuming AppJsonConfiguration is your Json instance
 
@@ -43,9 +46,36 @@ class GameStorageWear @Inject constructor(
     private val _dataFetchStatusFlow = MutableStateFlow(DataFetchStatus.INITIAL)
     val dataFetchStatusFlow: StateFlow<DataFetchStatus> = _dataFetchStatusFlow.asStateFlow()
 
+    // StateFlow to hold phone connectivity status
+    private val _isPhoneConnected = MutableStateFlow(false) // Assume not connected initially
+    val isPhoneConnected: StateFlow<Boolean> = _isPhoneConnected.asStateFlow()
+
     init {
         // Load the initial list and status from SharedPreferences
         loadGamesListAndStatus()
+
+    }
+
+    /**
+     * Called by WearDataListenerService when phone connectivity changes.
+     */
+    fun updatePhoneConnectivityStatus(isConnected: Boolean) {
+        if (_isPhoneConnected.value != isConnected) { // Only update if changed
+            _isPhoneConnected.value = isConnected
+            Log.i(TAG, "Phone connectivity status updated in GameStorage: $isConnected")
+
+            // You could also move the logic for DataFetchStatus.ERROR_PHONE_UNREACHABLE here
+            // based on the new isConnected status and current games list.
+            if (!isConnected && _gamesListFlow.value.isEmpty()) {
+                if (_dataFetchStatusFlow.value != DataFetchStatus.ERROR_PARSING &&
+                    _dataFetchStatusFlow.value != DataFetchStatus.ERROR_UNKNOWN &&
+                    _dataFetchStatusFlow.value != DataFetchStatus.ERROR_PHONE_UNREACHABLE) { // Prevent re-setting if already in an error state
+                    updateDataFetchStatus(DataFetchStatus.ERROR_PHONE_UNREACHABLE)
+                }
+            } else if (isConnected && _dataFetchStatusFlow.value == DataFetchStatus.ERROR_PHONE_UNREACHABLE) {
+                updateDataFetchStatus(DataFetchStatus.INITIAL) // Or SUCCESS if games are present
+            }
+        }
     }
 
     /**
@@ -53,21 +83,17 @@ class GameStorageWear @Inject constructor(
      */
     fun saveGamesListFromPhone(games: List<Game>) {
         try {
-            val jsonString = json.encodeToString(games) // Using your AppJsonConfiguration
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit {
-                    putString(KEY_GAMES_LIST, jsonString)
-                    // When saving from phone, it's either SUCCESS or NO_DATA_AVAILABLE
-                    val newStatus = if (games.isEmpty()) DataFetchStatus.NO_DATA_AVAILABLE else DataFetchStatus.SUCCESS
-                    putString(KEY_DATA_FETCH_STATUS, newStatus.name)
-                    _dataFetchStatusFlow.value = newStatus
-                }
+            // Update the flow first
             _gamesListFlow.value = games
-            Log.i(TAG, "Saved ${games.size} games from phone. Status: ${_dataFetchStatusFlow.value}")
+            // Then persist the new list
+            saveGamesListToPreferences(games) // Use the helper
+
+            val newStatus = if (games.isEmpty()) DataFetchStatus.NO_DATA_AVAILABLE else DataFetchStatus.SUCCESS
+            updateDataFetchStatus(newStatus) // Persist and update status flow
+
+            Log.i(TAG, "Saved ${games.size} games from phone. Status: $newStatus")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save games list from phone", e)
-            // If saving fails after successful phone communication, it's an unknown error here
-            // ERROR_PARSING should be set by the listener if it fails to decode data from phone
             updateDataFetchStatus(DataFetchStatus.ERROR_UNKNOWN)
         }
     }
@@ -152,9 +178,72 @@ class GameStorageWear @Inject constructor(
         return _gamesListFlow.value
     }
 
-    // Original saveGamesList and loadGamesList renamed or adapted
-    // The public methods `saveGamesListFromPhone` and `clearGamesListFromPhone`
-    // are now the primary entry points from the Data Layer events.
-    // `updateDataFetchStatus` is the entry point for other status changes.
+
+    // New helper function to save the current games list to SharedPreferences
+    private fun saveGamesListToPreferences(games: List<Game>) {
+        try {
+            val jsonString = json.encodeToString(games)
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit {
+                    putString(KEY_GAMES_LIST, jsonString)
+                    // Note: We don't update DataFetchStatus here directly,
+                    // as this method is a generic saver. The caller
+                    // (e.g., saveGamesListFromPhone, locallyUpdateGameDetails)
+                    // is responsible for semantic status updates.
+                }
+            Log.d(TAG, "Saved list of ${games.size} games to SharedPreferences.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save games list to SharedPreferences", e)
+            // Optionally, rethrow or handle error more specifically if needed by callers
+            // For now, just logging. If this fails, the in-memory list might be out of sync with prefs.
+        }
+    }
+
+    /**
+     * Updates the details of a single game in the local storage.
+     * This is used, for example, when a game is completed offline on the watch.
+     */
+    suspend fun locallyUpdateGameDetails(updatedGame: Game) {
+        withContext(Dispatchers.IO) {
+            // 1. Get the current list
+            val currentList = _gamesListFlow.value
+
+            // 2. Find the index of the game to update
+            val gameIndex = currentList.indexOfFirst { it.id == updatedGame.id }
+
+            if (gameIndex != -1) {
+                // 3. Create a new list with the updated game
+                val newList = currentList.toMutableList().apply {
+                    this[gameIndex] = updatedGame
+                }
+
+                // 4. Update the StateFlow
+                _gamesListFlow.value = newList.toList() // Ensure it's immutable for the flow
+
+                // 5. Persist the updated list to SharedPreferences
+                saveGamesListToPreferences(newList.toList())
+
+                Log.i(TAG, "Locally updated and saved game: ${updatedGame.id}, New Status: ${updatedGame.status}")
+
+                // Optionally, update DataFetchStatus if appropriate.
+                // For instance, if a game is completed, the overall status might still be SUCCESS or LOADED_FROM_CACHE.
+                // This depends on your specific status logic.
+                // If the game was previously SCHEDULED and is now COMPLETED,
+                // and this is the only operation, status might not need to change from SUCCESS.
+                // if (_dataFetchStatusFlow.value != DataFetchStatus.SUCCESS && _dataFetchStatusFlow.value != DataFetchStatus.LOADED_FROM_CACHE) {
+                //    updateDataFetchStatus(DataFetchStatus.SUCCESS) // Or a more specific status
+                // }
+
+            } else {
+                Log.w(TAG, "Attempted to locally update game not found in list: ${updatedGame.id}. Adding it as a new game.")
+                // If the game is not found, we can choose to add it (e.g., a game played entirely offline and never synced)
+                val newList = (currentList + updatedGame).toList()
+                _gamesListFlow.value = newList
+                saveGamesListToPreferences(newList)
+                // updateDataFetchStatus(DataFetchStatus.SUCCESS) // Or LOADED_FROM_CACHE if appropriate
+            }
+        }
+    }
+
 }
 

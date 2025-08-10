@@ -5,6 +5,8 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PauseCircleFilled
+import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +39,7 @@ import androidx.wear.compose.material.ButtonDefaults
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.dialog.Confirmation
 import androidx.wear.compose.material.dialog.Dialog
 import com.databelay.refwatch.BuildConfig
 import com.databelay.refwatch.common.Game
@@ -43,40 +47,11 @@ import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.hasTimer
 import com.databelay.refwatch.common.readable
-
-//TODO: change package names to deplay both wear and mobile (how? i have common) RN it's com.databelay.refwatch
-// TODO: move build version text to common gradle, move text to main game list and in phone app too.
-// Function to get the application's version name
-fun getAppVersionName(context: Context): String {
-    return try {
-        val packageInfo: PackageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageInfo(context.packageName, 0)
-        }
-        packageInfo.versionName ?: "N/A" // Return "N/A" or some default if null
-    } catch (e: PackageManager.NameNotFoundException) {
-        e.printStackTrace()
-        "N/A" // Or handle the exception as appropriate
-    }
-}
-
-// Function to get the application's version code
-fun getAppVersionCode(context: Context): Long { // Or Int if you don't expect very large version codes
-    return try {
-        val packageInfo: PackageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageInfo(context.packageName, 0)
-        }
-        packageInfo.longVersionCode
-    } catch (e: PackageManager.NameNotFoundException) {
-        e.printStackTrace()
-        -1L // Or handle the exception as appropriate
-    }
-}
+import androidx.wear.compose.material.dialog.Confirmation // For simple Yes/No
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue // if not already there
+import androidx.compose.runtime.getValue // if not already there
+import androidx.compose.runtime.saveable.rememberSaveable // To keep dialog state on config changes
 
 @Composable
 fun GameSettingsDialog(
@@ -84,26 +59,17 @@ fun GameSettingsDialog(
     onDismiss: () -> Unit,
     onFinishGame: () -> Unit,
     onResetPeriodTimer: () -> Unit,
+    onResetGame: () -> Unit,
     onViewLog: () -> Unit,
     onToggleTimer: () -> Unit,
     onEndPhase: () -> Unit,
 ) {
-    val context = LocalContext.current // Get context
-    var appVersionName by remember { mutableStateOf("Loading...") } // State for version name
-    var appVersionNumber by remember { mutableLongStateOf(0L) } // State for version name
-    val buildDateString = BuildConfig.BUILD_TIME
-
-    // LaunchedEffect to get version name (it's a synchronous call but good practice
-    // if it were asynchronous, and keeps UI responsive during initial composition)
-    LaunchedEffect(Unit) {
-        appVersionName = getAppVersionName(context)
-        appVersionNumber = getAppVersionCode(context)
-    }
-
     Dialog(
         showDialog = true,
         onDismissRequest = onDismiss
     ) {
+        // State to control the visibility of the reset confirmation dialog
+        var showResetConfirmationDialog by rememberSaveable { mutableStateOf(false) }
         val listState = rememberScalingLazyListState()
         ScalingLazyColumn(
             state = listState,
@@ -164,7 +130,30 @@ fun GameSettingsDialog(
                 ) {
                     Text("Reset Period Timer")}
             }
-
+            item { // "Reset Game" Button
+                Button(
+                    onClick = { showResetConfirmationDialog = true }, // Show confirmation dialog
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = MaterialTheme.colors.error,
+                        contentColor = MaterialTheme.colors.onError
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.PriorityHigh,
+                            contentDescription = "Warning",
+                            // Tint will be MaterialTheme.colors.onError due to Button's contentColor
+                        )
+//                        Spacer(Modifier.size(ButtonDefaults.SmallIconSize))
+                        Text("Reset Game")
+                    }
+                }
+            }
             item {
                 Button(
                     onClick = onViewLog,
@@ -180,22 +169,65 @@ fun GameSettingsDialog(
                     Text("Close Menu")
                 }
             }
-            // --- ADD BUILD INFO TEXT HERE ---
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                androidx.compose.material3.Text(
-                    text = "Version: $appVersionName $buildDateString", // Display version name
-                    color = MaterialTheme.colors.primary,
-                    style = MaterialTheme.typography.caption1.copy(fontSize = 14.sp),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+        }
+
+        // --- Reset Confirmation Dialog ---
+        if (showResetConfirmationDialog) {
+            Confirmation(
+                onTimeout = { showResetConfirmationDialog = false }, // Or onCancel lambda
+                icon = {
+                    Icon(
+                        Icons.Filled.PriorityHigh,
+                        contentDescription = "Warning",
+                        tint = MaterialTheme.colors.error, // Make icon red
+                        modifier = Modifier.size(48.dp) // Adjust size as needed
+                    )
+                },
+            ) {
+                // Use a Column to arrange message and buttons vertically
+                Column(
+                    modifier = Modifier.fillMaxWidth(), // Fill width for centering content
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp) // Space between message and buttons
+                ) {
+                    Text( // This is the message
+                        text = "Are you sure ? Scores and game logs will be erased. ",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.body2.copy(fontSize = 16.sp),
+                        color = MaterialTheme.colors.onBackground, // Ensure good contrast
+                        modifier = Modifier.padding(horizontal = 8.dp) // Add some horizontal padding
+                    )
+
+                    Spacer(Modifier.height(12.dp)) // Extra space before buttons
+
+                    // Button for "Yes"
+                    Button(
+                        onClick = {
+                            showResetConfirmationDialog = false // Dismiss confirmation
+                            onResetGame()                   // Execute the actual reset
+                        },
+                        colors = ButtonDefaults.primaryButtonColors(), // Standard confirm color
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Yes, Reset")
+                    }
+
+                    // Button for "No"
+                    Button(
+                        onClick = {
+                            showResetConfirmationDialog = false // Just dismiss confirmation
+                        },
+                        colors = ButtonDefaults.secondaryButtonColors(), // Standard cancel color
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("No, Cancel")
+                    }
+                }
             }
-            // --- END BUILD INFO TEXT ---
         }
     }
 }
-
+// ---------------------- Preview --------------------------------------
 
 @Preview(device = "id:wearos_large_round", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
 @Composable
@@ -217,6 +249,7 @@ fun GameSettingsDialogPreview_TimerRunning() {
             onDismiss = {}, // Empty lambda for preview
             onFinishGame = {},
             onResetPeriodTimer = {},
+            onResetGame = {},
             onViewLog = {},
             onToggleTimer = {},
             onEndPhase = {}

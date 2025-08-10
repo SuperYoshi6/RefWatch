@@ -13,7 +13,9 @@ import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,12 +23,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import com.databelay.refwatch.BuildConfig
 import java.text.SimpleDateFormat
 import java.util.*
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.GameStatus
+import com.databelay.refwatch.common.getAppVersionCode
+import com.databelay.refwatch.common.getAppVersionName
 import com.databelay.refwatch.common.readable
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,6 +48,18 @@ fun GameListScreen(
     onSignOut: () -> Unit,
     onImportGames: () -> Unit, // Callback for importing
 ) {
+    var appVersionName by remember { mutableStateOf("Loading...") } // State for version name
+    var appVersionNumber by remember { mutableLongStateOf(0L) } // State for version name
+    val buildDateString = BuildConfig.BUILD_TIME
+    val context = LocalContext.current // Get context
+
+    // LaunchedEffect to get version name (it's a synchronous call but good practice
+    // if it were asynchronous, and keeps UI responsive during initial composition)
+    LaunchedEffect(Unit) {
+        appVersionName = getAppVersionName(context)
+        appVersionNumber = getAppVersionCode(context)
+    }
+
     Log.d("GameListScreen", "Received games: ${games.map { it.id + " -> " + it.status }}") // Log input games
 
     var selectedTab by remember { mutableStateOf(GameStatus.SCHEDULED) }
@@ -112,6 +132,16 @@ fun GameListScreen(
                     }
                 }
             }
+            // --- ADD BUILD INFO TEXT HERE ---
+            Spacer(modifier = Modifier.height(8.dp))
+            androidx.compose.material3.Text(
+                text = "Version: $appVersionName $buildDateString", // Display version name
+                color = androidx.wear.compose.material.MaterialTheme.colors.primary,
+                style = androidx.wear.compose.material.MaterialTheme.typography.caption1.copy(fontSize = 14.sp),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            // --- END BUILD INFO TEXT ---
         }
     }
 }

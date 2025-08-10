@@ -41,7 +41,7 @@ const val COUNTDOWN_INTERVAL_MS = 1000L
 data class TimerState(
     val actualTimeElapsedInPeriodMillis: Long = 0L,
     val isTimerRunning: Boolean = false, // Service's knowledge: is the CountDownTimer ticking?
-    val currentPhase: GamePhase = GamePhase.PRE_GAME,
+    val currentPhase: GamePhase = GamePhase.NOT_STARTED,
     val regulationPeriodDurationMillis: Long = 0L,
     val displayedMillis: Long = 0L,
     val inAddedTime: Boolean = false
@@ -135,13 +135,13 @@ class GameTimerService : Service() {
             currentInternalGame = game
             val initialElapsed = game.actualTimeElapsedInPeriodMillis
             val regulationDuration = game.regulationPeriodDurationMillis()
-            val isAdded = initialElapsed >= regulationDuration
+            val isAdded = game.currentPhase.isPlayablePhase() && initialElapsed >= regulationDuration
             val displayedMillis = if (isAdded) {initialElapsed - regulationDuration} else {regulationDuration - initialElapsed}
             val initialIsTimerRunning = startImmediately && (game.currentPhase.hasTimer())
             _timerStateFlow.update {
                 it.copy(
                     currentPhase = game.currentPhase,
-                    isTimerRunning = false, // Will be set true by startGameTimer if called
+                    isTimerRunning = initialIsTimerRunning, // Will be set true by startGameTimer if called
                     displayedMillis = displayedMillis,
                     actualTimeElapsedInPeriodMillis = initialElapsed,
                     inAddedTime = isAdded,
@@ -222,29 +222,6 @@ class GameTimerService : Service() {
                         return
                     }
 
-                    val currentActualElapsed = _timerStateFlow.value.actualTimeElapsedInPeriodMillis + 1000L
-                    val regulationDuration =
-                        _timerStateFlow.value.regulationPeriodDurationMillis
-                    var newIsAddedTime = _timerStateFlow.value.inAddedTime
-                    val currentPhase = _timerStateFlow.value.currentPhase
-
-                    var newDisplayedMillis: Long
-
-                    // --- ADAPT YOUR VIEWMODEL'S TIMER LOGIC HERE ---
-                    if (currentPhase.isPlayablePhase()) {
-                        if (newIsAddedTime || (currentActualElapsed >= regulationDuration && regulationDuration > 0)) {
-                            newIsAddedTime = true
-                            newDisplayedMillis = currentActualElapsed - regulationDuration
-                            // Consider logic for period end detection here if not handled by ViewModel externally
-                        } else {
-                            newDisplayedMillis = regulationDuration - currentActualElapsed
-                        }
-                    } else { // Break or other non-playable phase (timer might count down break time or stay 00:00)
-                        // Adapt logic for breaks if service should manage break timing
-                        newDisplayedMillis = 0 // Placeholder
-                    }
-                    // --- END ADAPTATION ---
-
                     _timerStateFlow.update { currentState ->
                         val newElapsed = currentState.actualTimeElapsedInPeriodMillis + COUNTDOWN_INTERVAL_MS
                         val currentRegulationDuration =
@@ -260,7 +237,10 @@ class GameTimerService : Service() {
                             displayedMillis = displayValue,
                             inAddedTime = isInAddedTimeNow
                         )
+
                     }
+
+//                    Log.d(TAG, "Timer tick: ${_timerStateFlow.value.displayedMillis.formatTime()}")
                     // Update notification if needed
                     updateNotificationAndOngoingActivity(_timerStateFlow.value.displayedMillis.formatTime())
                 }
@@ -440,7 +420,7 @@ class GameTimerService : Service() {
      * Called by ViewModel when a game session truly starts (e.g., moving to first half).
      * Acquires WakeLock for the session and starts the timer.
      */
-    fun commandStartGameSessionAndTimer(game: Game, initialElapsedMillis: Long = 0L, isAddedTimeInitially: Boolean = false) {
+    fun commandStartGameSessionAndTimer(game: Game, initialElapsedMillis: Long = 0L) {
         serviceScope.launch {
             currentInternalGame = game
             Log.i(TAG, "COMMAND: Start Game Session & Timer for ${game.currentPhase}. Acquiring WakeLock.")
@@ -452,8 +432,8 @@ class GameTimerService : Service() {
                     currentPhase = game.currentPhase,
                     isTimerRunning = false,
                     actualTimeElapsedInPeriodMillis = initialElapsedMillis,
-                    inAddedTime = isAddedTimeInitially,
-                    displayedMillis = if (isAddedTimeInitially) initialElapsedMillis - game.regulationPeriodDurationMillis() else game.regulationPeriodDurationMillis() - initialElapsedMillis,
+                    inAddedTime = false,
+                    displayedMillis = game.regulationPeriodDurationMillis() - initialElapsedMillis,
                     regulationPeriodDurationMillis = game.regulationPeriodDurationMillis()
                 )
             }

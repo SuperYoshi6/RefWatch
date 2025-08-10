@@ -163,4 +163,6 @@ object WearSyncConstants {
     const val GAME_UPDATE_PAYLOAD_KEY = "game_update_json"
     const val NEW_AD_HOC_GAME_PATH = "/new_ad_hoc_game"
     const val NEW_GAME_PAYLOAD_KEY = "new_game_json"
+    const val NEW_ADHOC_GAME_FROM_WATCH_PATH_PREFIX = "/new_adhoc_game_from_watch"
+
 }

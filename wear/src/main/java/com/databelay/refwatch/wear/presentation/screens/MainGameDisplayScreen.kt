@@ -33,6 +33,8 @@ import com.databelay.refwatch.common.isBreak
 import com.databelay.refwatch.common.isPlayablePhase
 import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.wear.presentation.components.ColorIndicator
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @Composable
 fun MainGameDisplayScreen(
@@ -88,7 +90,7 @@ fun MainGameDisplayScreen(
         }
     }
 
-    // TODO: add little clock on top
+
     Column(
         modifier = modifier // Apply passed modifier first
             .fillMaxSize()    // Then ensure it fills the available space
@@ -96,7 +98,16 @@ fun MainGameDisplayScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceAround // Distribute elements
     ) {
-        Spacer(Modifier.weight(4f))
+        Spacer(Modifier.weight(1f))
+
+        // Current Time Display
+        Text(
+            text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(java.util.Date()),
+            style = MaterialTheme.typography.caption2, // Smaller text style
+            color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f), // Slightly dimmed
+            textAlign = TextAlign.Center,
+        )
+
         // Score and Team Colors
         Row(
             verticalAlignment = Alignment.CenterVertically,

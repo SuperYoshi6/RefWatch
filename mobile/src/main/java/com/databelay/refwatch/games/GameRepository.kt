@@ -137,7 +137,6 @@ class GameRepository(private val firestore: FirebaseFirestore) {
         }
     }
 
-
     suspend fun addOrUpdateGame(userId: String, game: Game): Result<Unit> {
         Log.d(TAG, "addOrUpdateGame: User: $userId, Game ID: ${game.id}, Events in Game object: ${game.events.size}")
         if (userId.isBlank()) {

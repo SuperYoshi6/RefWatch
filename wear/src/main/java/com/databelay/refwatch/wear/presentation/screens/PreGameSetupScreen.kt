@@ -1,5 +1,6 @@
 package com.databelay.refwatch.wear.presentation.screens
 
+import androidx.compose.animation.core.copy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
@@ -30,8 +33,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Devices
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
@@ -80,7 +86,9 @@ fun PreGameSetupScreen(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceAround,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
             ) {
                 // Home Team Name Chip
                 OutlinedChip(
@@ -105,7 +113,9 @@ fun PreGameSetupScreen(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceEvenly,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
             ) {
                 ColorPickerButton("Home", activeGame.homeTeamColor) { showHomeColorPicker = true }
                 ColorPickerButton("Away", activeGame.awayTeamColor) { showAwayColorPicker = true }
@@ -138,7 +148,9 @@ fun PreGameSetupScreen(
         item {
             Button(
                 onClick = onCreateMatch,
-                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp), // Made it a bit taller
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 52.dp), // Made it a bit taller
                 colors = ButtonDefaults.buttonColors(
                     backgroundColor = MaterialTheme.colors.secondary
                 )
@@ -226,7 +238,20 @@ fun TeamNameEditDialog(
             TextField(
                 value = text,
                 onValueChange = { text = it },
-                label = { Text("Team Name") }
+                label = { Text("Team Name") },
+                singleLine = true, // Good for team names
+                keyboardOptions = KeyboardOptions.Default.copy(
+                    imeAction = ImeAction.Done // Or ImeAction.Go, ImeAction.Send
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (text.isNotBlank()) {
+                            onSave(text)
+                        }
+                        // Optionally, you might hide the keyboard explicitly here if needed,
+                        // but Dialog dismissal usually handles it.
+                    }
+                )
             )
 
             Row(
@@ -293,7 +318,9 @@ fun SimpleColorPickerDialog(
                 items(availableColors.chunked(3)) { rowColors -> // Simple grid layout
                     Row(
                         horizontalArrangement = Arrangement.SpaceEvenly,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
                     ) {
                         rowColors.forEach { color ->
                             Box(
@@ -302,7 +329,11 @@ fun SimpleColorPickerDialog(
                                     .padding(4.dp)
                                     .clip(CircleShape)
                                     .background(color)
-                                    .border(1.dp, MaterialTheme.colors.onSurface.copy(alpha = 0.5f), CircleShape)
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colors.onSurface.copy(alpha = 0.5f),
+                                        CircleShape
+                                    )
                                     .clickable { onColorSelected(color) }
                             )
                         }
@@ -341,7 +372,9 @@ fun DurationSettingStepper(
             Text(
                 text = "$currentValue min",
                 style = MaterialTheme.typography.body1,
-                modifier = Modifier.padding(horizontal = 12.dp).defaultMinSize(minWidth = 60.dp),
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .defaultMinSize(minWidth = 60.dp),
                 textAlign = TextAlign.Center
             )
             CompactButton(
@@ -349,5 +382,20 @@ fun DurationSettingStepper(
                 modifier = Modifier.size(40.dp)
             ) { Text("+", fontSize = 18.sp) }
         }
+    }
+}
+// ----------------------------------------------------------
+@Preview(device = "id:wearos_large_round", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
+@Composable
+fun PreviewTeamNameEditDialog_Home() {
+    MaterialTheme { // Use androidx.wear.compose.material.MaterialTheme
+        // Since TeamNameEditDialog internally uses Dialog which takes over the screen,
+        // we can call it directly here.
+        TeamNameEditDialog(
+            teamLabel = "Home",
+            initialValue = "Warriors",
+            onSave = { }, // Log for preview interaction
+            onDismiss = { }    // Log for preview interaction
+        )
     }
 }

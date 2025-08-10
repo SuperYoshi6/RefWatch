@@ -7,45 +7,50 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.SyncProblem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.ChipDefaults.chipColors
 import androidx.wear.compose.material.Icon
-import androidx.wear.compose.material.ListHeader
 import androidx.wear.compose.material.ToggleButton
 import androidx.wear.compose.material.ToggleButtonDefaults
+import com.databelay.refwatch.BuildConfig
 import com.databelay.refwatch.common.Game
-import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.GameStatus
-import com.databelay.refwatch.common.Team
+import com.databelay.refwatch.common.getAppVersionCode
+import com.databelay.refwatch.common.getAppVersionName
 import com.databelay.refwatch.wear.IWearGameViewModel
+import com.databelay.refwatch.wear.presentation.screens.PreviewTools.createSampleGames
 import com.databelay.refwatch.wear.data.DataFetchStatus
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 
 // Assuming GameStatus.SCHEDULED and GameStatus.COMPLETED
 enum class GameListFilterState { UPCOMING, PAST }
@@ -58,8 +63,6 @@ fun CompactGameFilter(
     pastCount: Int,
     modifier: Modifier = Modifier
 ) {
-    val TAG = "GameListScreen"
-
     // Using Material 3 OutlinedButton for toggle effect, customize as needed
     // For Wear, you might use Chip or Button with custom styling.
     Row(
@@ -97,6 +100,7 @@ fun CompactGameFilter(
         }
     }
 }
+
 @Composable
 fun GameListScreen(
     viewModel: IWearGameViewModel,
@@ -105,10 +109,24 @@ fun GameListScreen(
     onNavigateToNewGame: () -> Unit,
     onNavigateToGameScreen: () -> Unit
 ) {
+    val TAG = "GameListScreen"
+
     val allGames by viewModel.gamesList.collectAsState()
     val dataFetchStatus by viewModel.dataFetchStatus.collectAsState()
-    val activeGameFromVM by viewModel.activeGame.collectAsState()
+    val isPhoneConnected by viewModel.isPhoneConnected.collectAsState()
+    val activeGame by viewModel.activeGame.collectAsState()
     var selectedFilterState by remember { mutableStateOf(GameListFilterState.UPCOMING) }
+    var appVersionName by remember { mutableStateOf("Loading...") } // State for version name
+    var appVersionNumber by remember { mutableLongStateOf(0L) } // State for version name
+    val buildDateString = BuildConfig.BUILD_TIME
+    val context = LocalContext.current // Get context
+
+    // LaunchedEffect to get version name (it's a synchronous call but good practice
+    // if it were asynchronous, and keeps UI responsive during initial composition)
+    LaunchedEffect(Unit) {
+        appVersionName = getAppVersionName(context)
+        appVersionNumber = getAppVersionCode(context)
+    }
 
     val (upcomingGames, pastGames) = remember(allGames) {
         val (scheduled, completed) = allGames.partition { it.status == GameStatus.SCHEDULED }
@@ -118,9 +136,6 @@ fun GameListScreen(
         )
     }
     val gamesToDisplay = if (selectedFilterState == GameListFilterState.UPCOMING) upcomingGames else pastGames
-    val isGameResumable = remember(activeGameFromVM) {
-        activeGameFromVM != null && activeGameFromVM?.status != GameStatus.COMPLETED && activeGameFromVM?.status != GameStatus.SCHEDULED
-    }
 
     LaunchedEffect(Unit) {
         // viewModel.performConnectivityCheck()
@@ -162,48 +177,56 @@ fun GameListScreen(
                 }
             }
 
-            if (gamesToDisplay.isEmpty()) {
-                item {
-                    Box(
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val emptyMessage = when {
-                            selectedFilterState == GameListFilterState.UPCOMING -> {
-                                when (dataFetchStatus) {
-                                    DataFetchStatus.INITIAL, DataFetchStatus.ERROR_PHONE_UNREACHABLE -> "Can't fetch games.\nPlease connect to RefWatch on the phone."
-                                    DataFetchStatus.FETCHING -> "Loading games..."
-                                    DataFetchStatus.ERROR_PARSING -> "Error: Could not read game data from phone."
-                                    DataFetchStatus.ERROR_UNKNOWN -> "An error occurred while loading games."
-                                    DataFetchStatus.NO_DATA_AVAILABLE -> "No upcoming games scheduled on your phone."
-                                    DataFetchStatus.SUCCESS -> "No upcoming games." // Should be NO_DATA_AVAILABLE if list is empty
-                                    DataFetchStatus.LOADED_FROM_CACHE -> "No upcoming games in cache. Connect to phone to update." // Or show cached if any
-                                }
-                            }
-                            else -> "No past games." // For "Past" tab
+            items(items = gamesToDisplay, key = { game -> game.id }) { game ->
+                ScheduledGameItem(
+                    game = game,
+                    onClick = {
+                        if (game.status == GameStatus.SCHEDULED) {
+                            onGameSelected(game)
+                        } else {
+                            onViewLog(game.id)
                         }
-                        Text(
-                            text = emptyMessage,
-                            color = MaterialTheme.colorScheme.onSecondary,
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(16.dp)
-                        )
                     }
-                }
-            } else {
-                items(items = gamesToDisplay, key = { game -> game.id }) { game ->
-                    ScheduledGameItem(
-                        game = game,
-                        onClick = {
-                            if (game.status == GameStatus.SCHEDULED) {
-                                onGameSelected(game)
-                            } else {
-                                onViewLog(game.id)
-                            }
-                        }
+                )
+            }
+            // Phone connectivity status
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+                    val emptyMessage =
+                        if (isPhoneConnected) "Phone is connected." else "Phone is not connected."
+//                        when (dataFetchStatus) {
+//                            DataFetchStatus.INITIAL, DataFetchStatus.ERROR_PHONE_UNREACHABLE -> "Can't fetch games.\nPlease connect to RefWatch on the phone."
+//                            DataFetchStatus.FETCHING -> "Loading games..."
+//                            DataFetchStatus.ERROR_PARSING -> "Error: Could not read game data from phone."
+//                            DataFetchStatus.ERROR_UNKNOWN -> "An error occurred while loading games."
+//                            DataFetchStatus.NO_DATA_AVAILABLE -> "No games on your phone."
+//                            DataFetchStatus.SUCCESS -> "Fetching successful." // Should be NO_DATA_AVAILABLE if list is empty
+//                            DataFetchStatus.LOADED_FROM_CACHE -> "Loaded from cache. Connect to phone to update." // Or show cached if any
+//                        }
+                    Text(
+                        text = emptyMessage,
+                        color = MaterialTheme.colorScheme.onSecondary,
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(16.dp)
                     )
                 }
             }
+            // --- ADD BUILD INFO TEXT HERE ---
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                androidx.compose.material3.Text(
+                    text = "Version: $appVersionName $buildDateString", // Display version name
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            // --- END BUILD INFO TEXT ---
         }
 
         // Layer 2: The CompactGameFilter on top
@@ -211,20 +234,6 @@ fun GameListScreen(
         Column(modifier = Modifier
             .fillMaxWidth()
             .align(Alignment.TopCenter)) {
-            if (isGameResumable && activeGameFromVM != null) {
-                Chip(
-                    onClick = onNavigateToGameScreen,
-                    label = { Text("Resume Game") },
-                    secondaryLabel = { Text("${activeGameFromVM!!.homeTeamName} vs ${activeGameFromVM!!.awayTeamName}") },
-                    icon = { Icon(Icons.Outlined.PlayCircle, contentDescription = "Resume Current Game") },
-                    modifier = Modifier
-                        .fillMaxWidth(0.95f)
-                            .padding(top = 10.dp, bottom = 4.dp, start = 8.dp, end = 8.dp) // Adjusted padding
-                        .align(Alignment.CenterHorizontally),
-                    colors = ChipDefaults.primaryChipColors()
-                )
-            }
-
             CompactGameFilter(
                 selectedFilter = selectedFilterState,
                 onFilterSelected = { newFilter -> selectedFilterState = newFilter },
@@ -261,6 +270,17 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
                     )
                 }
             }
+
+            // Conditionally display the icon
+            if (game.needsSyncWithPhone) {
+                Spacer(Modifier.width(8.dp)) // Add some spacing before the icon
+                Icon(
+                    imageVector = Icons.Filled.SyncProblem, // Your chosen icon
+                    contentDescription = "Needs sync with phone", // Accessibility
+                    modifier = Modifier.size(ChipDefaults.IconSize), // Standard chip icon size
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) // Or a warning color
+                )
+            }
         },
         secondaryLabel = {
             Column(horizontalAlignment = Alignment.Start) {
@@ -280,114 +300,8 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
 
 // ---------------------- PREVIEWS ---------------------------
 // -----------------------------------------------------------
-class FakeWearGameViewModel (
-    initialGames: List<Game> = emptyList(),
-    initialFetchStatus: DataFetchStatus = DataFetchStatus.SUCCESS,
-    initialActiveGame: Game? = null
-) : IWearGameViewModel {
-    override val gamesList: StateFlow<List<Game>> = MutableStateFlow(initialGames)
-    override val dataFetchStatus: StateFlow<DataFetchStatus> = MutableStateFlow(initialFetchStatus)
-    override val activeGame: StateFlow<Game?> = MutableStateFlow(initialActiveGame)
-
-    // Helper to update the list for preview variations
-    fun setGames(games: List<Game>) {
-        (this.gamesList as MutableStateFlow).value = games
-    }
-    fun setFetchStatus(status: DataFetchStatus) {
-        (this.dataFetchStatus as MutableStateFlow).value = status
-    }
-    fun setActiveGame(game: Game?) {
-        (this.activeGame as MutableStateFlow).value = game
-    }
-}
-
 // Helper to create sample games for previews
-fun createSampleGames(): List<Game> {
-    return listOf(
-        // --- Scheduled Games ---
-        Game.defaults().copy(
-            id = "scheduledGame1",
-            homeTeamName = "Alpha FC",
-            awayTeamName = "Beta United",
-            status = GameStatus.SCHEDULED,
-            gameDateTimeEpochMillis = System.currentTimeMillis() + (2 * 60 * 60 * 1000L), // 2 hours from now
-            venue = "Stadium One",
-        ),
-        Game.defaults().copy(
-            id = "scheduledGame2",
-            homeTeamName = "Gamma Rovers",
-            awayTeamName = "Delta City",
-            status = GameStatus.SCHEDULED,
-            homeTeamColorArgb = android.graphics.Color.parseColor("#3F51B5"), // Indigo
-            awayTeamColorArgb = android.graphics.Color.parseColor("#FFC107"), // Amber
-            gameDateTimeEpochMillis = System.currentTimeMillis() + (26 * 60 * 60 * 1000L), // 26 hours from now
-            venue = "Community Park",
-        ),
 
-        // --- In-Progress Game Example (for potential "Resume Game" chip) ---
-        Game.defaults().copy(
-            id = "inProgressGame1",
-            homeTeamName = "Red Warriors",
-            awayTeamName = "Blue Thunder",
-            status = GameStatus.IN_PROGRESS, // Or any active status
-            currentPhase = GamePhase.FIRST_HALF,
-            isTimerRunning = true,
-            displayedTimeMillis = 15 * 60 * 1000L, // 15:00 on the clock
-            actualTimeElapsedInPeriodMillis = 15 * 60 * 1000L + (30 * 1000L), // 15m 30s actual
-            halfDurationMinutes = 40,
-            homeScore = 1,
-            awayScore = 0,
-            kickOffTeam = Team.HOME,
-            homeTeamColorArgb = android.graphics.Color.RED,
-            awayTeamColorArgb = android.graphics.Color.BLUE,
-        ),
-
-        // --- Completed Games ---
-        Game.defaults().copy(
-            id = "completedGame1",
-            homeTeamName = "Green Hornets",
-            awayTeamName = "Purple Haze",
-            status = GameStatus.COMPLETED,
-            currentPhase = GamePhase.GAME_ENDED,
-            isTimerRunning = false,
-            gameDateTimeEpochMillis = System.currentTimeMillis() - (1 * 24 * 60 * 60 * 1000L), // 1 day ago
-            homeScore = 3,
-            awayScore = 2,
-            homeTeamColorArgb = android.graphics.Color.GREEN,
-            awayTeamColorArgb = android.graphics.Color.MAGENTA, // Using MAGENTA for Purple
-            venue = "Old Trafford (simulated)",
-        ),
-        Game.defaults().copy(
-            id = "completedGame2",
-            homeTeamName = "Black Cats",
-            awayTeamName = "White Knights",
-            status = GameStatus.COMPLETED,
-            currentPhase = GamePhase.GAME_ENDED,
-            gameDateTimeEpochMillis = System.currentTimeMillis() - (5 * 24 * 60 * 60 * 1000L), // 5 days ago
-            homeScore = 0,
-            awayScore = 0,
-            homeTeamColorArgb = android.graphics.Color.BLACK,
-            awayTeamColorArgb = android.graphics.Color.WHITE,
-            venue = "The Den",
-        ),
-        // Your example item (slightly adjusted if `halfDurationMinutes` affects display directly)
-        Game.defaults().copy(
-            id = "previewGameYourExample",
-            status = GameStatus.COMPLETED, // Assuming if it has score and time, it's active
-            currentPhase = GamePhase.GAME_ENDED,
-            homeTeamName = "Red Team Example",
-            awayTeamName = "Blue Team Example",
-            homeTeamColorArgb = android.graphics.Color.BLACK, // As per your example
-            awayTeamColorArgb = android.graphics.Color.YELLOW,
-            kickOffTeam = Team.AWAY,
-            actualTimeElapsedInPeriodMillis = (5 * 60000L), // 5 minutes (assuming your (5*L)+(2*L) was an example)
-            displayedTimeMillis = (45 * 60000L) - (5*60000L), // If half is 45m, and 5m elapsed, 40m displayed (countdown)
-            halfDurationMinutes = 45,
-            homeScore = 2,
-            isTimerRunning = true // Implied if it's FIRST_HALF with time elapsed
-        )
-    )
-}
 
 @Preview(
     device = "id:wearos_large_round",
@@ -398,7 +312,7 @@ fun createSampleGames(): List<Game> {
 )
 @Composable
 fun GameListScreenPreview_EmptyScheduled() {
-    val mockViewModel = FakeWearGameViewModel(
+    val mockViewModel = PreviewWearGameViewModel(
         initialGames = emptyList(),
         initialFetchStatus = DataFetchStatus.NO_DATA_AVAILABLE // Or SUCCESS if list is just empty
     )
@@ -422,7 +336,7 @@ fun GameListScreenPreview_EmptyScheduled() {
 )
 @Composable
 fun GameListScreenPreview_Loading() {
-    val mockViewModel = FakeWearGameViewModel(
+    val mockViewModel = PreviewWearGameViewModel(
         initialGames = emptyList(),
         initialFetchStatus = DataFetchStatus.FETCHING
     )
@@ -446,7 +360,7 @@ fun GameListScreenPreview_Loading() {
 )
 @Composable
 fun GameListScreenPreview_Error() {
-    val mockViewModel = FakeWearGameViewModel(
+    val mockViewModel = PreviewWearGameViewModel(
         initialGames = emptyList(),
         initialFetchStatus = DataFetchStatus.ERROR_PHONE_UNREACHABLE
     )
@@ -470,7 +384,7 @@ fun GameListScreenPreview_Error() {
 )
 @Composable
 fun GameListScreenPreview_WithScheduledGames() {
-    val mockViewModel = FakeWearGameViewModel(initialGames = createSampleGames().filter { it.status == GameStatus.SCHEDULED })
+    val mockViewModel = PreviewWearGameViewModel(initialGames = createSampleGames().filter { it.status == GameStatus.SCHEDULED })
     // RefWatchTheme {
     GameListScreen(
         viewModel = mockViewModel,
@@ -496,7 +410,7 @@ fun GameListScreenPreview_WithPastGames() {
     // or the FakeWearGameViewModel could expose a way to hint the initial tab.
     // For simplicity, this preview will show the games, but the "Scheduled" tab will be selected by default.
     // To preview the "Past" tab selected, you'd need to modify GameListScreen or its state handling for previews.
-    val mockViewModel = FakeWearGameViewModel(initialGames = createSampleGames())
+    val mockViewModel = PreviewWearGameViewModel(initialGames = createSampleGames())
     // RefWatchTheme {
     GameListScreen(
         viewModel = mockViewModel,
@@ -524,7 +438,7 @@ fun GameListScreenPreview_WithResumableGame() {
         isTimerRunning = true,
         displayedTimeMillis = 120000 // 2 minutes in
     )
-    val mockViewModel = FakeWearGameViewModel(
+    val mockViewModel = PreviewWearGameViewModel(
         initialGames = createSampleGames(),
         initialActiveGame = resumableGame
     )

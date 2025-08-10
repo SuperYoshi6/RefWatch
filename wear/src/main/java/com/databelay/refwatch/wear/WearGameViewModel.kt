@@ -6,12 +6,14 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.net.Uri
 import android.os.IBinder
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.compose.animation.core.copy
+import androidx.compose.ui.geometry.isEmpty
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
@@ -40,6 +42,7 @@ import com.databelay.refwatch.wear.data.GameStorageWear
 import com.databelay.refwatch.wear.data.GameTimerService
 import com.databelay.refwatch.wear.data.TimerState
 import com.google.android.gms.wearable.CapabilityClient
+import com.google.android.gms.wearable.CapabilityInfo
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
@@ -65,6 +68,8 @@ import javax.inject.Inject
 interface IWearGameViewModel {
     val gamesList: StateFlow<List<Game>>
     val dataFetchStatus: StateFlow<DataFetchStatus>
+
+    val isPhoneConnected: StateFlow<Boolean> // Assuming this is a flow
     val activeGame: StateFlow<Game?> // Assuming Game? as it can be null
 
 }
@@ -83,10 +88,38 @@ class WearGameViewModel @Inject constructor(
     // --- Scheduled Games List and Sync Status (from GameStorageWear) ---
     override val gamesList: StateFlow<List<Game>> = gameStorage.gamesListFlow
     override val dataFetchStatus: StateFlow<DataFetchStatus> = gameStorage.dataFetchStatusFlow
+    override val isPhoneConnected: StateFlow<Boolean> = gameStorage.isPhoneConnected
 
     // --- Active Game State (managed by this ViewModel) ---
     private val _activeGame = MutableStateFlow(loadInitialActiveGame())
     override val activeGame: StateFlow<Game> = _activeGame.asStateFlow()
+
+    init {
+        // Observe active game changes to save them
+        _activeGame.onEach { game ->
+            if (game.status != GameStatus.COMPLETED) { // Don't re-save if just completed by this VM
+                saveActiveGameState()
+            }
+        }.launchIn(viewModelScope)
+
+        // Attempt to sync pending games on ViewModel initialization
+        attemptSyncPendingGames()
+
+        // Observe phone connectivity changes from GameStorageWear
+        gameStorage.isPhoneConnected
+            // TODO: test this with phone disconnects, phone overwrites!!! not-synced status not showing on watch
+            //  TODO: test with log-offs,  what happends if the user is logged off from the phone? where do the games sync to?
+            .onEach { isConnected ->
+                if (isConnected) {
+                    Log.i(TAG, "Phone connection now active (observed in ViewModel), attempting sync of pending games.")
+                    attemptSyncPendingGames()
+                } else {
+                    Log.i(TAG, "Phone connection lost (observed in ViewModel).")
+                    // Optionally, update UI or behavior if phone disconnects
+                }
+            }
+            .launchIn(viewModelScope) // Launch the collection in the ViewModel's scope
+    }
 
     // --- Service Connection ---
     private var isCurrentGameSessionActive = false
@@ -103,7 +136,7 @@ class WearGameViewModel @Inject constructor(
             gameTimerService?.timerStateFlow // THIS IS THE CORRECT FLOW TO OBSERVE
                 ?.onEach { serviceState -> // serviceState is the TimerState object emitted by the service
                     // --- Logic to START vibration ---
-                    // FIXME: timer stops vibrate when I look and look away again (only on watch that is not plugged in)
+                    // FIXME:  notification not allowed upon install, why?
                     if (!activeGame.value.inAddedTime && serviceState.inAddedTime) {
                         // inAddedTime just became true
                         Log.i(TAG, "Added time is now ACTIVE via TimerService. Starting reminder vibration.")
@@ -280,7 +313,7 @@ class WearGameViewModel @Inject constructor(
                 )
                 // Return a "clean" version of the first scheduled game, ready to start
                 firstScheduledGame.copy(
-                    currentPhase = GamePhase.PRE_GAME,
+                    currentPhase = GamePhase.NOT_STARTED,
                     homeScore = 0, awayScore = 0, events = emptyList()
                 )
             } else {
@@ -321,7 +354,7 @@ class WearGameViewModel @Inject constructor(
         Log.d(TAG, "Selecting game from list to start: ${gameFromList.id}, current status: ${gameFromList.status}")
         // Reset live state fields for the selected game, but keep its schedule info
         val cleanGameForStart = gameFromList.copy(
-            currentPhase = GamePhase.PRE_GAME,
+            currentPhase = GamePhase.NOT_STARTED,
             homeScore = 0,
             awayScore = 0,
             displayedTimeMillis = gameFromList.regulationPeriodDurationMillis(GamePhase.FIRST_HALF),
@@ -342,50 +375,93 @@ class WearGameViewModel @Inject constructor(
     fun finishAndSyncActiveGame(onSyncComplete: () -> Unit) {
         Log.d(TAG, "finishAndSyncActiveGame called for game: ${_activeGame.value.id}")
         cancelTimer()
-
-        val finalGameData = _activeGame.value.copy(
+        var finalGameData = _activeGame.value.copy(
             currentPhase = GamePhase.GAME_ENDED,
             status = GameStatus.COMPLETED,
             isTimerRunning = false,
             lastUpdated = System.currentTimeMillis()
         )
-        _activeGame.value = finalGameData // Update local state immediately
+        // Preserve existing needsSyncWithPhone status initially, might be updated by sync attempt
+        finalGameData = finalGameData.copy(needsSyncWithPhone = _activeGame.value.needsSyncWithPhone)
+        _activeGame.update { finalGameData }
 
         Log.d(TAG, "Game ${finalGameData.id} marked as COMPLETED. Syncing to phone with ${finalGameData.events.size} events.")
 
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val jsonString = AppJsonConfiguration.encodeToString(finalGameData)
+            var syncAttemptedAndSuccessful = false
+            var needsSyncForLocalSave = finalGameData.needsSyncWithPhone // Start with current state
+
+            if (gameStorage.isPhoneConnected.value) {
+                Log.i(TAG, "Phone connected. Attempting to sync final game state for ${finalGameData.id} to phone.")
                 val path = "${WearSyncConstants.GAME_UPDATE_FROM_WATCH_PATH_PREFIX}/${finalGameData.id}"
-                val putDataMapReq = PutDataMapRequest.create(path)
-                putDataMapReq.dataMap.putString(WearSyncConstants.GAME_UPDATE_PAYLOAD_KEY, jsonString)
-                putDataMapReq.dataMap.putLong("timestamp", System.currentTimeMillis()) // For uniqueness
-                putDataMapReq.setUrgent()
+                // sendGameDataToPhone will send it with needsSyncWithPhone = false
+                syncAttemptedAndSuccessful = sendGameDataToPhone(finalGameData, path)
+                needsSyncForLocalSave = !syncAttemptedAndSuccessful // If sync failed, it needs sync
+            } else {
+                Log.w(TAG, "Phone not connected. Final game state for ${finalGameData.id} will be saved locally and marked for later sync.")
+                needsSyncForLocalSave = true // Mark for later sync
+            }
 
-                dataClient.putDataItem(putDataMapReq.asPutDataRequest()).await()
-                Log.i(TAG, "Successfully sent final game state for ${finalGameData.id} to phone.")
+            // Update finalGameData with the correct needsSyncWithPhone status for local save
+            val gameToSaveLocally = finalGameData.copy(needsSyncWithPhone = needsSyncForLocalSave)
+            Log.i(TAG, "Attempting to save final game state locally for ${gameToSaveLocally.id} (needsSync=${gameToSaveLocally.needsSyncWithPhone})")
 
-                // After successful sync, update this game in the local GameStorageWear as well
-                // This ensures the main scheduledGamesList reflects the completion.
-                // Note: The phone should be the ultimate source of truth for the scheduled list,
-                // so this local update is more for immediate UI consistency on the watch
-                // if the data layer update from phone back to watch is delayed.
-                val currentGames = gameStorage.gamesListFlow.value.toMutableList()
-                val index = currentGames.indexOfFirst { it.id == finalGameData.id }
-                if (index != -1) {
-                    currentGames[index] = finalGameData
-                    // GameStorageWear doesn't have a direct "updateSingleGame"
-                    // It expects the full list from phone.
-                    // So, we'll rely on the phone to send the updated list back.
-                    // For now, the activeGame is completed, and allGamesMap will reflect this.
-                }
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending final game state to phone for ${finalGameData.id}.", e)
+            try {
+                gameStorage.locallyUpdateGameDetails(gameToSaveLocally)
+                Log.i(TAG, "Successfully saved final game state locally for ${gameToSaveLocally.id}.")
+            } catch (localSaveError: Exception) {
+                Log.e(TAG, "CRITICAL: Failed to save game locally for ${gameToSaveLocally.id}", localSaveError)
+                // Even if local save fails, the intended sync status (needsSyncForLocalSave) is what we have.
+                // The actual game object _activeGame still holds finalGameData which might have needsSync=false if sync was attempted.
+                // This state is a bit tricky. The source of truth for needsSync should ideally be after both attempt and save.
             } finally {
+                // Update the active game flow to reflect the state that was attempted to be saved.
+                _activeGame.update { gameToSaveLocally } // Reflect the state that was attempted to be saved
+
                 launch(Dispatchers.Main) {
                     resetActiveGameToDefaultOrNextScheduled()
                     onSyncComplete()
+                }
+            }
+        }
+    }
+
+    /**
+     * Attempts to sync games that are marked as COMPLETED and needsSyncWithPhone = true.
+     */
+    fun attemptSyncPendingGames() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val allGames = gameStorage.getGames()
+            val gamesNeedingSync = allGames.filter { it.status == GameStatus.COMPLETED && it.needsSyncWithPhone }
+
+            if (gamesNeedingSync.isEmpty()) {
+                Log.d(TAG, "No pending games to sync.")
+                return@launch
+            }
+
+            Log.i(TAG, "Found ${gamesNeedingSync.size} game(s) needing sync. Attempting now.")
+
+            if (!gameStorage.isPhoneConnected.value) {
+                Log.w(TAG, "attemptSyncPendingGames: Phone not reachable. Skipping sync attempt for pending games.")
+                return@launch
+            }
+
+            gamesNeedingSync.forEach { gameToSync ->
+                Log.i(TAG, "Attempting to sync pending game: ${gameToSync.id}")
+                val path = "${WearSyncConstants.GAME_UPDATE_FROM_WATCH_PATH_PREFIX}/${gameToSync.id}"
+                // sendGameDataToPhone will send with needsSyncWithPhone = false
+                val success = sendGameDataToPhone(gameToSync, path)
+                if (success) {
+                    Log.i(TAG, "Successfully synced pending game: ${gameToSync.id}")
+                    // Update local game to mark it as synced
+                    try {
+                        gameStorage.locallyUpdateGameDetails(gameToSync.copy(needsSyncWithPhone = false))
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error updating locally synced pending game ${gameToSync.id}", e)
+                    }
+                } else {
+                    Log.e(TAG, "Error syncing pending game ${gameToSync.id}. It remains marked for sync.")
+                    // No need to update locally, as needsSyncWithPhone is already true
                 }
             }
         }
@@ -402,7 +478,7 @@ class WearGameViewModel @Inject constructor(
             Log.d(TAG, "Resetting active game to next scheduled: ${nextScheduledGame.id}")
             // Prepare it similarly to loadInitialActiveGame or selectGameToStart
             val cleanNextGame = nextScheduledGame.copy(
-                currentPhase = GamePhase.PRE_GAME, homeScore = 0, awayScore = 0, events = emptyList(),
+                currentPhase = GamePhase.NOT_STARTED, homeScore = 0, awayScore = 0, events = emptyList(),
                 status = GameStatus.SCHEDULED, isTimerRunning = false, actualTimeElapsedInPeriodMillis = 0L,
                 displayedTimeMillis = nextScheduledGame.regulationPeriodDurationMillis(GamePhase.FIRST_HALF)
             )
@@ -418,82 +494,51 @@ class WearGameViewModel @Inject constructor(
         Log.d(TAG, "Active game has been reset. New active game ID: ${_activeGame.value.id}")
     }
 
+    private suspend fun sendGameDataToPhone(gameData: Game, path: String, markAsSyncedOnSend: Boolean = true): Boolean {
+        return try {
+            // If markAsSyncedOnSend is true, we assume this send is the definitive one for this version
+            // and the data being sent should reflect that it no longer "needs sync" from this attempt.
+            val dataToSend = if (markAsSyncedOnSend) gameData.copy(needsSyncWithPhone = false) else gameData
+            val jsonString = AppJsonConfiguration.encodeToString(dataToSend)
+            val putDataMapReq = PutDataMapRequest.create(path)
+            putDataMapReq.dataMap.putString(WearSyncConstants.GAME_UPDATE_PAYLOAD_KEY, jsonString)
+            putDataMapReq.dataMap.putLong("timestamp", System.currentTimeMillis())
+            putDataMapReq.setUrgent()
 
-    /**
-     * Called when the user explicitly wants to check/refresh connection status.
-     * This might try to influence GameStorageWear's status or trigger a message to the phone.
-     */
-    fun performConnectivityCheckAndRefresh() {
-        viewModelScope.launch {
-            Log.d(TAG, "PerformConnectivityCheckAndRefresh called. Current DataFetchStatus: ${dataFetchStatus.value}")
-            try {
-                val capabilityClient = Wearable.getCapabilityClient(application)
-                val nodes = capabilityClient.getCapability(WearSyncConstants.PHONE_APP_CAPABILITY, CapabilityClient.FILTER_REACHABLE).await().nodes
-                val isPhoneConnected = nodes.any { it.isNearby }
+            dataClient.putDataItem(putDataMapReq.asPutDataRequest()).await()
+            Log.i(TAG, "Successfully sent game data for ID ${gameData.id} to path: $path")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send game data for ID ${gameData.id} to path $path.", e)
+            false
+        }
+    }
 
-                if (!isPhoneConnected) {
-                    Log.w(TAG, "Connectivity Check: Phone not found or capability not advertised.")
-                    // Only update if not already a more specific error and list is empty
-                    if (gamesList.value.isEmpty() &&
-                        dataFetchStatus.value != DataFetchStatus.ERROR_PARSING &&
-                        dataFetchStatus.value != DataFetchStatus.ERROR_UNKNOWN) {
-                        gameStorage.updateDataFetchStatus(DataFetchStatus.ERROR_PHONE_UNREACHABLE)
-                    }
+    private fun syncNewAdHocGameToPhone(gameToSync: Game) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (gameStorage.isPhoneConnected.value) {
+                Log.i(TAG, "Phone connected. Attempting to sync new ad-hoc game ${gameToSync.id} to phone.")
+                val path = "${WearSyncConstants.GAME_UPDATE_FROM_WATCH_PATH_PREFIX}/${gameToSync.id}"
+                // For a new ad-hoc game, we send it as is. If successful, its needsSyncWithPhone might already be false or be updated by phone ack.
+                // The `markAsSyncedOnSend = true` in sendGameDataToPhone will ensure it's sent with needsSyncWithPhone = false.
+                val success = sendGameDataToPhone(gameToSync, path)
+                if (success) {
+                    Log.i(TAG, "Successfully synced new ad-hoc game ${gameToSync.id} to phone.")
+                    // Optionally, update the local game state if the send itself implies it's synced
+                    // gameStorage.locallyUpdateGameDetails(gameToSync.copy(needsSyncWithPhone = false))
+                    // This depends on whether `sendGameDataToPhone` sending with `needsSyncWithPhone = false` is enough,
+                    // or if you need an explicit local save after the fact.
+                    // For now, let's assume sendGameDataToPhone handles the state sent, and local save is separate.
                 } else {
-                    Log.i(TAG, "Connectivity Check: Phone found with capability.")
-                    // If phone is connected and status was error, set to INITIAL to allow data sync to occur
-                    // (WearDataListenerService would see new data or onCapabilityChanged might have already set it)
-                    if (dataFetchStatus.value == DataFetchStatus.ERROR_PHONE_UNREACHABLE || dataFetchStatus.value == DataFetchStatus.ERROR_PARSING) {
-                        gameStorage.updateDataFetchStatus(DataFetchStatus.INITIAL)
-                    }
-                    // If successfully connected and status is INITIAL or we have no games,
-                    // we might want to proactively request data from the phone.
-                    // This requires a message to the phone app.
-                    if (dataFetchStatus.value == DataFetchStatus.INITIAL || (dataFetchStatus.value != DataFetchStatus.FETCHING && gamesList.value.isEmpty())) {
-                        Log.i(TAG, "Requesting data refresh from phone...")
-                        gameStorage.updateDataFetchStatus(DataFetchStatus.FETCHING)
-                        sendMessageToPhone(WearSyncConstants.GAMES_LIST_PATH, "refresh_pls".toByteArray())
-                    }
+                    Log.w(TAG, "Failed to sync new ad-hoc game ${gameToSync.id}. It will be marked for later sync if not already.")
+                    // Ensure it's marked for sync locally if the send failed
+                    // This might already be handled by how newDefaultGame is created, or needs explicit update.
+                    // gameStorage.locallyUpdateGameDetails(gameToSync.copy(needsSyncWithPhone = true))
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error during connectivity check or sending refresh message", e)
-                if (gamesList.value.isEmpty()) { // Only if no data, assume unreachable
-                    gameStorage.updateDataFetchStatus(DataFetchStatus.ERROR_PHONE_UNREACHABLE)
-                }
-            }
-        }
-    }
-
-    private fun sendMessageToPhone(path: String, data: ByteArray) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val nodeClient = Wearable.getNodeClient(application)
-                val nodes = nodeClient.connectedNodes.await()
-                nodes.firstOrNull { it.isNearby }?.id?.let { nodeId -> // Send to the first nearby node
-                    Wearable.getMessageClient(application).sendMessage(nodeId, path, data).await()
-                    Log.i(TAG, "Message '$path' sent to node $nodeId")
-                } ?: Log.w(TAG, "No nearby node found to send message '$path'")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending message '$path' to phone", e)
-            }
-        }
-    }
-
-
-    private fun syncNewAdHocGameToPhone(newGame: Game) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val gameToSync = newGame.copy(status = GameStatus.IN_PROGRESS) // Ensure status is correctly set
-                val jsonString = AppJsonConfiguration.encodeToString(gameToSync)
-                val putDataMapReq = PutDataMapRequest.create(WearSyncConstants.NEW_AD_HOC_GAME_PATH)
-                putDataMapReq.dataMap.putString(WearSyncConstants.NEW_GAME_PAYLOAD_KEY, jsonString)
-                putDataMapReq.dataMap.putLong("timestamp", System.currentTimeMillis())
-                putDataMapReq.setUrgent()
-
-                dataClient.putDataItem(putDataMapReq.asPutDataRequest()).await()
-                Log.i(TAG, "Successfully sent new ad-hoc game ${newGame.id} to phone.")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending new ad-hoc game to phone.", e)
+            } else {
+                Log.w(TAG, "Phone not connected. New ad-hoc game ${gameToSync.id} will be saved locally and marked for later sync.")
+                // Ensure it's marked for sync locally
+                // gameStorage.locallyUpdateGameDetails(gameToSync.copy(needsSyncWithPhone = true))
             }
         }
     }
@@ -533,7 +578,7 @@ class WearGameViewModel @Inject constructor(
             // Check if the current phase is actually supposed to have a timer.
             // PRE_GAME and KICK_OFF_SELECTION phases typically don't have a timer started by Play/Pause.
             // The timer for FIRST_HALF (etc.) starts after kick-off is confirmed.
-            if (currentPhase == GamePhase.PRE_GAME) {
+            if (!currentPhase.hasTimer()) {
                 Log.w(TAG, "toggleTimer: Timer cannot be started directly from ${currentPhase.readable()} with Play/Pause. Requires phase progression first.")
                 // Optionally, show a message to the user: "Select kick-off first" or "Start period first"
                 return
@@ -556,7 +601,7 @@ class WearGameViewModel @Inject constructor(
         Log.d(TAG, "cancelTimerAndResetServiceState called in ViewModel.")
         // Command the service to stop and reset its timer and state.
         gameTimerService?.commandStopGameSessionAndCleanup() // Or a similar method in your service
-
+        vibrator?.cancel()
         // Update the ViewModel's state to reflect that the timer is no longer running.
         // The service's TimerStateFlow will also eventually emit a non-running state,
         // but updating the ViewModel's activeGame preemptively can make UI updates snappier.
@@ -592,6 +637,7 @@ class WearGameViewModel @Inject constructor(
 
         val nextPhase: GamePhase
         when (gameAtPeriodEnd.currentPhase) {
+            GamePhase.NOT_STARTED -> nextPhase = GamePhase.PRE_GAME
             GamePhase.PRE_GAME -> nextPhase = GamePhase.KICK_OFF_SELECTION_FIRST_HALF
             GamePhase.KICK_OFF_SELECTION_FIRST_HALF -> nextPhase = GamePhase.FIRST_HALF
             GamePhase.FIRST_HALF -> nextPhase = GamePhase.HALF_TIME
@@ -638,26 +684,19 @@ class WearGameViewModel @Inject constructor(
         Log.i(TAG, "Period ${gameAtPeriodEnd.currentPhase} ended. New phase: ${updatedGame.currentPhase}. Display for new: ${updatedGame.displayedTimeMillis.formatTime()}")
         saveActiveGameState()
 
-        // If the new phase is a break and should auto-start (e.g., HALF_TIME):
-        if (updatedGame.currentPhase.isBreak() /* && shouldAutostartBreakTimer(updatedGame.currentPhase) */) {
-             toggleTimer() // Will pick up the new break phase duration
-        }
-
         // --- Command the GameTimerService ---
         // In proceedToNextPhaseManager
-        val shouldAutoStartTimerForNewPhase = updatedGame.currentPhase.shouldTimerAutostart() // Always auto-start certain phases
-
         if (updatedGame.currentPhase == GamePhase.GAME_ENDED) {
             gameTimerService?.commandStopGameSessionAndCleanup() // Or false if you want a "Game Ended" notification
         } else {
             gameTimerService?.configureTimerForGame(
                 game = updatedGame, // Pass the fully updated game state
-                startImmediately = shouldAutoStartTimerForNewPhase
+                startImmediately = updatedGame.currentPhase.isBreak() // Start countdown for breaks immediately upon finishing the previous phase
             )
-            if (shouldAutoStartTimerForNewPhase) {
-                // Update the isTimerRunning in _activeGame if the service is told to start immediately
-                _activeGame.update { it.copy(isTimerRunning = true) }
-            }
+//            if (shouldAutoStartTimerForNewPhase) {
+//                // Update the isTimerRunning in _activeGame if the service is told to start immediately
+//                _activeGame.update { it.copy(isTimerRunning = true) }
+//            }
         }
     }
 
@@ -819,83 +858,6 @@ class WearGameViewModel @Inject constructor(
         Log.d("$TAG:updateCurrentPeriodKickOffTeam", "Updated kick-off team for phase $phase to ${_activeGame.value.kickOffTeam}")
     }
 
-   /* fun endCurrentPhase() {
-        val currentGame = _activeGame.value
-        pauseTimer() // Pause timer if running
-        val earlyEndEvent = GenericLogEvent(
-            message = "${currentGame.currentPhase.readable()} ended.",
-            gameTimeMillis = currentGame.actualTimeElapsedInPeriodMillis.toDouble()
-        )
-        Log.d(TAG, "${currentGame.currentPhase.readable()} ended.")
-        _activeGame.update { it.copy(events = it.events + earlyEndEvent) }
-
-        val currentPhase = _activeGame.value.currentPhase
-
-        when (currentPhase) {
-            GamePhase.PRE_GAME ->  changePhase(GamePhase.KICK_OFF_SELECTION_FIRST_HALF)
-            GamePhase.KICK_OFF_SELECTION_FIRST_HALF ->  changePhase(GamePhase.FIRST_HALF)
-            GamePhase.FIRST_HALF -> changePhase(GamePhase.HALF_TIME)
-            GamePhase.HALF_TIME -> changePhase(GamePhase.SECOND_HALF)
-            GamePhase.SECOND_HALF ->
-                if (_activeGame.value.hasExtraTime)
-                    changePhase(GamePhase.KICK_OFF_SELECTION_EXTRA_TIME)
-                else
-                    changePhase(GamePhase.GAME_ENDED)
-            GamePhase.KICK_OFF_SELECTION_EXTRA_TIME -> changePhase(GamePhase.EXTRA_TIME_FIRST_HALF)
-            GamePhase.EXTRA_TIME_FIRST_HALF -> changePhase(GamePhase.EXTRA_TIME_HALF_TIME)
-            GamePhase.EXTRA_TIME_HALF_TIME -> changePhase(GamePhase.EXTRA_TIME_SECOND_HALF)
-            GamePhase.EXTRA_TIME_SECOND_HALF ->
-                // If score is tied up after extra time move to penalties
-                if (_activeGame.value.homeScore == _activeGame.value.awayScore) {
-                    _activeGame.update { it.copy(hasPenalties = true) }
-                    changePhase(GamePhase.KICK_OFF_SELECTION_PENALTIES)
-                }
-                else
-                    changePhase(GamePhase.GAME_ENDED)
-            GamePhase.KICK_OFF_SELECTION_PENALTIES -> changePhase(GamePhase.PENALTIES)
-            GamePhase.PENALTIES -> changePhase(GamePhase.GAME_ENDED)
-
-            else -> Log.w(TAG, "Timer finished in unhandled phase: $currentPhase")
-        }
-
-        // Keep the timer running during half-times
-        if (_activeGame.value.currentPhase.isBreak())
-            startTimer()
-        saveActiveGameState()
-    }
-
-    private fun changePhase(newPhase: GamePhase) {
-        pauseTimer()
-        val currentGame = _activeGame.value
-        val previousPhase = currentGame.currentPhase
-
-        val gameTimeForChangeEvent = if (previousPhase.hasDuration() && currentGame.displayedTimeMillis == 0L) {
-            getDurationMillisForPhase(previousPhase, currentGame)
-        } else {
-            currentGame.actualTimeElapsedInPeriodMillis
-        }
-        val phaseChangeEvent = PhaseChangedEvent(newPhase = newPhase, gameTimeMillis = gameTimeForChangeEvent.toDouble())
-
-        _activeGame.update {
-            it.copy(
-                currentPhase = newPhase,
-                displayedTimeMillis = getDurationMillisForPhase(newPhase, it),
-                actualTimeElapsedInPeriodMillis = 0L,
-                isTimerRunning = false,
-                events = it.events + phaseChangeEvent,
-                lastUpdated = System.currentTimeMillis()
-            )
-        }
-        // Update kick-off team for the new period
-        updateCurrentPeriodKickOffTeam(newPhase, _activeGame.value.kickOffTeam) // Pass the original kickOffTeam
-
-        if (newPhase == GamePhase.HALF_TIME || newPhase == GamePhase.EXTRA_TIME_HALF_TIME) { // Auto-start halftime timers
-            startTimer()
-        }
-        saveActiveGameState() // Save state after all updates for the phase change
-    }
-    */
-
     fun kickOff() {
         val currentGame = _activeGame.value
         val teamName = if (currentGame.kickOffTeam == Team.HOME) currentGame.homeTeamName else currentGame.awayTeamName
@@ -904,6 +866,22 @@ class WearGameViewModel @Inject constructor(
 
         _activeGame.update { it.copy(events = it.events + kickOffEvent) } // Log before changing phase
         toggleTimer()
+    }
+
+    fun resetGame() {
+        Log.d(TAG, "Reset game called for game: ${_activeGame.value.id}")
+        cancelTimer()
+        val finalGameData = _activeGame.value.copy(
+            currentPhase = GamePhase.NOT_STARTED,
+            status = GameStatus.SCHEDULED,
+            isTimerRunning = false,
+            lastUpdated = System.currentTimeMillis(),
+            homeScore = 0, awayScore = 0, events = emptyList(),
+            penaltiesTakenHome = 0, penaltiesTakenAway = 0,
+            actualTimeElapsedInPeriodMillis = 0
+
+        )
+        _activeGame.value = finalGameData // Update local state immediately
     }
 
     fun resetTimer() {
@@ -1043,7 +1021,7 @@ class WearGameViewModel @Inject constructor(
 
 }
 
-// Extension function for GamePhase if not already present in common
+// Extension function for GamePhase
 fun GamePhase.usesHalfDuration(): Boolean {
     return this == GamePhase.FIRST_HALF || this == GamePhase.SECOND_HALF ||
             this == GamePhase.EXTRA_TIME_FIRST_HALF || this == GamePhase.EXTRA_TIME_SECOND_HALF ||

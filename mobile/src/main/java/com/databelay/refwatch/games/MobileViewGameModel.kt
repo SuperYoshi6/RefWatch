@@ -19,6 +19,8 @@ import com.google.android.gms.wearable.Wearable
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -38,7 +40,19 @@ class MobileGameViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "MobileGameViewModel"
+        private const val WATCH_GAME_PAYLOAD_KEY = WearSyncConstants.GAME_UPDATE_PAYLOAD_KEY
+        private const val SYNC_TO_WATCH_DELAY_MS = 3000L // 3 seconds, adjust as needed
     }
+
+    // Job to manage the delayed task of syncing to the watch
+    private var syncToWatchJob: Job? = null
+
+    // You'll need a way to know if the watch is connected.
+    // This could be a Flow from a service that monitors wearable capabilities.
+    // For this example, let's assume you have a way to call a function when connection status changes.
+    // Replace this with your actual watch connectivity detection mechanism.
+    private val _watchConnectedState = MutableStateFlow(true) // Example state
+    val watchConnectedState: StateFlow<Boolean> = _watchConnectedState.asStateFlow()
 
     private val dataClient by lazy { Wearable.getDataClient(application) }
 
@@ -59,16 +73,7 @@ class MobileGameViewModel @Inject constructor(
         }
         .catch { e -> Log.e(TAG, "Error in gamesList flow: ${e.message}", e); emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-/*
-    // --- THIS IS THE CRUCIAL CHANGE ---
-    // 1. We introduce a private, mutable StateFlow to act as the ViewModel's
-    //    internal source of truth for the UI.
-    private val _gamesList = MutableStateFlow<List<Game>>(emptyList())
 
-    // 2. The public gamesList simply exposes the private one as a read-only StateFlow.
-    val gamesList: StateFlow<List<Game>> = _gamesList.asStateFlow()
-    // --- END OF CHANGE ---
-*/
 
     // Listener for data changes from the watch
     private val dataChangedListener = DataClient.OnDataChangedListener { dataEvents: DataEventBuffer ->
@@ -78,44 +83,19 @@ class MobileGameViewModel @Inject constructor(
                 val dataItem = event.dataItem
                 val path = dataItem.uri.path
                 Log.d(TAG, "DataItem changed: $path")
-                if (path == WearSyncConstants.NEW_AD_HOC_GAME_PATH) {
-                    try {
-                        val dataMap = DataMapItem.fromDataItem(dataItem).dataMap
-                        val newGameJson = dataMap.getString(WearSyncConstants.NEW_GAME_PAYLOAD_KEY)
-                        if (newGameJson != null) {
-                            val newGame = AppJsonConfiguration.decodeFromString<Game>(newGameJson)
-                            Log.i(TAG, "Received new ad-hoc game ${newGame.id} from watch. Saving to Firebase.")
-                            // Call the existing method to save it to Firestore
-                            addOrUpdateGame(newGame)
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error processing new ad-hoc game from watch.", e)
-                    }
-                }
-                else if (path != null && path.startsWith(WearSyncConstants.GAME_UPDATE_FROM_WATCH_PATH_PREFIX)) {
+                if (path != null && path.startsWith(WearSyncConstants.GAME_UPDATE_FROM_WATCH_PATH_PREFIX)) {
                     val gameId = path.substringAfterLast('/') // Extracts gameId from path
-                    try {
-                        val dataMap = DataMapItem.fromDataItem(dataItem).dataMap
-                        val updatedGameStateJson = dataMap.getString(WearSyncConstants.GAME_UPDATE_PAYLOAD_KEY)
-
-                        if (updatedGameStateJson != null && gameId.isNotBlank()) {
-                            Log.i(TAG, "Received game update from watch for gameId: $gameId. JSON: $updatedGameStateJson")
-                            processGameStateUpdateFromWatch(gameId, updatedGameStateJson)
-                        } else {
-                            Log.w(TAG, "Received game update from watch with null JSON or blank gameId. Path: $path")
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error processing game update DataItem from watch for path $path", e)
+                    if (gameId.isNotBlank()) {
+                        processGameDataFromWatch(DataMapItem.fromDataItem(dataItem), gameId)
+                    } else {
+                        Log.w(TAG, "Received game update from watch with blank gameId in path: $path")
                     }
                 } else if (path == WearSyncConstants.GAMES_LIST_PATH) {
-                    // This ViewModel is the source of GAMES_LIST_PATH, so it typically wouldn't process changes
-                    // to it from other sources unless you have a multi-master sync (which is complex).
-                    // For now, we assume phone is master for the full list.
                     Log.d(TAG, "Ignoring change to GAMES_LIST_PATH as this VM is the sender.")
                 }
             } else if (event.type == DataEvent.TYPE_DELETED) {
                 Log.d(TAG, "DataItem deleted: ${event.dataItem.uri.path}")
-                // Handle if necessary, e.g., if watch can delete a game state item
+                // Handle if necessary
             }
         }
         dataEvents.release() // IMPORTANT: Release the buffer!
@@ -123,6 +103,8 @@ class MobileGameViewModel @Inject constructor(
 
     init {
         Log.d(TAG, "MobileGameViewModel initializing...")
+        dataClient.addListener(dataChangedListener)
+        Log.d("MobileVM", "DataChangedListener added for watch updates.")
 
         viewModelScope.launch {
             // Collect the injected userIdFlow to update the internal _currentUserId
@@ -135,36 +117,103 @@ class MobileGameViewModel @Inject constructor(
             }
         }
 
+        // Collect gamesList to sync to watch (this part syncs whenever gamesList changes AFTER the initial delay)
         viewModelScope.launch {
-            gamesList // This StateFlow emits whenever the list of games changes for the current user
-                // .drop(1) // Optional: If you don't want to sync the initial value immediately on collection start
-                // (e.g., if it's an empty list before the first fetch and you want to avoid an initial empty sync)
-                // However, syncing the initial state (even if empty) is often desirable.
-                .collectLatest { currentGamesList -> // Use collectLatest if syncGamesToWatch is suspending and you want to cancel previous syncs if a new list comes quickly
-                    // .collect { currentGamesList -> // Use collect if syncGamesToWatch is fast or you want all syncs to complete
+            gamesList
+                .collectLatest { currentGamesList ->
                     val userId = _currentUserId.value
-                    if (userId != null) {
+                    if (userId != null && _watchConnectedState.value) { // Only sync if watch is considered connected
                         Log.d(TAG, "Games list changed for user $userId (${currentGamesList.size} games). Syncing to watch.")
-                        syncGamesToWatch(currentGamesList)
-                    } else if (currentGamesList.isEmpty()) {
-                        // This handles the case where the user logs out.
-                        // gamesList will emit emptyList() because _currentUserId became null.
+                        syncGamesToWatchInternal(currentGamesList) // Changed to internal to avoid immediate call
+                    } else if (userId == null && currentGamesList.isEmpty() && _watchConnectedState.value) {
                         Log.d(TAG, "User logged out, games list is empty. Syncing empty list to clear watch.")
-                        syncGamesToWatch(emptyList()) // Explicitly sync empty list
-                    } else {
-                        // This case should ideally not happen if gamesList correctly emits emptyList() when userId is null.
-                        // But as a safeguard:
-                        Log.w(TAG, "User is null, but gamesList is not empty (${currentGamesList.size}). Syncing empty list to be safe.")
-                        syncGamesToWatch(emptyList())
+                        syncGamesToWatchInternal(emptyList())
+                    } else if (!_watchConnectedState.value) {
+                        Log.d(TAG, "Games list changed, but watch is not connected. Sync deferred.")
                     }
-                    // No 'else' needed if userId is null and currentGamesList is empty, as that's covered.
                 }
         }
 
-        dataClient.addListener(dataChangedListener)
-        Log.d("MobileVM", "DataChangedListener added for watch updates.")
+        // Example: Reacting to watch connection changes
+        // Replace this with your actual connection status observation logic
+        viewModelScope.launch {
+            watchConnectedState.collectLatest { isConnected ->
+                if (isConnected) {
+                    Log.i(TAG, "Watch connection established. Scheduling full sync TO watch after a delay.")
+                    scheduleFullSyncToWatchWithDelay()
+                } else {
+                    Log.i(TAG, "Watch disconnected. Cancelling any pending sync TO watch.")
+                    syncToWatchJob?.cancel()
+                }
+            }
+        }
     }
 
+    // Call this method from your service or mechanism that detects watch connection status
+    fun onWatchConnectionChanged(isConnected: Boolean) {
+        _watchConnectedState.value = isConnected
+    }
+
+    private fun scheduleFullSyncToWatchWithDelay() {
+        syncToWatchJob?.cancel() // Cancel any existing delayed sync
+        syncToWatchJob = viewModelScope.launch(Dispatchers.IO) {
+            Log.d(TAG, "Waiting ${SYNC_TO_WATCH_DELAY_MS}ms before syncing all games to watch...")
+            delay(SYNC_TO_WATCH_DELAY_MS)
+
+            // Check connection again after delay, in case it disconnected during the delay
+            if (!_watchConnectedState.value) {
+                Log.i(TAG, "Watch disconnected during delay. Aborting sync TO watch.")
+                return@launch
+            }
+
+            val userId = _currentUserId.value
+            if (userId != null) {
+                // Fetch the most current list of games to send.
+                // gamesList.value might be stale if it hasn't recomposed/recollected yet.
+                // It's safer to query the repository or use a first() on the flow if appropriate.
+                // For simplicity, using gamesList.value which is updated by its own collector.
+                val gamesToSend = gamesList.value
+                Log.i(TAG, "Delay finished. Syncing ${gamesToSend.size} games to watch for user $userId.")
+                syncGamesToWatchInternal(gamesToSend)
+            } else {
+                Log.i(TAG, "Delay finished, but user is null. Syncing empty list to watch.")
+                syncGamesToWatchInternal(emptyList())
+            }
+        }
+    }
+    private fun processGameDataFromWatch(dataMapItem: DataMapItem, pathGameId: String?) {
+        val userId = _currentUserId.value
+        if (userId == null) {
+            Log.w(TAG, "processGameDataFromWatch: Cannot process. _currentUserId is null. Path: ${dataMapItem.uri.path}")
+            return
+        }
+
+        try {
+            val dataMap = dataMapItem.dataMap
+            // Use the standardized key.
+            var gameJson = dataMap.getString(WearSyncConstants.GAME_UPDATE_PAYLOAD_KEY)
+            if (gameJson != null) {
+                val gameFromWatch = AppJsonConfiguration.decodeFromString<Game>(gameJson)
+                Log.i(TAG, "processGameDataFromWatch: Received game ${gameFromWatch.id} from watch (pathGameId: $pathGameId). User: $userId. Saving to Firebase.")
+                Log.v(TAG, "processGameDataFromWatch: Received JSON: $gameJson")
+                Log.v(TAG, "processGameDataFromWatch: Deserialized events: ${gameFromWatch.events.joinToString { it.displayString }}")
+
+                if (pathGameId != null && gameFromWatch.id != pathGameId) {
+                    Log.e(
+                        TAG,
+                        "processGameDataFromWatch: ID MISMATCH! Path gameId '$pathGameId' vs payload gameId '${gameFromWatch.id}'. Using payload ID for saving."
+                    )
+                }
+                // The game object (gameFromWatch) is the source of truth for content.
+                // The addOrUpdateGame function should handle if it's new or an update.
+                addOrUpdateGame(gameFromWatch) // This function now handles both new and updates
+            } else {
+                Log.w(TAG, "processGameDataFromWatch: Game JSON payload was null in DataMap for path ${dataMapItem.uri.path} using key ${WearSyncConstants.GAME_UPDATE_PAYLOAD_KEY}.")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "processGameDataFromWatch: Error processing DataItem from watch. Path: ${dataMapItem.uri.path}", e)
+        }
+    }
 
     fun deleteGame(games: List<Game>, game: Game) {
         val userId = _currentUserId.value // Use internal state
@@ -179,7 +228,7 @@ class MobileGameViewModel @Inject constructor(
         }
     }
 
-    private fun syncGamesToWatch(games: List<Game>) {
+    private fun syncGamesToWatchInternal(games: List<Game>) {
         val userIdForSync = _currentUserId.value // Use the ID for whom these games are relevant
 
         if (userIdForSync == null && games.isNotEmpty()) {

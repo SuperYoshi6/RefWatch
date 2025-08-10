@@ -1,10 +1,12 @@
 package com.databelay.refwatch.wear.data
 
+import android.content.Intent
 import android.util.Log
 import com.databelay.refwatch.common.AppJsonConfiguration
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.WearSyncConstants
 import com.google.android.gms.wearable.CapabilityInfo
+import com.google.android.gms.wearable.Channel
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
@@ -16,6 +18,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.google.android.gms.wearable.CapabilityClient
+import com.google.android.gms.wearable.Wearable
 
 @AndroidEntryPoint
 class WearDataListenerService : WearableListenerService() {
@@ -73,44 +77,33 @@ class WearDataListenerService : WearableListenerService() {
         dataEvents.release()
     }
 
-    override fun onMessageReceived(messageEvent: MessageEvent) {
-        super.onMessageReceived(messageEvent)
-        Log.d(TAG, "Message received: ${messageEvent.path}")
-        // Handle other messages if necessary, e.g., a specific "request_games_ack"
-        // or a direct "phone_unreachable" message from your phone app if it implements that.
-    }
-
     override fun onCapabilityChanged(capabilityInfo: CapabilityInfo) {
         super.onCapabilityChanged(capabilityInfo)
-        Log.d(TAG, "Capability changed: ${capabilityInfo.name}, Nodes: ${capabilityInfo.nodes.size}")
-        // This is a good place to check for phone connectivity.
-        // Assuming your phone app declares a capability like "refwatch_phone_app_capability"
-        val phoneConnected = capabilityInfo.nodes.any { it.isNearby } // A simple check
+        Log.d(TAG, "onCapabilityChanged received: ${capabilityInfo.name}, Nodes: ${capabilityInfo.nodes.size}")
 
-        // You could directly call gameStorage here, but it's often better
-        // for a ViewModel to observe this or for GameStorageWear to handle NodeClient itself.
-        // For simplicity here if you want the service to directly influence it:
-        if (capabilityInfo.name == WearSyncConstants.PHONE_APP_CAPABILITY) { // Define this constant
-            Log.i(TAG, "Phone capability changed. Connected: $phoneConnected")
-            serviceScope.launch {
-                if (!phoneConnected && gameStorage.gamesListFlow.value.isEmpty()) {
-                    // Only set to unreachable if we have no games and the phone node disappeared
-                    // Avoid overriding PARSING_ERROR or other specific errors with this.
-                    if (gameStorage.dataFetchStatusFlow.value != DataFetchStatus.ERROR_PARSING &&
-                        gameStorage.dataFetchStatusFlow.value != DataFetchStatus.ERROR_UNKNOWN) {
-                        gameStorage.updateDataFetchStatus(DataFetchStatus.ERROR_PHONE_UNREACHABLE)
-                    }
-                } else if (phoneConnected && gameStorage.dataFetchStatusFlow.value == DataFetchStatus.ERROR_PHONE_UNREACHABLE) {
-                    // Phone reconnected, set status to initial to allow a refresh or indicate it can load
-                    gameStorage.updateDataFetchStatus(DataFetchStatus.INITIAL)
-                }
-                // If phone is connected and status was SUCCESS/LOADED_FROM_CACHE, do nothing here.
-                // A new data sync will update status via onDataChanged.
+        // Check if this capability change is for the phone app we care about
+        if (capabilityInfo.name == WearSyncConstants.PHONE_APP_CAPABILITY) {
+            // Check if any of the nodes advertising this capability are "nearby" (connected)
+            val isPhoneConnected = capabilityInfo.nodes.any { it.isNearby }
+
+            Log.i(TAG, "Phone app capability changed. Connected: $isPhoneConnected")
+
+            // Update the connectivity status in GameStorageWear
+            // This operation should be quick. If GameStorageWear does heavy work, consider another scope.
+            // For just updating a StateFlow, serviceScope (Main or IO) is fine.
+            // gameStorage.updatePhoneConnectivityStatus(isPhoneConnected) // Call the method in GameStorageWear
+
+            // More robustly, launch a coroutine for this, especially if GameStorageWear might do I/O
+            serviceScope.launch { // Or a specific IO scope if GameStorageWear's method is suspend and does IO
+                gameStorage.updatePhoneConnectivityStatus(isPhoneConnected)
             }
         }
     }
 
-
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(TAG, "Service created.")
+    }
     override fun onDestroy() {
         super.onDestroy()
         serviceJob.cancel()
