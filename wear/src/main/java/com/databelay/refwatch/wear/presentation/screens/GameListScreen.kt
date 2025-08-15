@@ -113,7 +113,7 @@ fun GameListScreen(
 
     val allGames by viewModel.gamesList.collectAsState()
     val dataFetchStatus by viewModel.dataFetchStatus.collectAsState()
-    val isPhoneConnected by viewModel.isPhoneConnected.collectAsState()
+    val isOnline by viewModel.isOnline.collectAsState()
     val activeGame by viewModel.activeGame.collectAsState()
     var selectedFilterState by remember { mutableStateOf(GameListFilterState.UPCOMING) }
     var appVersionName by remember { mutableStateOf("Loading...") } // State for version name
@@ -196,7 +196,7 @@ fun GameListScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     val emptyMessage =
-                        if (isPhoneConnected) "Phone is connected." else "Phone is not connected."
+                        if (isOnline) "Online." else "Not online."
 //                        when (dataFetchStatus) {
 //                            DataFetchStatus.INITIAL, DataFetchStatus.ERROR_PHONE_UNREACHABLE -> "Can't fetch games.\nPlease connect to RefWatch on the phone."
 //                            DataFetchStatus.FETCHING -> "Loading games..."
@@ -362,7 +362,7 @@ fun GameListScreenPreview_Loading() {
 fun GameListScreenPreview_Error() {
     val mockViewModel = PreviewWearGameViewModel(
         initialGames = emptyList(),
-        initialFetchStatus = DataFetchStatus.ERROR_PHONE_UNREACHABLE
+        initialFetchStatus = DataFetchStatus.INITIAL
     )
     // RefWatchTheme {
     GameListScreen(

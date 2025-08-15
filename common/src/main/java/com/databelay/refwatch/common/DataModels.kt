@@ -156,13 +156,16 @@ fun Color.luminance(): Float {
 
 // From your common module or defined consistently
 object WearSyncConstants {
+    const val PATH_PHONE_USER_ID = "/phone_user_id" // Must match watch
+    const val KEY_USER_ID = "userId"             // Must match watch
+    const val KEY_CUSTOM_AUTH_TOKEN = "customAuthToken" // Must match watch
+    const val PATH_GAMES_LIST = "/games_list_all"
+    const val KEY_GAMES_JSON = "games_json"
+    const val PATH_GAME_UPDATE = "/game_update_from_watch"
+    const val KEY_GAME_UPDATE = "game_update_json"
+    const val KEY_DATA_FETCH_STATUS = "data_fetch_status"
+    const val KEY_GAMES_LIST_CACHE = "games_cache_json"
     const val PHONE_APP_CAPABILITY = "phone_app_capability"
-    const val GAMES_LIST_PATH = "/games_list_all"
-    const val GAME_SETTINGS_KEY = "games_json"
-    const val GAME_UPDATE_FROM_WATCH_PATH_PREFIX = "/game_update_from_watch"
-    const val GAME_UPDATE_PAYLOAD_KEY = "game_update_json"
-    const val NEW_AD_HOC_GAME_PATH = "/new_ad_hoc_game"
-    const val NEW_GAME_PAYLOAD_KEY = "new_game_json"
     const val NEW_ADHOC_GAME_FROM_WATCH_PATH_PREFIX = "/new_adhoc_game_from_watch"
 
 }

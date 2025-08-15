@@ -5,7 +5,6 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.databelay.refwatch.PhonePinger
 import com.databelay.refwatch.common.AppJsonConfiguration
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.WearSyncConstants
@@ -16,6 +15,7 @@ import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
+import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,15 +32,14 @@ import javax.inject.Inject
 @HiltViewModel
 class MobileGameViewModel @Inject constructor(
     // Hilt injects the following:
-    val phonePinger: PhonePinger,
     application: Application,
-    private val gameRepository: GameRepository,
+    private val gameRepository: GameStorageMobile,
     @UserIdFlow private val userIdFlow: Flow<String?>
 ) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "MobileGameViewModel"
-        private const val WATCH_GAME_PAYLOAD_KEY = WearSyncConstants.GAME_UPDATE_PAYLOAD_KEY
+        private const val WATCH_GAME_PAYLOAD_KEY = WearSyncConstants.KEY_GAME_UPDATE
         private const val SYNC_TO_WATCH_DELAY_MS = 3000L // 3 seconds, adjust as needed
     }
 
@@ -58,6 +57,12 @@ class MobileGameViewModel @Inject constructor(
 
     private val _currentUserId = MutableStateFlow<String?>(null) // To store current user ID
 
+    @Inject
+    lateinit var firebaseAuth: FirebaseAuth
+
+    private fun getCurrentUserId(): String? {
+        return firebaseAuth.currentUser?.uid
+    }
     // gamesList now directly uses the injected userIdFlow via flatMapLatest
     // OR it can use the internally collected _currentUserId.
     // Using _currentUserId which is collected from userIdFlow is fine.
@@ -83,14 +88,14 @@ class MobileGameViewModel @Inject constructor(
                 val dataItem = event.dataItem
                 val path = dataItem.uri.path
                 Log.d(TAG, "DataItem changed: $path")
-                if (path != null && path.startsWith(WearSyncConstants.GAME_UPDATE_FROM_WATCH_PATH_PREFIX)) {
+                if (path != null && path.startsWith(WearSyncConstants.PATH_GAME_UPDATE)) {
                     val gameId = path.substringAfterLast('/') // Extracts gameId from path
                     if (gameId.isNotBlank()) {
                         processGameDataFromWatch(DataMapItem.fromDataItem(dataItem), gameId)
                     } else {
                         Log.w(TAG, "Received game update from watch with blank gameId in path: $path")
                     }
-                } else if (path == WearSyncConstants.GAMES_LIST_PATH) {
+                } else if (path == WearSyncConstants.PATH_GAMES_LIST) {
                     Log.d(TAG, "Ignoring change to GAMES_LIST_PATH as this VM is the sender.")
                 }
             } else if (event.type == DataEvent.TYPE_DELETED) {
@@ -191,12 +196,12 @@ class MobileGameViewModel @Inject constructor(
         try {
             val dataMap = dataMapItem.dataMap
             // Use the standardized key.
-            var gameJson = dataMap.getString(WearSyncConstants.GAME_UPDATE_PAYLOAD_KEY)
+            var gameJson = dataMap.getString(WearSyncConstants.KEY_GAME_UPDATE)
             if (gameJson != null) {
                 val gameFromWatch = AppJsonConfiguration.decodeFromString<Game>(gameJson)
                 Log.i(TAG, "processGameDataFromWatch: Received game ${gameFromWatch.id} from watch (pathGameId: $pathGameId). User: $userId. Saving to Firebase.")
-                Log.v(TAG, "processGameDataFromWatch: Received JSON: $gameJson")
-                Log.v(TAG, "processGameDataFromWatch: Deserialized events: ${gameFromWatch.events.joinToString { it.displayString }}")
+//                Log.v(TAG, "processGameDataFromWatch: Received JSON: $gameJson")
+//                Log.v(TAG, "processGameDataFromWatch: Deserialized events: ${gameFromWatch.events.joinToString { it.displayString }}")
 
                 if (pathGameId != null && gameFromWatch.id != pathGameId) {
                     Log.e(
@@ -208,7 +213,7 @@ class MobileGameViewModel @Inject constructor(
                 // The addOrUpdateGame function should handle if it's new or an update.
                 addOrUpdateGame(gameFromWatch) // This function now handles both new and updates
             } else {
-                Log.w(TAG, "processGameDataFromWatch: Game JSON payload was null in DataMap for path ${dataMapItem.uri.path} using key ${WearSyncConstants.GAME_UPDATE_PAYLOAD_KEY}.")
+                Log.w(TAG, "processGameDataFromWatch: Game JSON payload was null in DataMap for path ${dataMapItem.uri.path} using key ${WearSyncConstants.KEY_GAME_UPDATE}.")
             }
         } catch (e: Exception) {
             Log.e(TAG, "processGameDataFromWatch: Error processing DataItem from watch. Path: ${dataMapItem.uri.path}", e)
@@ -248,10 +253,12 @@ class MobileGameViewModel @Inject constructor(
             }
             try {
                 val jsonString = com.databelay.refwatch.common.AppJsonConfiguration.encodeToString(games)
-                Log.d(TAG, "syncGamesToWatch: Sending to watch. Path: ${WearSyncConstants.GAMES_LIST_PATH}, User: $userIdForSync, Games: ${games.size}")
+                Log.d(TAG, "syncGamesToWatch: Sending to watch. Path: ${WearSyncConstants.PATH_GAMES_LIST}, User: $userIdForSync, Games: ${games.size}")
                 // ... (rest of PutDataMapRequest logic) ...
-                val putDataMapReq = PutDataMapRequest.create(WearSyncConstants.GAMES_LIST_PATH)
-                putDataMapReq.dataMap.putString(WearSyncConstants.GAME_SETTINGS_KEY, jsonString)
+
+                val putDataMapReq = PutDataMapRequest.create(WearSyncConstants.PATH_GAMES_LIST)
+                getCurrentUserId()?.let { putDataMapReq.dataMap.putString(WearSyncConstants.KEY_USER_ID, it) } // Add the user ID
+                putDataMapReq.dataMap.putString(WearSyncConstants.KEY_GAMES_JSON, jsonString)
                 putDataMapReq.dataMap.putLong("syncTimestamp", System.currentTimeMillis())
                 putDataMapReq.setUrgent()
                 val putDataReq = putDataMapReq.asPutDataRequest()
@@ -342,12 +349,12 @@ class MobileGameViewModel @Inject constructor(
                         val dataItem = event.dataItem
                         val itemUri: Uri = dataItem.uri // dataItem.uri IS an android.net.Uri
                         val path = itemUri.path // path is a String?
-                        if (path?.startsWith(WearSyncConstants.GAME_UPDATE_FROM_WATCH_PATH_PREFIX) == true) {
+                        if (path?.startsWith(WearSyncConstants.PATH_GAME_UPDATE) == true) {
                             val gameId = itemUri.lastPathSegment
                             if (gameId != null) {
                                 val dataMap = DataMapItem.fromDataItem(dataItem).dataMap
                                 val gameUpdateJson =
-                                    dataMap.getString(WearSyncConstants.GAME_UPDATE_PAYLOAD_KEY)
+                                    dataMap.getString(WearSyncConstants.KEY_GAME_UPDATE)
                                 if (gameUpdateJson != null) {
                                     try {
                                         // Watch could send the full Game object or just GameEvents

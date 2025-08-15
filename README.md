@@ -68,7 +68,16 @@ Please install RefWatch mobile companion on your phone.
     *   Connect your Wear OS device or start a Wear OS emulator.
     *   Select the device/emulator from the deployment target dropdown in Android Studio.
     *   Click the "Run 'wear-app'" button (green play icon).
-
+### Developer setup
+1. Configure firebase:
+   - Use Firebase CLI within Android Studio's terminal (`View > Tool Windows > Terminal`).
+   - 'firebase login'
+   - 'firebase init functions'
+   - Navigate to your `functions` directory: `cd functions`
+   - Deploy: `firebase deploy --only functions`
+   - Test locally: `firebase emulators:start --only functions`
+   - View logs: `firebase functions:log`
+ 
 ## Technologies Used
 
 *   **Kotlin:** Primary programming language.

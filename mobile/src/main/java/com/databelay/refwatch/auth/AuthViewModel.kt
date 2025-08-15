@@ -4,6 +4,9 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.databelay.refwatch.common.WearSyncConstants
+import com.google.android.gms.wearable.PutDataMapRequest
+import com.google.android.gms.wearable.Wearable
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,8 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 sealed class AuthState {
@@ -24,30 +27,24 @@ sealed class AuthState {
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    application: Application, // Hilt provides this
-    private val authRepository: AuthRepository // Inject AuthRepository
+    private val application: Application, // Hilt provides this
+    private val authRepository: AuthRepository,
+    private val firebaseAuth: FirebaseAuth // Inject FirebaseAuth
 ) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "AuthViewModel"
     }
-    // Private MutableStateFlows
-    private val _currentUser = MutableStateFlow<FirebaseUser?>(null) // For direct user object access
-    private val _authState = MutableStateFlow<AuthState>(AuthState.Loading) // Primary state for UI logic
-    private val _isLoading = MutableStateFlow(true) // Start as true until initial check completes
+
+    private val _currentUser = MutableStateFlow<FirebaseUser?>(null)
+    private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
+    private val _isLoading = MutableStateFlow(true)
     private val _authError = MutableStateFlow<String?>(null)
 
-    // Publicly exposed StateFlows (read-only)
-    // This StateFlow directly exposes the user from the repository's flow
-    val currentUser: StateFlow<FirebaseUser?> = authRepository.currentUserFlow
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = null // Or get initial from FirebaseAuth directly if repo flow is cold
-        )
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val authError: StateFlow<String?> = _authError.asStateFlow()
+
 
     private val firebaseAuthListener = FirebaseAuth.AuthStateListener { auth ->
         val firebaseUser = auth.currentUser
@@ -56,37 +53,89 @@ class AuthViewModel @Inject constructor(
         if (firebaseUser != null) {
             _currentUser.value = firebaseUser
             _authState.value = AuthState.Authenticated(firebaseUser)
+            // Call function to handle token fetching and sending
+            fetchCustomTokenAndSendDataToWatch(firebaseUser)
         } else {
             _currentUser.value = null
             _authState.value = AuthState.Unauthenticated
+            // Send nulls to indicate logout
+            sendAuthDataToWatch(null, null)
         }
-        // CRITICAL: Always update isLoading when the auth state is resolved by the listener
         _isLoading.value = false
-        // Optionally clear error when auth state changes, or let UI actions clear it.
-        // if (_authError.value != null && _authState.value !is AuthState.Error) {
-        //     _authError.value = null
-        // }
     }
 
     init {
+        firebaseAuth.addAuthStateListener(firebaseAuthListener)
         Log.d(TAG, "AuthViewModel initialized.")
         viewModelScope.launch {
             // Observe the repository's currentUserFlow to update internal AuthState
             authRepository.currentUserFlow.collect { user ->
-                Log.d("AuthVM", "Collected user from repository: ${user?.uid}")
-                if (user != null) {
-                    _authState.value = AuthState.Authenticated(user)
-                } else {
-                    _authState.value = AuthState.Unauthenticated
+                Log.d(TAG, "Collected user from repository: ${user?.uid}")
+                 // The AuthStateListener will primarily handle _authState updates based on firebaseAuth.currentUser
+                // This collector mainly ensures _isLoading is managed if the repository emits first.
+                if (_authState.value is AuthState.Loading && user == null) {
+                     _authState.value = AuthState.Unauthenticated // Set explicitly if still loading and repo says no user
                 }
-                _isLoading.value = false // Auth state resolved
+                // Only set isLoading to false here if the auth state hasn't already been resolved by the listener
+                if (_isLoading.value && (_authState.value !is AuthState.Authenticated && _authState.value !is AuthState.Unauthenticated)) {
+                    _isLoading.value = false
+                }
             }
         }
-        // Initial loading state will be set to false once the first emission from currentUserFlow arrives.
-        // To avoid brief loading state if user is already logged in:
+        // Initial loading state will be set to false once the first emission from currentUserFlow arrives
+        // or the AuthStateListener fires.
         viewModelScope.launch {
-            val initialUser = authRepository.currentUserFlow // Get initial value
-            if (initialUser == null) _isLoading.value = false // if no user, not loading for user data
+            val initialRepoUser = authRepository.currentUserFlow.value // Check initial value from repo
+            val initialAuthUser = firebaseAuth.currentUser
+            if (initialRepoUser == null && initialAuthUser == null) {
+                _isLoading.value = false // if no user from either source, and we are still loading, stop.
+            }
+        }
+    }
+
+    private fun fetchCustomTokenAndSendDataToWatch(user: FirebaseUser) {
+        viewModelScope.launch {
+            Log.d(TAG, "User ${user.uid} authenticated. Attempting to get REAL custom token via Cloud Function.")
+
+            val customTokenResult = authRepository.fetchCustomTokenFromServer() // Call the repository
+
+            customTokenResult.onSuccess { customToken ->
+                Log.i(TAG, "Successfully fetched custom token from server.")
+                sendAuthDataToWatch(user.uid, customToken)
+            }.onFailure { exception ->
+                Log.e(TAG, "Failed to fetch custom token from server", exception)
+                // Handle the error appropriately - maybe show an error message to the user
+                // or retry. For now, we won't send anything to the watch if token fetching fails.
+                _authError.value = "Failed to prepare watch sign-in: ${exception.localizedMessage}"
+                // Optionally, you could still try to send a "login without token" signal
+                // or a specific error signal to the watch if that's part of your design.
+            }
+        }
+    }
+
+    private fun sendAuthDataToWatch(userId: String?, customToken: String?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val dataClient = Wearable.getDataClient(application)
+                val putDataMapReq = PutDataMapRequest.create(WearSyncConstants.PATH_PHONE_USER_ID)
+
+                if (userId != null && customToken != null) {
+                    putDataMapReq.dataMap.putString(WearSyncConstants.KEY_USER_ID, userId)
+                    putDataMapReq.dataMap.putString(WearSyncConstants.KEY_CUSTOM_AUTH_TOKEN, customToken)
+                    Log.i(TAG, "Preparing to send User ID ('$userId') and Custom Token (length: ${customToken.length}) to watch.")
+                } else {
+                    Log.i(TAG, "Preparing to send logout signal (empty DataMap for user path) to watch.")
+                    // For logout, ensure dataMap is empty or explicitly cleared if needed by watch
+                    // Sending an empty map for the path is a common way to signal cleared state.
+                }
+
+                val putDataReq = putDataMapReq.asPutDataRequest().setUrgent()
+                val dataItem = dataClient.putDataItem(putDataReq).await()
+                Log.i(TAG, "Successfully sent auth data (DataItem: ${dataItem.uri}) to watch. UserID: '$userId'")
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to send auth data (UserID: '$userId') to watch.", e)
+            }
         }
     }
 
@@ -102,15 +151,14 @@ class AuthViewModel @Inject constructor(
             _authError.value = null
             val result = authRepository.signInWithEmailPassword(email, password)
             result.onSuccess {
-                // No need to set _authState here, the collector on currentUserFlow will handle it.
-                // _isLoading will also be set to false by that collector.
-                Log.d("AuthVM", "Sign-in successful via repository.")
+                // AuthStateListener will handle Authenticated state and triggering data send to watch
+                Log.d(TAG, "Sign-in successful via repository.")
             }.onFailure { e ->
-                Log.e("AuthVM", "Sign-in failed via repository", e)
+                Log.e(TAG, "Sign-in failed via repository", e)
                 val errorMessage = e.message ?: "Sign-in failed."
                 _authError.value = errorMessage
                 _authState.value = AuthState.Error(errorMessage)
-                _isLoading.value = false
+                _isLoading.value = false // Ensure loading is stopped on failure
             }
         }
     }
@@ -119,26 +167,23 @@ class AuthViewModel @Inject constructor(
         if (email.isBlank() || password.isBlank()) {
             val errorMsg = "Email and password cannot be empty."
             _authError.value = errorMsg
-            // Don't set _authState to Error here for simple validation,
-            // let the UI just show the _authError.
-            // _authState.value = AuthState.Error(errorMsg) // This might be too aggressive for field validation
-            _isLoading.value = false // Ensure loading is off for validation errors
-            return // Stop further processing
+            _isLoading.value = false
+            return
         }
         viewModelScope.launch {
             _isLoading.value = true
             _authState.value = AuthState.Loading
-            _authError.value = null // Clear previous errors before new attempt
+            _authError.value = null
             try {
-                Log.d(TAG, "Attempting Firebase sign-in...")
+                // authRepository.signUpWithEmailPassword internally calls Firebase
+                // The AuthStateListener will detect the new user and trigger data send.
                 authRepository.signUpWithEmailPassword(email, password)
-                Log.d(TAG, "Firebase signUpWithEmailAndPassword task successful.")
-                // Listener will handle setting _authState to Authenticated and _isLoading to false
-            } catch (e: Exception) {
-                Log.e(TAG, "Firebase sign-up failed", e)
+                Log.d(TAG, "Firebase signUpWithEmailAndPassword task initiated via repository.")
+            } catch (e: Exception) { // Catching from repository call if it throws directly
+                Log.e(TAG, "Sign-up initiation failed", e)
                 val errorMessage = e.message ?: "Sign-up failed. Please try again."
                 _authError.value = errorMessage
-                _authState.value = AuthState.Error(errorMessage) // Set authState to Error on actual auth failure
+                _authState.value = AuthState.Error(errorMessage)
                 _isLoading.value = false
             }
         }
@@ -146,19 +191,17 @@ class AuthViewModel @Inject constructor(
 
     fun signOut() {
         Log.d(TAG, "signOut called.")
-        // No need to set _isLoading or _authState to Loading for local signOut.
-        // The AuthStateListener will handle these state changes.
-        _authError.value = null // Clear any existing errors on sign out
+        _authError.value = null
         authRepository.signOut()
-        // Listener will set _authState to Unauthenticated and _isLoading to false.
+        // AuthStateListener will handle Unauthenticated state and triggering data send to watch.
+        // No need to set _isLoading to true for a local signOut operation.
+        // Listener will set _isLoading to false.
     }
 
     fun clearAuthError() {
         _authError.value = null
-        // If current state is Error, move it to Unauthenticated or previous valid state
         if (_authState.value is AuthState.Error) {
             if (_currentUser.value != null) {
-                // This case should be rare if error also unauthenticates
                 _authState.value = AuthState.Authenticated(_currentUser.value!!)
             } else {
                 _authState.value = AuthState.Unauthenticated
@@ -168,6 +211,7 @@ class AuthViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        Log.d(TAG, "ViewModel cleared.")
+        firebaseAuth.removeAuthStateListener(firebaseAuthListener) // Clean up listener
+        Log.d(TAG, "ViewModel cleared, AuthStateListener removed.")
     }
 }

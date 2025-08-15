@@ -1,16 +1,12 @@
 package com.databelay.refwatch.wear.data
 
-import android.content.Intent
 import android.util.Log
-import com.databelay.refwatch.common.AppJsonConfiguration
-import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.WearSyncConstants
+import com.databelay.refwatch.wear.auth.WatchAuthManager
 import com.google.android.gms.wearable.CapabilityInfo
-import com.google.android.gms.wearable.Channel
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
-import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -18,95 +14,96 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import com.google.android.gms.wearable.CapabilityClient
-import com.google.android.gms.wearable.Wearable
 
 @AndroidEntryPoint
 class WearDataListenerService : WearableListenerService() {
-    private val TAG = "WearDataListenerSvc"
+    private val tag = "WearDataListenerSvc"
 
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
 
+    // @Inject // No longer needed if GameStorageWear is not used
+    // lateinit var gameStorage: GameStorageWear 
     @Inject
-    lateinit var gameStorage: GameStorageWear // Injected by Hilt
+    lateinit var watchAuthManager: WatchAuthManager
 
     override fun onDataChanged(dataEvents: DataEventBuffer) {
-        super.onDataChanged(dataEvents)
-        Log.d(TAG, "onDataChanged received ${dataEvents.count} events.")
+        Log.d(tag, "onDataChanged - events: ${dataEvents.count}")
+
+        var newReceivedPhoneUserId: String? = null
+        var phoneUserIdChanged = false
 
         dataEvents.forEach { event ->
-            Log.d(TAG, "Event: type=${event.type}, path=${event.dataItem.uri.path}")
-            if (event.type == DataEvent.TYPE_CHANGED) {
-                val dataItem = event.dataItem
-                if (dataItem.uri.path == WearSyncConstants.GAMES_LIST_PATH) {
-                    Log.i(TAG, "Games list DataItem changed from phone.")
-                    try {
-                        val dataMap = DataMapItem.fromDataItem(dataItem).dataMap
-                        val gamesJsonString = dataMap.getString(WearSyncConstants.GAME_SETTINGS_KEY) // Ensure this key is correct
-                        if (gamesJsonString != null) {
-                            Log.d(TAG, "Received games JSON (length: ${gamesJsonString.length})")
-                            // Before parsing, set status to FETCHING (or it's implicit that phone sent data)
-                            // gameStorage.updateDataFetchStatus(DataFetchStatus.FETCHING) // Optional
-                            val gameList = AppJsonConfiguration.decodeFromString<List<Game>>(gamesJsonString)
-                            serviceScope.launch {
-                                gameStorage.saveGamesListFromPhone(gameList) // This sets SUCCESS or NO_DATA_AVAILABLE
+            Log.d(tag, "Event: type=${event.type}, path=${event.dataItem.uri.path}")
+            val dataItem = event.dataItem
+
+            when (dataItem.uri.path) {
+                WearSyncConstants.PATH_PHONE_USER_ID -> {
+                    when (event.type) {
+                        DataEvent.TYPE_CHANGED -> {
+                            val dataMap = DataMapItem.fromDataItem(dataItem).dataMap
+                            val receivedUserId = dataMap.getString(WearSyncConstants.KEY_USER_ID)
+                            val receivedToken = dataMap.getString(WearSyncConstants.KEY_CUSTOM_AUTH_TOKEN)
+                            Log.i(tag, "Phone User ID DataItem CHANGED. New User ID: $receivedUserId")
+                            Log.i(tag, "Custom Auth Token DataItem CHANGED. Received Token: $receivedToken")
+                            if (!receivedToken.isNullOrBlank()) {
+                                serviceScope.launch {
+                                    watchAuthManager.signInWithCustomToken(receivedToken)
+                                }
+                            } else {
+                                Log.w(tag, "Received a blank or null custom auth token.")
                             }
-                        } else {
-                            Log.w(TAG, "Games JSON string is null in DataItem. Phone sent empty data.")
-                            serviceScope.launch {
-                                gameStorage.saveGamesListFromPhone(emptyList()) // Results in NO_DATA_AVAILABLE
+                            newReceivedPhoneUserId = receivedUserId
+                            if (watchAuthManager.currentPhoneUserId.value != receivedUserId) {
+                                phoneUserIdChanged = true
                             }
                         }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error parsing game list from DataItem", e)
-                        serviceScope.launch {
-                            gameStorage.updateDataFetchStatus(DataFetchStatus.ERROR_PARSING)
+                        DataEvent.TYPE_DELETED -> {
+                            Log.i(tag, "Phone User ID DataItem DELETED. User logged out on phone.")
+                            newReceivedPhoneUserId = null
+                            if (watchAuthManager.currentPhoneUserId.value != null) {
+                                phoneUserIdChanged = true
+                            }
                         }
-                    }
-                }
-            } else if (event.type == DataEvent.TYPE_DELETED) {
-                if (event.dataItem.uri.path == WearSyncConstants.GAMES_LIST_PATH) {
-                    Log.i(TAG, "Games list DataItem deleted by phone.")
-                    serviceScope.launch {
-                        gameStorage.clearGamesListFromPhone() // This sets NO_DATA_AVAILABLE
                     }
                 }
             }
         }
         dataEvents.release()
+
+        if (phoneUserIdChanged) {
+            serviceScope.launch {
+                Log.d(tag, "Updating global Phone User ID to: $newReceivedPhoneUserId")
+                watchAuthManager.updateCurrentPhoneUserId(newReceivedPhoneUserId)
+            }
+        }
     }
 
     override fun onCapabilityChanged(capabilityInfo: CapabilityInfo) {
         super.onCapabilityChanged(capabilityInfo)
-        Log.d(TAG, "onCapabilityChanged received: ${capabilityInfo.name}, Nodes: ${capabilityInfo.nodes.size}")
+        Log.d(tag, "onCapabilityChanged received: ${capabilityInfo.name}, Nodes: ${capabilityInfo.nodes.size}")
 
-        // Check if this capability change is for the phone app we care about
         if (capabilityInfo.name == WearSyncConstants.PHONE_APP_CAPABILITY) {
-            // Check if any of the nodes advertising this capability are "nearby" (connected)
             val isPhoneConnected = capabilityInfo.nodes.any { it.isNearby }
+            Log.i(tag, "Phone app capability changed. Connected: $isPhoneConnected")
 
-            Log.i(TAG, "Phone app capability changed. Connected: $isPhoneConnected")
-
-            // Update the connectivity status in GameStorageWear
-            // This operation should be quick. If GameStorageWear does heavy work, consider another scope.
-            // For just updating a StateFlow, serviceScope (Main or IO) is fine.
-            // gameStorage.updatePhoneConnectivityStatus(isPhoneConnected) // Call the method in GameStorageWear
-
-            // More robustly, launch a coroutine for this, especially if GameStorageWear might do I/O
-            serviceScope.launch { // Or a specific IO scope if GameStorageWear's method is suspend and does IO
-                gameStorage.updatePhoneConnectivityStatus(isPhoneConnected)
-            }
+            // Call to gameStorage.updatePhoneConnectivityStatus(isPhoneConnected) removed.
+            // GameStorageWear relies on its own ConnectivityObserver for general network status
+            // relevant to Firebase operations.
+            // If you have other actions that depend *specifically* on the phone companion being connected,
+            // you might dispatch an event or update a different shared state here.
+            // For now, we assume GameStorageWear doesn't need this specific trigger.
         }
     }
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "Service created.")
+        Log.d(tag, "Service created.")
     }
+
     override fun onDestroy() {
         super.onDestroy()
         serviceJob.cancel()
-        Log.d(TAG, "Service destroyed.")
+        Log.d(tag, "Service destroyed.")
     }
 }

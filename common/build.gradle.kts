@@ -1,18 +1,14 @@
 plugins {
-//    alias(libs.plugins.android.library)
-//    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
-//    id("com.google.gms.google-services")
-//    id("org.jetbrains.kotlin.plugin.parcelize")
     id("kotlin-parcelize")
     kotlin("plugin.serialization") version "2.1.21"
 }
 
 android {
     namespace = "com.databelay.common"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 31
@@ -46,7 +42,6 @@ android {
 }
 
 dependencies {
-
     implementation(libs.play.services.wearable)
     implementation(platform(libs.compose.bom))
     implementation(libs.ui)
@@ -69,7 +64,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.compose.material)
     implementation(libs.androidx.compose.foundation)
-    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.firestore)
     implementation(libs.junit)
     implementation(libs.kotlinx.serialization.json)
 

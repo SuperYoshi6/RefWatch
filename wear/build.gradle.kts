@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     kotlin("plugin.serialization") version "2.1.21"
+    id("com.google.gms.google-services") // If your wear app uses Firebase directly
     id("com.google.devtools.ksp")        // Apply KSP if you use it for Room, etc.
     id("com.google.dagger.hilt.android")
 }
@@ -50,7 +51,6 @@ android {
 
 dependencies {
     implementation(project(":common"))
-    implementation(libs.play.services.wearable)
     implementation(platform(libs.compose.bom))
     implementation(libs.ui)
     implementation(libs.ui.graphics)
@@ -85,9 +85,15 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.play.services.wearable) // Crucial
     implementation(libs.androidx.lifecycle.runtime.ktx) // For coroutines
+    implementation(libs.kotlinx.coroutines.android) // You likely have this or core
+    implementation(libs.kotlinx.coroutines.core) // Or latest stable version
     implementation(libs.gson)
     implementation(libs.androidx.compose.ui.ui.tooling)
     implementation(libs.androidx.wear.ongoing)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+
 
     ksp(libs.hilt.compiler)
     debugImplementation(libs.androidx.compose.ui.ui.tooling) // Or latest version

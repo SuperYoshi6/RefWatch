@@ -18,8 +18,8 @@ class PreviewWearGameViewModel (
 ) : IWearGameViewModel {
     override val gamesList: StateFlow<List<Game>> = MutableStateFlow(initialGames)
     override val dataFetchStatus: StateFlow<DataFetchStatus> = MutableStateFlow(initialFetchStatus)
-    override val isPhoneConnected: StateFlow<Boolean> = MutableStateFlow(true)
-    override val activeGame: StateFlow<Game?> = MutableStateFlow(initialActiveGame)
+    override val isOnline: StateFlow<Boolean> = MutableStateFlow(true)
+    override val activeGame: StateFlow<Game> = MutableStateFlow(initialActiveGame) as StateFlow<Game>
 
     // Helper to update the list for preview variations
     fun setGames(games: List<Game>) {
@@ -28,7 +28,7 @@ class PreviewWearGameViewModel (
     fun setFetchStatus(status: DataFetchStatus) {
         (this.dataFetchStatus as MutableStateFlow).value = status
     }
-    fun setActiveGame(game: Game?) {
+    fun setActiveGame(game: Game) {
         (this.activeGame as MutableStateFlow).value = game
     }
 }

@@ -1,6 +1,6 @@
 package com.databelay.refwatch.di
 import com.databelay.refwatch.auth.AuthRepository // Import new repository
-import com.databelay.refwatch.games.GameRepository
+import com.databelay.refwatch.games.GameStorageMobile
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.auth.FirebaseAuth // Needed for AuthRepository
 import dagger.Module
@@ -14,10 +14,10 @@ import javax.inject.Singleton
 object RepositoryModule {
     @Provides
     @Singleton // GameRepository can be a singleton
-    fun provideGameRepository(firestore: FirebaseFirestore): GameRepository {
+    fun provideGameRepository(firestore: FirebaseFirestore): GameStorageMobile {
         // Hilt will automatically provide the FirebaseFirestore instance
         // from FirebaseModule because it knows how to create it.
-        return GameRepository(firestore)
+        return GameStorageMobile(firestore)
     }
 
     @Provides

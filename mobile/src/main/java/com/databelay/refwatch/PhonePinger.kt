@@ -1,18 +1,14 @@
 package com.databelay.refwatch
 
 import android.util.Log
-import android.widget.Toast
 import com.databelay.refwatch.common.WearSyncConstants
 import com.google.android.gms.wearable.DataClient // Import the interface
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.NodeClient   // Import the interface
-import com.google.android.gms.wearable.PutDataMapRequest
-import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -48,7 +44,7 @@ class PhonePinger @Inject constructor(
                     nodes.forEach { node ->
                         val payload = "Ping from Phone @ ${System.currentTimeMillis()}".toByteArray()
 
-                        messageClient.sendMessage(node.id, WearSyncConstants.GAMES_LIST_PATH, payload)
+                        messageClient.sendMessage(node.id, WearSyncConstants.PATH_GAMES_LIST, payload)
                             .addOnSuccessListener {
                                 Log.d(TAG, "Ping sent successfully to ${node.displayName}")
                             }

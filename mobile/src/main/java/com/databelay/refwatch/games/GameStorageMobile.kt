@@ -10,7 +10,7 @@ import com.databelay.refwatch.common.mapToJsonObject
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
-import com.google.firebase.firestore.ktx.toObject
+import com.google.firebase.firestore.toObject
 // import com.google.gson.Gson // No longer needed for event parsing if using ktx.serialization consistently
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -20,10 +20,9 @@ import kotlinx.serialization.encodeToString // Explicit import for clarity
 
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
-import kotlin.Boolean
 
 
-class GameRepository(private val firestore: FirebaseFirestore) {
+class GameStorageMobile(private val firestore: FirebaseFirestore) {
 
     companion object {
         private const val USERS_COLLECTION = "users"
@@ -191,18 +190,18 @@ class GameRepository(private val firestore: FirebaseFirestore) {
                     // (e.g., GoalScoredEvent.serializer(), GenericLogEvent.serializer())
                     // and includes the classDiscriminator if configured.
                     val eventJsonString = AppJsonConfiguration.encodeToString(event)
-                    Log.v(TAG, "addOrUpdateGame: Serialized event to JSON string: $eventJsonString")
+//                    Log.v(TAG, "addOrUpdateGame: Serialized event to JSON string: $eventJsonString")
 
 
                     // 2. Parse the JSON String into a kotlinx.serialization.json.JsonObje  ct
                     // This is a generic JSON object structure.
                     val jsonObject = AppJsonConfiguration.parseToJsonElement(eventJsonString).jsonObject
-                    Log.v(TAG, "addOrUpdateGame: Parsed JSON string to JsonObject: $jsonObject")
+//                    Log.v(TAG, "addOrUpdateGame: Parsed JSON string to JsonObject: $jsonObject")
 
                     // 3. Convert the JsonObject to Map<String, Any?>
                     // This map is what Firestore can store.
                     val eventMap = jsonObjectToMap(jsonObject)
-                    Log.v(TAG, "addOrUpdateGame: Converted JsonObject to Map: $eventMap")
+//                    Log.v(TAG, "addOrUpdateGame: Converted JsonObject to Map: $eventMap")
                     eventMap
 
                 } catch (e: Exception) {

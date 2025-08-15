@@ -4,13 +4,12 @@ import android.util.Log
 import com.databelay.refwatch.common.AppJsonConfiguration
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.WearSyncConstants
-import com.databelay.refwatch.games.GameRepository
+import com.databelay.refwatch.games.GameStorageMobile
 import com.google.android.gms.wearable.DataClient // For sending data back
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.PutDataMapRequest // For sending data back
-import com.google.android.gms.wearable.Wearable // For getting DataClient
 import com.google.android.gms.wearable.WearableListenerService
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
@@ -33,7 +32,7 @@ class PhoneDataListenerService : WearableListenerService() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
 
     @Inject // Injected by Hilt
-    lateinit var gameRepository: GameRepository
+    lateinit var gameRepository: GameStorageMobile
 
     @Inject // Injected by Hilt (or use Wearable.getDataClient(applicationContext))
     lateinit var dataClient: DataClient
@@ -63,7 +62,7 @@ class PhoneDataListenerService : WearableListenerService() {
                 val path = dataItem.uri.path
 
                 val isAdHocGame = path?.startsWith(WearSyncConstants.NEW_ADHOC_GAME_FROM_WATCH_PATH_PREFIX) == true
-                val isGameUpdate = path?.startsWith(WearSyncConstants.GAME_UPDATE_FROM_WATCH_PATH_PREFIX) == true
+                val isGameUpdate = path?.startsWith(WearSyncConstants.PATH_GAME_UPDATE) == true
 
                 if (isAdHocGame || isGameUpdate) {
                     val gameIdFromPath = path.substringAfterLast("/")
@@ -72,7 +71,7 @@ class PhoneDataListenerService : WearableListenerService() {
 
                     try {
                         val dataMap = DataMapItem.fromDataItem(dataItem).dataMap
-                        val gameJsonString = dataMap.getString(WearSyncConstants.GAME_UPDATE_PAYLOAD_KEY)
+                        val gameJsonString = dataMap.getString(WearSyncConstants.KEY_GAME_UPDATE)
 
                         if (gameJsonString != null) {
                             val gameFromWatch = AppJsonConfiguration.decodeFromString<Game>(gameJsonString)
@@ -124,8 +123,9 @@ class PhoneDataListenerService : WearableListenerService() {
                 Log.d(TAG, "Preparing to send ${allGamesOnPhone.size} games to the watch for user $userId.")
 
                 val gamesJson = AppJsonConfiguration.encodeToString(allGamesOnPhone)
-                val putDataMapReq = PutDataMapRequest.create(WearSyncConstants.GAMES_LIST_PATH)
-                putDataMapReq.dataMap.putString(WearSyncConstants.GAME_SETTINGS_KEY, gamesJson)
+                val putDataMapReq = PutDataMapRequest.create(WearSyncConstants.PATH_GAMES_LIST)
+                putDataMapReq.dataMap.putString(WearSyncConstants.KEY_USER_ID, userId) // Add the user ID
+                putDataMapReq.dataMap.putString(WearSyncConstants.KEY_GAMES_JSON, gamesJson)
                 putDataMapReq.dataMap.putLong("timestamp", System.currentTimeMillis())
                 putDataMapReq.setUrgent()
 

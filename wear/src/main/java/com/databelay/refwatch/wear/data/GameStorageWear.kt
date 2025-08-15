@@ -1,44 +1,63 @@
-package com.databelay.refwatch.wear.data // Example package for Wear OS data layer
+package com.databelay.refwatch.wear.data
 
 import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
-import com.databelay.refwatch.common.AppJsonConfiguration // Assuming your common Json object
-import com.databelay.refwatch.common.Game // Your common Game class
+// import androidx.core.content.edit // Not strictly needed if using withContext for prefs
+import com.databelay.refwatch.common.AppJsonConfiguration
+import com.databelay.refwatch.common.Game
+import com.databelay.refwatch.wear.auth.WatchAuthManager
+import com.databelay.refwatch.wear.util.ConnectivityObserver // Import ConnectivityObserver
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+// import com.google.firebase.firestore.ktx.toObject // Removed
+// import com.google.firebase.firestore.ktx.toObjects // Removed
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.encodeToString // Ensure this is the one from AppJsonConfiguration if it's custom
+import kotlinx.serialization.encodeToString
+// import kotlinx.serialization.json.Json // No longer needed directly if AppJsonConfiguration is Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
-// ---- Put DataFetchStatus enum here or import it ----
+// Re-defining or importing DataFetchStatus. Assuming it's the same as before.
 enum class DataFetchStatus {
     INITIAL,
     FETCHING,
     SUCCESS,
+    NO_USER_AUTHENTICATED,
     LOADED_FROM_CACHE,
     NO_DATA_AVAILABLE,
-    ERROR_PHONE_UNREACHABLE,
-    ERROR_PARSING,
+    ERROR_NETWORK,
+    ERROR_FIREBASE_OPERATION,
     ERROR_UNKNOWN
 }
 
-@Singleton // Hilt will create only one instance of this class for the entire app
+@Singleton
 class GameStorageWear @Inject constructor(
-    @ApplicationContext private val context: Context // Hilt provides the application context
+    @ApplicationContext private val context: Context,
+    private val watchAuthManager: WatchAuthManager,
+    private val firestore: FirebaseFirestore,
+    private val connectivityObserver: ConnectivityObserver // Inject ConnectivityObserver
 ) {
-    private val TAG = "GameStorageWear"
-    private val PREFS_NAME = "RefWatchWearPrefs"
-    private val KEY_GAMES_LIST = "syncedGamesList"
-    private val KEY_DATA_FETCH_STATUS = "dataFetchStatus" // For persisting status
+    private val tag = "GameStorageWear"
+    private val prefsName = "RefWatchWearPrefs"
+    private val gamesCacheKeyPrefix = "games_cache_for_user_"
+    private val pendingSyncGamesKeyPrefix = "pending_sync_games_for_user_"
 
-
-    // Use your common JSON configuration
-    private val json = AppJsonConfiguration // Assuming AppJsonConfiguration is your Json instance
+    private val storageScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val _gamesListFlow = MutableStateFlow<List<Game>>(emptyList())
     val gamesListFlow: StateFlow<List<Game>> = _gamesListFlow.asStateFlow()
@@ -46,204 +65,329 @@ class GameStorageWear @Inject constructor(
     private val _dataFetchStatusFlow = MutableStateFlow(DataFetchStatus.INITIAL)
     val dataFetchStatusFlow: StateFlow<DataFetchStatus> = _dataFetchStatusFlow.asStateFlow()
 
-    // StateFlow to hold phone connectivity status
-    private val _isPhoneConnected = MutableStateFlow(false) // Assume not connected initially
-    val isPhoneConnected: StateFlow<Boolean> = _isPhoneConnected.asStateFlow()
+    private val _networkStatusFlow = MutableStateFlow(ConnectivityObserver.Status.UNINITIALIZED)
+    val networkStatusFlow: StateFlow<ConnectivityObserver.Status> = _networkStatusFlow.asStateFlow()
+
+    private var currentUserId: String? = null
+    private var firestoreListenerRegistration: ListenerRegistration? = null
 
     init {
-        // Load the initial list and status from SharedPreferences
-        loadGamesListAndStatus()
+        Log.d(tag, "Initializing GameStorageWear.")
 
-    }
-
-    /**
-     * Called by WearDataListenerService when phone connectivity changes.
-     */
-    fun updatePhoneConnectivityStatus(isConnected: Boolean) {
-        if (_isPhoneConnected.value != isConnected) { // Only update if changed
-            _isPhoneConnected.value = isConnected
-            Log.i(TAG, "Phone connectivity status updated in GameStorage: $isConnected")
-
-            // You could also move the logic for DataFetchStatus.ERROR_PHONE_UNREACHABLE here
-            // based on the new isConnected status and current games list.
-            if (!isConnected && _gamesListFlow.value.isEmpty()) {
-                if (_dataFetchStatusFlow.value != DataFetchStatus.ERROR_PARSING &&
-                    _dataFetchStatusFlow.value != DataFetchStatus.ERROR_UNKNOWN &&
-                    _dataFetchStatusFlow.value != DataFetchStatus.ERROR_PHONE_UNREACHABLE) { // Prevent re-setting if already in an error state
-                    updateDataFetchStatus(DataFetchStatus.ERROR_PHONE_UNREACHABLE)
-                }
-            } else if (isConnected && _dataFetchStatusFlow.value == DataFetchStatus.ERROR_PHONE_UNREACHABLE) {
-                updateDataFetchStatus(DataFetchStatus.INITIAL) // Or SUCCESS if games are present
+        // Observe network status
+        connectivityObserver.observe()
+            .onEach { status ->
+                Log.i(tag, "Network status changed: $status")
+                _networkStatusFlow.value = status
             }
-        }
+            .launchIn(storageScope) // Observe in storageScope
+
+        // Combine User ID and Network Status to react to changes
+        watchAuthManager.currentWatchUserId
+            .combine(_networkStatusFlow) { userId, networkStatus ->
+                Pair(userId, networkStatus)
+            }
+            .distinctUntilChanged() // Only react if userId or networkStatus actually changes
+            .onEach { (userId, networkStatus) ->
+                Log.d(tag, "User ID or Network status change detected. User: $userId, Network: $networkStatus")
+                if (currentUserId != userId) {
+                    val oldUserId = currentUserId
+                    currentUserId = userId
+                    onUserChanged(newUserId = userId, oldUserId = oldUserId, isOnline = networkStatus == ConnectivityObserver.Status.AVAILABLE)
+                } else if (userId != null && networkStatus == ConnectivityObserver.Status.AVAILABLE) {
+                    // User is the same, but network might have come online
+                    Log.i(tag, "Network became available for user $userId. Triggering pending sync.")
+                    syncPendingGames(userId)
+                    // Re-attach listener if it was detached due to prior network unavailability
+                    if (firestoreListenerRegistration == null) {
+                         Log.i(tag, "Network reconnected, re-attaching Firestore listener for user $userId.")
+                         attachFirestoreListener(userId)
+                    }
+                } else if (userId != null) { // Simplified condition: user same, network not available
+                    Log.w(tag, "Network became unavailable for user $userId. Detaching Firestore listener.")
+                    detachFirestoreListener() // Detach listener when offline to prevent errors/retries
+                     _dataFetchStatusFlow.value = DataFetchStatus.ERROR_NETWORK // Reflect that we are offline
+                }
+            }
+            .launchIn(storageScope) // Observe in storageScope for long-lived operations
     }
 
-    /**
-     * Called by WearDataListenerService when new game data is received from the phone.
-     */
-    fun saveGamesListFromPhone(games: List<Game>) {
-        try {
-            // Update the flow first
-            _gamesListFlow.value = games
-            // Then persist the new list
-            saveGamesListToPreferences(games) // Use the helper
+    private fun onUserChanged(newUserId: String?, oldUserId: String?, isOnline: Boolean) {
+        storageScope.launch { // Ensure this runs on the IO dispatcher
+            detachFirestoreListener()
+            if (oldUserId != null) {
+                // Optionally clear cache for old user
+            }
 
-            val newStatus = if (games.isEmpty()) DataFetchStatus.NO_DATA_AVAILABLE else DataFetchStatus.SUCCESS
-            updateDataFetchStatus(newStatus) // Persist and update status flow
-
-            Log.i(TAG, "Saved ${games.size} games from phone. Status: $newStatus")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to save games list from phone", e)
-            updateDataFetchStatus(DataFetchStatus.ERROR_UNKNOWN)
-        }
-    }
-
-    private fun loadGamesListAndStatus() {
-        try {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val jsonString = prefs.getString(KEY_GAMES_LIST, null)
-            val loadedGames = if (jsonString != null) {
-                json.decodeFromString<List<Game>>(jsonString)
+            if (newUserId.isNullOrBlank()) {
+                _gamesListFlow.value = emptyList()
+                _dataFetchStatusFlow.value = DataFetchStatus.NO_USER_AUTHENTICATED
+                Log.i(tag, "No user authenticated. Cleared game list and detached listener.")
             } else {
-                emptyList()
-            }
-            _gamesListFlow.value = loadedGames
-
-            val persistedStatusString = prefs.getString(KEY_DATA_FETCH_STATUS, DataFetchStatus.INITIAL.name)
-            val loadedStatus = try {
-                DataFetchStatus.valueOf(persistedStatusString ?: DataFetchStatus.INITIAL.name)
-            } catch (e: IllegalArgumentException) {
-                DataFetchStatus.INITIAL
-            }
-
-            // Refine initial status based on loaded data
-            if (loadedStatus == DataFetchStatus.INITIAL && loadedGames.isNotEmpty()) {
-                _dataFetchStatusFlow.value = DataFetchStatus.LOADED_FROM_CACHE
-            } else if (loadedStatus == DataFetchStatus.SUCCESS && loadedGames.isEmpty()){
-                // If it was SUCCESS but now we load and it's empty, it could be NO_DATA_AVAILABLE
-                _dataFetchStatusFlow.value = DataFetchStatus.NO_DATA_AVAILABLE
-            }
-            else {
-                _dataFetchStatusFlow.value = loadedStatus
-            }
-            Log.i(TAG, "Loaded ${loadedGames.size} games from SharedPreferences. Initial Status: ${_dataFetchStatusFlow.value}")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to load games list or status", e)
-            _gamesListFlow.value = emptyList()
-            updateDataFetchStatus(DataFetchStatus.ERROR_UNKNOWN) // Or a more specific load error
-        }
-    }
-
-    /**
-     * Called by WearDataListenerService when the game list data item is deleted by the phone.
-     */
-    fun clearGamesListFromPhone() {
-        try {
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit {
-                    remove(KEY_GAMES_LIST)
-                    // When cleared by phone, it implies no data is currently available from the source
-                    putString(KEY_DATA_FETCH_STATUS, DataFetchStatus.NO_DATA_AVAILABLE.name)
-                    _dataFetchStatusFlow.value = DataFetchStatus.NO_DATA_AVAILABLE
+                _dataFetchStatusFlow.value = DataFetchStatus.FETCHING
+                loadGamesFromCache(newUserId) // Load from cache first
+                if (isOnline) {
+                    attachFirestoreListener(newUserId)
+                    syncPendingGames(newUserId)
+                } else {
+                    Log.w(tag, "User changed to $newUserId, but device is offline. Will not attach listener or sync yet.")
+                    _dataFetchStatusFlow.value = DataFetchStatus.LOADED_FROM_CACHE // Or ERROR_NETWORK
                 }
-            _gamesListFlow.value = emptyList()
-            Log.i(TAG, "Games list cleared on instruction from phone. Status: NO_DATA_AVAILABLE")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to clear games list.", e)
-            updateDataFetchStatus(DataFetchStatus.ERROR_UNKNOWN)
+            }
         }
     }
 
-    /**
-     * Updates the data fetch status. Can be called from WearDataListenerService
-     * if parsing fails, or from a ViewModel if connectivity checks fail.
-     */
-    fun updateDataFetchStatus(newStatus: DataFetchStatus) {
-        // Avoid overwriting a more specific error with a general one if not intended
-        if (_dataFetchStatusFlow.value == DataFetchStatus.ERROR_PHONE_UNREACHABLE && newStatus == DataFetchStatus.ERROR_UNKNOWN) {
-            // Keep the more specific error
+    private fun attachFirestoreListener(userId: String) {
+        if (userId.isBlank() || _networkStatusFlow.value != ConnectivityObserver.Status.AVAILABLE) {
+            Log.w(tag, "Cannot attach Firestore listener: User ID blank or network unavailable. User: $userId, Network: ${_networkStatusFlow.value}")
+            if (_networkStatusFlow.value != ConnectivityObserver.Status.AVAILABLE) {
+                _dataFetchStatusFlow.value = DataFetchStatus.ERROR_NETWORK
+            }
+            return
+        }
+        Log.d(tag, "Attempting to attach Firestore listener for user: $userId")
+
+        detachFirestoreListener()
+
+        val gamesCollection = firestore.collection("users").document(userId).collection("games")
+        firestoreListenerRegistration = gamesCollection.addSnapshotListener { snapshots, e ->
+            storageScope.launch {
+                if (e != null) {
+                    Log.e(tag, "Firestore listen error for user $userId", e)
+                    _dataFetchStatusFlow.value = DataFetchStatus.ERROR_FIREBASE_OPERATION
+                    // Fallback to cache if listener fails
+                    loadGamesFromCache(userId)
+                    return@launch
+                }
+                if (snapshots == null) {
+                    Log.w(tag, "Firestore snapshots were null for user $userId.")
+                    _gamesListFlow.value = emptyList()
+                    saveGamesToCache(emptyList(), userId)
+                    _dataFetchStatusFlow.value = DataFetchStatus.NO_DATA_AVAILABLE
+                    return@launch
+                }
+                Log.d(tag, "Firestore listener received ${snapshots.size()} documents for user $userId.")
+                try {
+                    val games = snapshots.toObjects(Game::class.java) // Changed to use Game::class.java
+                    _gamesListFlow.value = games
+                    saveGamesToCache(games, userId)
+                    _dataFetchStatusFlow.value = if (games.isEmpty()) DataFetchStatus.NO_DATA_AVAILABLE else DataFetchStatus.SUCCESS
+                } catch (ex: Exception) {
+                    Log.e(tag, "Error converting Firestore snapshots to Game objects for user $userId", ex)
+                    _dataFetchStatusFlow.value = DataFetchStatus.ERROR_FIREBASE_OPERATION
+                }
+            }
+        }
+        Log.i(tag, "Firestore listener attached for user: $userId")
+    }
+
+    private fun detachFirestoreListener() {
+        if (firestoreListenerRegistration != null) {
+            firestoreListenerRegistration?.remove()
+            firestoreListenerRegistration = null
+            Log.d(tag, "Firestore listener detached.")
+        }
+    }
+
+    private suspend fun loadGamesFromCache(userId: String) {
+        if (userId.isBlank()) return
+        withContext(Dispatchers.IO) { // Ensure runs on IO
+            try {
+                val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+                val gamesKey = "$gamesCacheKeyPrefix$userId"
+                val jsonString = prefs.getString(gamesKey, null)
+                val cachedGames = if (jsonString != null) {
+                    AppJsonConfiguration.decodeFromString<List<Game>>(jsonString)
+                } else {
+                    emptyList()
+                }
+                _gamesListFlow.value = cachedGames
+                if (_dataFetchStatusFlow.value == DataFetchStatus.FETCHING || _dataFetchStatusFlow.value == DataFetchStatus.INITIAL || _networkStatusFlow.value != ConnectivityObserver.Status.AVAILABLE) {
+                     _dataFetchStatusFlow.value = if (cachedGames.isNotEmpty()) DataFetchStatus.LOADED_FROM_CACHE else DataFetchStatus.NO_DATA_AVAILABLE
+                }
+                Log.i(tag, "Loaded ${cachedGames.size} games from cache for user $userId. Status: ${_dataFetchStatusFlow.value}")
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to load games from cache for user $userId", e)
+                _gamesListFlow.value = emptyList()
+                _dataFetchStatusFlow.value = DataFetchStatus.ERROR_UNKNOWN
+            }
+        }
+    }
+
+    private suspend fun saveGamesToCache(games: List<Game>, userId: String) {
+        if (userId.isBlank()) return
+        withContext(Dispatchers.IO) { // Ensure runs on IO
+            try {
+                val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+                val gamesKey = "$gamesCacheKeyPrefix$userId"
+                val jsonString = AppJsonConfiguration.encodeToString(games)
+                // Use androidx.core.content.edit for SharedPreferences
+                prefs.edit(commit = true) { putString(gamesKey, jsonString) }
+                Log.d(tag, "Saved ${games.size} games to cache for user $userId.")
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to save games to cache for user $userId", e)
+            }
+        }
+    }
+
+    suspend fun addOrUpdateGame(game: Game) {
+        val userId = currentUserId
+        if (userId.isNullOrBlank()) {
+            Log.w(tag, "No authenticated user. Cannot save/update game.")
+            _dataFetchStatusFlow.value = DataFetchStatus.NO_USER_AUTHENTICATED
             return
         }
 
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit {
-                putString(KEY_DATA_FETCH_STATUS, newStatus.name)
-            }
-        _dataFetchStatusFlow.value = newStatus
-        Log.i(TAG, "DataFetchStatus updated to: $newStatus")
-    }
+        val gameWithTimestamp = game.copy(lastUpdated = System.currentTimeMillis()) // Use 'lastUpdated'
 
-    // This can be useful if other parts of the app need a non-flow, immediate snapshot
-    fun getGames(): List<Game> {
-        return _gamesListFlow.value
-    }
+        if (_networkStatusFlow.value != ConnectivityObserver.Status.AVAILABLE) {
+            Log.w(tag, "Network unavailable. Saving game ${gameWithTimestamp.id} as pending sync for user $userId.")
+            saveGameToPendingSync(gameWithTimestamp, userId)
+            _dataFetchStatusFlow.value = DataFetchStatus.ERROR_NETWORK // Reflect that data is local due to network
+            return
+        }
 
-
-    // New helper function to save the current games list to SharedPreferences
-    private fun saveGamesListToPreferences(games: List<Game>) {
         try {
-            val jsonString = json.encodeToString(games)
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit {
-                    putString(KEY_GAMES_LIST, jsonString)
-                    // Note: We don't update DataFetchStatus here directly,
-                    // as this method is a generic saver. The caller
-                    // (e.g., saveGamesListFromPhone, locallyUpdateGameDetails)
-                    // is responsible for semantic status updates.
-                }
-            Log.d(TAG, "Saved list of ${games.size} games to SharedPreferences.")
+            Log.d(tag, "Attempting to save game ${gameWithTimestamp.id} to Firestore for user $userId.")
+            firestore.collection("users").document(userId)
+                .collection("games").document(gameWithTimestamp.id)
+                .set(gameWithTimestamp)
+                .await()
+            Log.i(tag, "Game ${gameWithTimestamp.id} successfully saved to Firestore for user $userId.")
+            // Firestore listener should pick this up.
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to save games list to SharedPreferences", e)
-            // Optionally, rethrow or handle error more specifically if needed by callers
-            // For now, just logging. If this fails, the in-memory list might be out of sync with prefs.
+            Log.e(tag, "Error saving game ${gameWithTimestamp.id} to Firestore for user $userId. Caching as pending.", e)
+            _dataFetchStatusFlow.value = DataFetchStatus.ERROR_FIREBASE_OPERATION // Or ERROR_NETWORK
+            saveGameToPendingSync(gameWithTimestamp, userId)
         }
     }
 
-    /**
-     * Updates the details of a single game in the local storage.
-     * This is used, for example, when a game is completed offline on the watch.
-     */
-    suspend fun locallyUpdateGameDetails(updatedGame: Game) {
-        withContext(Dispatchers.IO) {
-            // 1. Get the current list
-            val currentList = _gamesListFlow.value
+    private suspend fun saveGameToPendingSync(game: Game, userId: String) {
+        withContext(Dispatchers.IO) { // Ensure runs on IO
+            val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+            val pendingKey = "$pendingSyncGamesKeyPrefix$userId"
+            val currentPendingJson = prefs.getString(pendingKey, "[]") // Default to "[]"
+            // Ensure non-null for decodeFromString, though "[]" default from getString should handle it.
+            val currentPendingGames = AppJsonConfiguration.decodeFromString<MutableList<Game>>(currentPendingJson ?: "[]")
+            currentPendingGames.removeAll { it.id == game.id }
+            currentPendingGames.add(game)
+            prefs.edit(commit = true) { putString(pendingKey, AppJsonConfiguration.encodeToString(currentPendingGames)) }
+            Log.i(tag, "Game ${game.id} saved to pending sync for user $userId.")
+            updateLocalGameInFlowAndCache(game, userId)
+        }
+    }
 
-            // 2. Find the index of the game to update
-            val gameIndex = currentList.indexOfFirst { it.id == updatedGame.id }
+    private suspend fun updateLocalGameInFlowAndCache(updatedGame: Game, userId: String) {
+        val currentGames = _gamesListFlow.value.toMutableList()
+        val index = currentGames.indexOfFirst { it.id == updatedGame.id }
+        if (index != -1) {
+            currentGames[index] = updatedGame
+        } else {
+            currentGames.add(updatedGame)
+        }
+        _gamesListFlow.value = currentGames.toList() // Ensure it's immutable for the flow
+        saveGamesToCache(currentGames.toList(), userId)
+    }
 
-            if (gameIndex != -1) {
-                // 3. Create a new list with the updated game
-                val newList = currentList.toMutableList().apply {
-                    this[gameIndex] = updatedGame
+    suspend fun syncPendingGames(userId: String) {
+        if (userId.isBlank()) return
+        if (_networkStatusFlow.value != ConnectivityObserver.Status.AVAILABLE) {
+            Log.w(tag, "Network unavailable. Cannot sync pending games for user $userId.")
+            _dataFetchStatusFlow.value = DataFetchStatus.ERROR_NETWORK
+            return
+        }
+
+        withContext(Dispatchers.IO) { // Ensure runs on IO
+            val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+            val pendingKey = "$pendingSyncGamesKeyPrefix$userId"
+            
+            val pendingGamesJson = prefs.getString(pendingKey, null)
+            if (pendingGamesJson == null) {
+                Log.d(tag, "No pending games to sync for user $userId.")
+                return@withContext
+            }
+            val pendingGames = AppJsonConfiguration.decodeFromString<MutableList<Game>>(pendingGamesJson) // pendingGamesJson is non-null here
+
+            if (pendingGames.isEmpty()) {
+                Log.d(tag, "Pending games list is empty for user $userId.")
+                return@withContext
+            }
+
+            Log.i(tag, "Starting sync of ${pendingGames.size} pending games for user $userId.")
+            val successfullySyncedGamesIds = mutableListOf<String>()
+
+            for (pendingGame in pendingGames) {
+                try {
+                    val firestoreDocRef = firestore.collection("users").document(userId)
+                        .collection("games").document(pendingGame.id)
+                    val firestoreDoc = firestoreDocRef.get().await()
+                    if (firestoreDoc.exists()) {
+                        val firestoreGame = firestoreDoc.toObject(Game::class.java) // Changed to use Game::class.java
+                        // Use 'lastUpdated' from Game.kt
+                        if (firestoreGame != null && firestoreGame.lastUpdated > pendingGame.lastUpdated) {
+                            Log.d(tag, "Firestore version of game ${pendingGame.id} is newer. Skipping sync.")
+                            successfullySyncedGamesIds.add(pendingGame.id)
+                            continue
+                        }
+                    }
+                    firestoreDocRef.set(pendingGame).await()
+                    Log.i(tag, "Successfully synced pending game ${pendingGame.id} to Firestore for user $userId.")
+                    successfullySyncedGamesIds.add(pendingGame.id)
+                } catch (e: Exception) {
+                    Log.e(tag, "Error syncing pending game ${pendingGame.id} for user $userId. Will retry later.", e)
                 }
+            }
 
-                // 4. Update the StateFlow
-                _gamesListFlow.value = newList.toList() // Ensure it's immutable for the flow
-
-                // 5. Persist the updated list to SharedPreferences
-                saveGamesListToPreferences(newList.toList())
-
-                Log.i(TAG, "Locally updated and saved game: ${updatedGame.id}, New Status: ${updatedGame.status}")
-
-                // Optionally, update DataFetchStatus if appropriate.
-                // For instance, if a game is completed, the overall status might still be SUCCESS or LOADED_FROM_CACHE.
-                // This depends on your specific status logic.
-                // If the game was previously SCHEDULED and is now COMPLETED,
-                // and this is the only operation, status might not need to change from SUCCESS.
-                // if (_dataFetchStatusFlow.value != DataFetchStatus.SUCCESS && _dataFetchStatusFlow.value != DataFetchStatus.LOADED_FROM_CACHE) {
-                //    updateDataFetchStatus(DataFetchStatus.SUCCESS) // Or a more specific status
-                // }
-
-            } else {
-                Log.w(TAG, "Attempted to locally update game not found in list: ${updatedGame.id}. Adding it as a new game.")
-                // If the game is not found, we can choose to add it (e.g., a game played entirely offline and never synced)
-                val newList = (currentList + updatedGame).toList()
-                _gamesListFlow.value = newList
-                saveGamesListToPreferences(newList)
-                // updateDataFetchStatus(DataFetchStatus.SUCCESS) // Or LOADED_FROM_CACHE if appropriate
+            if (successfullySyncedGamesIds.isNotEmpty()) {
+                val updatedPendingGames = pendingGames.filterNot { successfullySyncedGamesIds.contains(it.id) }
+                prefs.edit(commit = true) { putString(pendingKey, AppJsonConfiguration.encodeToString(updatedPendingGames)) }
+                Log.i(tag, "Removed ${successfullySyncedGamesIds.size} games from pending sync list for user $userId.")
             }
         }
     }
 
-}
+    suspend fun deleteGame(gameId: String) {
+        val userId = currentUserId
+        if (userId.isNullOrBlank()) {
+            Log.w(tag, "No authenticated user. Cannot delete game.")
+            _dataFetchStatusFlow.value = DataFetchStatus.NO_USER_AUTHENTICATED
+            return
+        }
 
+        // TODO: Implement offline deletion strategy (e.g., mark as pending delete)
+        if (_networkStatusFlow.value != ConnectivityObserver.Status.AVAILABLE) {
+            Log.w(tag, "Network unavailable. Deletion of game $gameId for user $userId will be queued or handled offline.")
+            // For now, just log and perhaps update status.
+            _dataFetchStatusFlow.value = DataFetchStatus.ERROR_NETWORK
+            // Add to a "pending delete" list in SharedPreferences if you want to sync deletions
+            return
+        }
+
+        try {
+            Log.d(tag, "Attempting to delete game $gameId from Firestore for user $userId.")
+            firestore.collection("users").document(userId)
+                .collection("games").document(gameId)
+                .delete()
+                .await()
+            Log.i(tag, "Game $gameId successfully deleted from Firestore for user $userId.")
+            // Listener will update cache and flow.
+        } catch (e: Exception) {
+            Log.e(tag, "Error deleting game $gameId from Firestore for user $userId.", e)
+            _dataFetchStatusFlow.value = DataFetchStatus.ERROR_FIREBASE_OPERATION
+            // Potentially add to a "pending delete" list here as well if the online attempt fails
+        }
+    }
+    
+    private suspend fun removeLocalGameFromFlowAndCache(gameId: String, userId: String) {
+        val currentGames = _gamesListFlow.value.toMutableList()
+        currentGames.removeAll { it.id == gameId }
+        _gamesListFlow.value = currentGames.toList()
+        saveGamesToCache(currentGames.toList(), userId)
+    }
+
+    fun cleanup() {
+        Log.d(tag, "Cleaning up GameStorageWear.")
+        detachFirestoreListener()
+        storageScope.cancel()
+    }
+}
