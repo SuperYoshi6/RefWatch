@@ -16,25 +16,26 @@ exports.generateCustomToken = onCall(async (request) => {
     );
   }
   const uid = request.auth.uid;
-  admin.auth()
-      .createCustomToken(uid)
-      .then((customToken) => {
-        // Send token back to client
-      })
-      .catch((error) => {
-        console.log("Error creating custom token:", error);
-      });
-//  try {
-//    const customToken = await admin.auth().createCustomToken(uid);
-//    console.log(`Successfully created custom token for UID: ${uid}`);
-//    return {customToken: customToken};
-//  } catch (error) {
-//    console.error(`Error creating custom token for UID: ${uid}`, error);
-//    // Use the imported HttpsError directly
-//    throw new HttpsError(
-//        "internal",
-//        "Unable to create custom token.",
-//        error.message,
-//    );
-//  }
+  //  admin.auth()
+  //      .createCustomToken(uid)
+  //      .then((customToken) => {
+  //        console.log("Custom token with claims:", customToken);
+  //        return {"customToken": customToken}; // !!! this returns null
+  //      })
+  //      .catch((error) => {
+  //        console.log("Error creating custom token:", error);
+  //      });
+  try {
+    const customToken = await admin.auth().createCustomToken(uid);
+    console.log(`Successfully created custom token for UID: ${uid}`);
+    return {customToken: customToken};
+  } catch (error) {
+    console.error(`Error creating custom token for UID: ${uid}`, error);
+    // Use the imported HttpsError directly
+    throw new HttpsError(
+        "internal",
+        "Unable to create custom token.",
+        error.message,
+    );
+  }
 });
