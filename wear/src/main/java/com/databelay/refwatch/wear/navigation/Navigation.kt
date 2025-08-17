@@ -80,7 +80,7 @@ fun NavigationRoutes() {
             navController.removeOnDestinationChangedListener(listener)
         }
     }*/
-
+    // FIXME: Doesn't ask for kickof selection for penalties
     Scaffold(
         modifier = Modifier.background(MaterialTheme.colorScheme.background), // Use Wear MaterialTheme
         // timeText = { TimeText() } // Optional: standard time display
@@ -90,6 +90,7 @@ fun NavigationRoutes() {
             startDestination = startDestination, // Dynamic start destination
             modifier = Modifier.padding(it)
         ) {
+            // FIXME: buzzing timer after extra time is over during penalties
             composable(WearNavRoutes.GAME_LIST_SCREEN) {
                 GameListScreen(
                     viewModel = gameViewModel, // Pass the shared ViewModel

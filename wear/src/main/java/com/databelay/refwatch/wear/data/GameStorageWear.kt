@@ -271,6 +271,7 @@ class GameStorageWear @Inject constructor(
             val currentPendingGames = AppJsonConfiguration.decodeFromString<MutableList<Game>>(currentPendingJson ?: "[]")
             currentPendingGames.removeAll { it.id == game.id }
             currentPendingGames.add(game)
+            // FIXME: events dont' get saved with the game
             prefs.edit(commit = true) { putString(pendingKey, AppJsonConfiguration.encodeToString(currentPendingGames)) }
             Log.i(tag, "Game ${game.id} saved to pending sync for user $userId.")
             updateLocalGameInFlowAndCache(game, userId)

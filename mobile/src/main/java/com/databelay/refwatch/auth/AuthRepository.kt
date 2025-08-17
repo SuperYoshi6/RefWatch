@@ -32,9 +32,7 @@ class AuthRepository @Inject constructor(private val firebaseAuth: FirebaseAuth)
         // Allow public access on google cloud console
         // https://console.cloud.google.com/run/detail/us-central1/generatecustomtoken/security
 
-        // FIXME: in google cloud getting textPayload: "The request was not authorized to invoke this service. Read more at
-        //  https://cloud.google.com/run/docs/securing/authenticating Additional troubleshooting documentation can be found at:
-        //  https://cloud.google.com/run/docs/troubleshooting#401"
+
         val currentUser = firebaseAuth.currentUser
         Log.d(TAG, "Attempting to call generateCustomToken. Current user: ${currentUser?.uid}, Email: ${currentUser?.email}")
 

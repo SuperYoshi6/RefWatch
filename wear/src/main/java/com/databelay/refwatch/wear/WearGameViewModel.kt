@@ -381,7 +381,9 @@ class WearGameViewModel @Inject constructor(
 
         val lastPhaseKickOffTeam = gameAtPeriodEnd.kickOffTeam
         val nextPhase: GamePhase = when (gameAtPeriodEnd.currentPhase) {
-            GamePhase.NOT_STARTED, GamePhase.PRE_GAME, GamePhase.KICK_OFF_SELECTION_FIRST_HALF -> GamePhase.FIRST_HALF
+            GamePhase.NOT_STARTED -> GamePhase.PRE_GAME
+            GamePhase.PRE_GAME -> GamePhase.KICK_OFF_SELECTION_FIRST_HALF
+            GamePhase.KICK_OFF_SELECTION_FIRST_HALF -> GamePhase.FIRST_HALF
             GamePhase.FIRST_HALF -> GamePhase.HALF_TIME
             GamePhase.HALF_TIME -> GamePhase.SECOND_HALF
             GamePhase.SECOND_HALF -> if (gameAtPeriodEnd.hasExtraTime) GamePhase.KICK_OFF_SELECTION_EXTRA_TIME else GamePhase.GAME_ENDED
@@ -412,7 +414,7 @@ class WearGameViewModel @Inject constructor(
         )
 
         _activeGame.value = updatedGame
-        Log.i(tag, "Period ${gameAtPeriodEnd.currentPhase} ended. New phase: ${updatedGame.currentPhase}. Kick-off: ${updatedGame.kickOffTeam}")
+        Log.i(tag, "Phase ${gameAtPeriodEnd.currentPhase} ended. New phase: ${updatedGame.currentPhase}. Kick-off: ${updatedGame.kickOffTeam}")
 
         if (updatedGame.currentPhase == GamePhase.GAME_ENDED) {
             gameTimerService?.commandStopGameSessionAndCleanup()
@@ -443,18 +445,23 @@ class WearGameViewModel @Inject constructor(
         Log.d(tag, "Kick-off team for current context set to $team")
     }
 
-    // Called from UI after user confirms selection and presses "Kick Off"
+    // Called from UI after user presses "Kick Off"
+
     fun kickOff() {
         val currentGame = _activeGame.value
         val currentPhase = currentGame.currentPhase
 
-        if (currentPhase.needsKickOffSelection()) {
-            val teamName = if (currentGame.kickOffTeam == Team.HOME) currentGame.homeTeamName else currentGame.awayTeamName
+        if (currentPhase.needsKickOff()) {
+            val teamName =
+                if (currentGame.kickOffTeam == Team.HOME) currentGame.homeTeamName else currentGame.awayTeamName
             val kickOffMessage = "Kick Off - ${teamName} - ${currentPhase.readable()}"
             val kickOffEvent = GenericLogEvent(message = kickOffMessage)
             Log.i(tag, kickOffMessage)
+            _activeGame.update {currentGame -> currentGame.copy(events = currentGame.events+kickOffEvent)}
+            gameTimerService?.startGameTimer(_activeGame.value)
+
             // Proceed to the actual playing phase (e.g., FIRST_HALF from KICK_OFF_SELECTION_FIRST_HALF)
-            proceedToNextPhaseManager(currentGame.copy(events = currentGame.events + kickOffEvent))
+//            proceedToNextPhaseManager(currentGame.copy(events = currentGame.events + kickOffEvent))
         } else {
             Log.w(tag, "KickOff action attempted in inappropriate phase: $currentPhase")
         }
@@ -674,18 +681,21 @@ class WearGameViewModel @Inject constructor(
 
 // Helper extension function, consider moving to common GamePhase related file
 fun GamePhase.needsKickOffSelection(): Boolean {
-    return this == GamePhase.KICK_OFF_SELECTION_FIRST_HALF ||
-            this == GamePhase.KICK_OFF_SELECTION_EXTRA_TIME ||
-            this == GamePhase.KICK_OFF_SELECTION_PENALTIES ||
-            this == GamePhase.PRE_GAME // PRE_GAME might involve setting initial kick-off
+    return this == GamePhase.FIRST_HALF ||
+            this == GamePhase.EXTRA_TIME_FIRST_HALF ||
+            this == GamePhase.PENALTIES
 }
 
+fun GamePhase.needsKickOff(): Boolean {
+    return this == GamePhase.FIRST_HALF || this == GamePhase.SECOND_HALF ||
+            this == GamePhase.EXTRA_TIME_FIRST_HALF || this == GamePhase.EXTRA_TIME_SECOND_HALF ||
+            this == GamePhase.PENALTIES
+}
 fun GamePhase.isKickOffSelectionPhase(): Boolean { // More precise than needsKickOffSelection
     return this == GamePhase.KICK_OFF_SELECTION_FIRST_HALF ||
            this == GamePhase.KICK_OFF_SELECTION_EXTRA_TIME ||
            this == GamePhase.KICK_OFF_SELECTION_PENALTIES
 }
-
 
 fun GamePhase.usesHalfDuration(): Boolean {
     return this == GamePhase.FIRST_HALF || this == GamePhase.SECOND_HALF ||

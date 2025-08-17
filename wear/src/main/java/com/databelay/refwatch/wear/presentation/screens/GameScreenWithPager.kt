@@ -194,6 +194,8 @@ fun GameScreenWithPager(
                 onStartExtraTime = {
                     showEndOfMainTimeDialog = false
                     gameViewModel.setToHaveExtraTime()
+                    // Simple solution for now: penalties if tied after extra time
+                    gameViewModel.setToHavePenalties()
                     onEndPhase()
                 },
                 onEndMatch = {
