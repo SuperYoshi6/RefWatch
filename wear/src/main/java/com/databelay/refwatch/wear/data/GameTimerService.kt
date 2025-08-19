@@ -135,7 +135,8 @@ class GameTimerService : Service() {
             currentInternalGame = game
             val initialElapsed = game.actualTimeElapsedInPeriodMillis
             val regulationDuration = game.regulationPeriodDurationMillis()
-            val isAdded = game.currentPhase.isPlayablePhase() && initialElapsed >= regulationDuration
+//            val isAdded = game.currentPhase.isPlayablePhase() && initialElapsed >= regulationDuration
+            val isAdded = game.currentPhase.hasTimer() && initialElapsed >= regulationDuration
             val displayedMillis = if (isAdded) {initialElapsed - regulationDuration} else {regulationDuration - initialElapsed}
             val initialIsTimerRunning = startImmediately && (game.currentPhase.hasTimer())
             _timerStateFlow.update {

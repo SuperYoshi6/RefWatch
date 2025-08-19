@@ -89,6 +89,7 @@ class WearGameViewModel @Inject constructor(
             isServiceBound = true
 
             gameTimerService?.timerStateFlow
+                // FIXME: why service is still in addedtime? buzzing timer after extra time 2nd half is over  during penalties
                 ?.onEach { serviceState ->
                     if (!_activeGame.value.inAddedTime && serviceState.inAddedTime) {
                         Log.i(tag, "Added time is now ACTIVE via TimerService. Starting reminder vibration.")
@@ -369,6 +370,8 @@ class WearGameViewModel @Inject constructor(
     }
 
     fun proceedToNextPhaseManager(gameAtPeriodEndInput: Game) {
+//        gameTimerService?.pauseGameTimer(updateNotificationText = "Paused: ${gameAtPeriodEndInput.currentPhase.readable()}")
+
         var gameAtPeriodEnd = gameAtPeriodEndInput.copy(isTimerRunning = false) // Ensure timer is marked as stopped
 
         if (gameAtPeriodEnd.currentPhase.isPlayablePhase()) {
@@ -380,9 +383,12 @@ class WearGameViewModel @Inject constructor(
         }
 
         val lastPhaseKickOffTeam = gameAtPeriodEnd.kickOffTeam
-        val nextPhase: GamePhase = when (gameAtPeriodEnd.currentPhase) {
+        var nextPhase: GamePhase = when (gameAtPeriodEnd.currentPhase) {
             GamePhase.NOT_STARTED -> GamePhase.PRE_GAME
             GamePhase.PRE_GAME -> GamePhase.KICK_OFF_SELECTION_FIRST_HALF
+////             TODO: BEGIN TEMP remove
+//            GamePhase.PRE_GAME -> GamePhase.EXTRA_TIME_SECOND_HALF
+////             TODO: END TEMP remove
             GamePhase.KICK_OFF_SELECTION_FIRST_HALF -> GamePhase.FIRST_HALF
             GamePhase.FIRST_HALF -> GamePhase.HALF_TIME
             GamePhase.HALF_TIME -> GamePhase.SECOND_HALF
@@ -395,6 +401,12 @@ class WearGameViewModel @Inject constructor(
             GamePhase.PENALTIES -> GamePhase.GAME_ENDED
             else -> gameAtPeriodEnd.currentPhase // Should not happen
         }
+//        // TODO: BEGIN TEMP remove
+//        gameAtPeriodEnd = gameAtPeriodEnd.copy(
+//            hasExtraTime = true,
+//            hasPenalties = true
+//        )
+//        // TODO: END TEMP remove
 
         val newKickOffTeam = when (nextPhase) {
             GamePhase.FIRST_HALF, GamePhase.EXTRA_TIME_FIRST_HALF, GamePhase.PENALTIES -> lastPhaseKickOffTeam

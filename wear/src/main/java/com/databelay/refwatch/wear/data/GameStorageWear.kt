@@ -6,6 +6,8 @@ import androidx.core.content.edit
 // import androidx.core.content.edit // Not strictly needed if using withContext for prefs
 import com.databelay.refwatch.common.AppJsonConfiguration
 import com.databelay.refwatch.common.Game
+import com.databelay.refwatch.common.jsonObjectToMap
+import com.databelay.refwatch.common.toFirestoreMap
 import com.databelay.refwatch.wear.auth.WatchAuthManager
 import com.databelay.refwatch.wear.util.ConnectivityObserver // Import ConnectivityObserver
 import com.google.firebase.firestore.FirebaseFirestore
@@ -28,6 +30,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.jsonObject
 // import kotlinx.serialization.json.Json // No longer needed directly if AppJsonConfiguration is Json
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -230,12 +233,12 @@ class GameStorageWear @Inject constructor(
         }
     }
 
-    suspend fun addOrUpdateGame(game: Game) {
+    suspend fun addOrUpdateGame(game: Game): Result<Unit> {
         val userId = currentUserId
         if (userId.isNullOrBlank()) {
             Log.w(tag, "No authenticated user. Cannot save/update game.")
             _dataFetchStatusFlow.value = DataFetchStatus.NO_USER_AUTHENTICATED
-            return
+            return Result.failure(IllegalArgumentException("Game ID cannot be blank for addOrUpdateGame"))
         }
 
         val gameWithTimestamp = game.copy(lastUpdated = System.currentTimeMillis()) // Use 'lastUpdated'
@@ -244,21 +247,34 @@ class GameStorageWear @Inject constructor(
             Log.w(tag, "Network unavailable. Saving game ${gameWithTimestamp.id} as pending sync for user $userId.")
             saveGameToPendingSync(gameWithTimestamp, userId)
             _dataFetchStatusFlow.value = DataFetchStatus.ERROR_NETWORK // Reflect that data is local due to network
-            return
+            return Result.failure(IllegalArgumentException("Game ID cannot be blank for addOrUpdateGame"))
         }
 
-        try {
-            Log.d(tag, "Attempting to save game ${gameWithTimestamp.id} to Firestore for user $userId.")
-            firestore.collection("users").document(userId)
-                .collection("games").document(gameWithTimestamp.id)
-                .set(gameWithTimestamp)
-                .await()
-            Log.i(tag, "Game ${gameWithTimestamp.id} successfully saved to Firestore for user $userId.")
-            // Firestore listener should pick this up.
+        Log.d(tag, "addOrUpdateGame (Wear): User: $userId, Game ID: ${game.id}, Events in Game object: ${game.events.size}")
+        if (game.id.isBlank()) {
+            Log.e(tag, "addOrUpdateGame (Wear): game.id is blank for user $userId.")
+            // return Result.failure(IllegalArgumentException("Game ID cannot be blank")) // Adapt error handling
+            return Result.failure(IllegalArgumentException("Game ID cannot be blank for addOrUpdateGame"))
+        }
+        return try {
+            val gameDocumentRef = firestore.collection("users")
+                .document(userId!!) // userId is checked not to be blank above
+                .collection("games")
+                .document(game.id)
+
+            // Use the extension function
+            val gameDataForFirestore = game.toFirestoreMap() // Pass AppJsonConfiguration if needed
+
+            Log.d(tag, "addOrUpdateGame (Wear): Saving game ${game.id} for user $userId with ${(gameDataForFirestore["events"] as? List<*>)?.size ?: 0} events.")
+            Log.v(tag, "addOrUpdateGame (Wear): Data being sent to Firestore: $gameDataForFirestore")
+
+            gameDocumentRef.set(gameDataForFirestore).await()
+            Log.d(tag, "Game ${game.id} saved/updated successfully to Firestore for user $userId.")
+            Result.success(Unit)
+
         } catch (e: Exception) {
-            Log.e(tag, "Error saving game ${gameWithTimestamp.id} to Firestore for user $userId. Caching as pending.", e)
-            _dataFetchStatusFlow.value = DataFetchStatus.ERROR_FIREBASE_OPERATION // Or ERROR_NETWORK
-            saveGameToPendingSync(gameWithTimestamp, userId)
+            Log.e(tag, "Error saving/updating game ${game.id} for user $userId to Firestore", e)
+            Result.failure(e)
         }
     }
 
@@ -271,7 +287,7 @@ class GameStorageWear @Inject constructor(
             val currentPendingGames = AppJsonConfiguration.decodeFromString<MutableList<Game>>(currentPendingJson ?: "[]")
             currentPendingGames.removeAll { it.id == game.id }
             currentPendingGames.add(game)
-            // FIXME: events dont' get saved with the game
+            // related: for all fields Firestore                W  (26.0.0) [CustomClassMapper]: No setter/field for formattedGameDateTime found on class com.databelay.refwatch.common.Game (fields/setters are case sensitive!)
             prefs.edit(commit = true) { putString(pendingKey, AppJsonConfiguration.encodeToString(currentPendingGames)) }
             Log.i(tag, "Game ${game.id} saved to pending sync for user $userId.")
             updateLocalGameInFlowAndCache(game, userId)

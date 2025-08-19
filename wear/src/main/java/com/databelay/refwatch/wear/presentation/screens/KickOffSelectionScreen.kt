@@ -49,7 +49,7 @@ fun KickOffSelectionScreen(
     ) {
         Text(
             // Use elvis operator for safety, though activeGame should ideally not be null here
-            text = "Select ${activeGame?.currentPhase?.readable() ?: ""} Kick-Off Team",
+            text = "Select ${activeGame.currentPhase.readable()}",
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center,
             modifier = Modifier

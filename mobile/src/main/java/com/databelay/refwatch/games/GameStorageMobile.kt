@@ -4,8 +4,8 @@ import android.util.Log
 import com.databelay.refwatch.common.AppJsonConfiguration
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameEvent
-import com.databelay.refwatch.common.jsonObjectToMap
 import com.databelay.refwatch.common.mapToJsonObject
+import com.databelay.refwatch.common.toFirestoreMap
 
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
@@ -16,10 +16,8 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
-import kotlinx.serialization.encodeToString // Explicit import for clarity
 
 import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.jsonObject
 
 
 class GameStorageMobile(private val firestore: FirebaseFirestore) {
@@ -27,16 +25,16 @@ class GameStorageMobile(private val firestore: FirebaseFirestore) {
     companion object {
         private const val USERS_COLLECTION = "users"
         private const val GAMES_COLLECTION = "games"
-        private const val TAG = "GameRepository"
+        private const val tag = "GameRepository"
     }
 
     fun getGamesFlow(userId: String): Flow<List<Game>> {
         if (userId.isBlank()) {
-            Log.w(TAG, "getGamesFlow: userId is blank. Returning empty flow.")
+            Log.w(tag, "getGamesFlow: userId is blank. Returning empty flow.")
             return callbackFlow { trySend(emptyList()); awaitClose { } } // Or handle as an error
         }
 
-        Log.d(TAG, "getGamesFlow: Setting up listener for user $userId")
+        Log.d(tag, "getGamesFlow: Setting up listener for user $userId")
         val gamesCollectionRef = firestore.collection(USERS_COLLECTION)
             .document(userId)
             .collection(GAMES_COLLECTION)
@@ -45,18 +43,18 @@ class GameStorageMobile(private val firestore: FirebaseFirestore) {
         return callbackFlow {
             val listenerRegistration = gamesCollectionRef.addSnapshotListener { snapshots, e ->
                 if (e != null) {
-                    Log.w(TAG, "getGamesFlow: Listen failed for user $userId.", e)
+                    Log.w(tag, "getGamesFlow: Listen failed for user $userId.", e)
                     close(e) // Close the flow with an error
                     return@addSnapshotListener
                 }
 
                 if (snapshots == null) {
-                    Log.d(TAG, "getGamesFlow: Snapshots object is null for user $userId. Sending empty list.")
+                    Log.d(tag, "getGamesFlow: Snapshots object is null for user $userId. Sending empty list.")
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
 
-                Log.d(TAG, "getGamesFlow: Snapshot received. Number of documents: ${snapshots.size()} for user $userId.")
+                Log.d(tag, "getGamesFlow: Snapshot received. Number of documents: ${snapshots.size()} for user $userId.")
 
                 val gamesList = snapshots.documents.mapNotNull { document ->
                     try {
@@ -65,13 +63,13 @@ class GameStorageMobile(private val firestore: FirebaseFirestore) {
                         val gameBase = document.toObject<Game>()
 
                         if (gameBase == null) {
-                            Log.w(TAG, "getGamesFlow: Failed to convert document ${document.id} to Game for user $userId. Skipping.")
+                            Log.w(tag, "getGamesFlow: Failed to convert document ${document.id} to Game for user $userId. Skipping.")
                             return@mapNotNull null
                         }
 
                         // 2. Manually parse the events from the document data
                         val parsedEvents = parseGameEventsFromDocument(document)
-                        Log.v(TAG, "getGamesFlow: Parsed ${parsedEvents.size} events for game ${document.id}")
+                        Log.v(tag, "getGamesFlow: Parsed ${parsedEvents.size} events for game ${document.id}")
 
 
                         // 3. Return a new Game object with the manually parsed events
@@ -81,16 +79,16 @@ class GameStorageMobile(private val firestore: FirebaseFirestore) {
                             events = parsedEvents
                         )
                     } catch (ex: Exception) {
-                        Log.e(TAG, "getGamesFlow: Error converting document ${document.id} to Game for user $userId", ex)
+                        Log.e(tag, "getGamesFlow: Error converting document ${document.id} to Game for user $userId", ex)
                         null // Skip this document if there's an error
                     }
                 }
-                Log.d(TAG, "getGamesFlow: Processed ${gamesList.size} games for user $userId after parsing events.")
+                Log.d(tag, "getGamesFlow: Processed ${gamesList.size} games for user $userId after parsing events.")
                 trySend(gamesList)
             }
 
             awaitClose {
-                Log.d(TAG, "getGamesFlow: Closing games flow listener for user $userId")
+                Log.d(tag, "getGamesFlow: Closing games flow listener for user $userId")
                 listenerRegistration.remove()
             }
         }
@@ -100,35 +98,35 @@ class GameStorageMobile(private val firestore: FirebaseFirestore) {
     // This function is now correctly placed and used by getGamesFlow
     private fun parseGameEventsFromDocument(document: DocumentSnapshot): List<GameEvent> {
         val eventMapsFirestore = document.get("events") as? List<Map<String, Any?>> ?: run {
-            Log.d(TAG, "parseGameEventsFromDocument: Document ${document.id} has no 'events' field, or it's not a list. Returning empty list.")
+            Log.d(tag, "parseGameEventsFromDocument: Document ${document.id} has no 'events' field, or it's not a list. Returning empty list.")
             return emptyList()
         }
 
         if (eventMapsFirestore.isEmpty()) {
-            Log.d(TAG, "parseGameEventsFromDocument: Document ${document.id} has an empty 'events' list (read from Firestore).")
+            Log.d(tag, "parseGameEventsFromDocument: Document ${document.id} has an empty 'events' list (read from Firestore).")
             return emptyList()
         }
-        Log.d(TAG, "parseGameEventsFromDocument: Document ${document.id} has ${eventMapsFirestore.size} event maps to parse from Firestore.")
+        Log.d(tag, "parseGameEventsFromDocument: Document ${document.id} has ${eventMapsFirestore.size} event maps to parse from Firestore.")
 
         return eventMapsFirestore.mapNotNull { eventMapFromFirestore ->
             // LOG 3: Log the individual event map from Firestore
-            Log.v(TAG, "parseGameEventsFromDocument: Attempting to decode event map for doc ${document.id}: $eventMapFromFirestore")
+            Log.v(tag, "parseGameEventsFromDocument: Attempting to decode event map for doc ${document.id}: $eventMapFromFirestore")
             try {
                 // 1. Convert Map<String, Any?> from Firestore TO a kotlinx.serialization.json.JsonObject
                 val jsonObject = mapToJsonObject(eventMapFromFirestore)
                 // LOG 4: Log the JsonObject before ktx.serialization decodes it to GameEvent
-                Log.v(TAG, "parseGameEventsFromDocument: Converted Firestore map to JsonObject for doc ${document.id}: $jsonObject")
+                Log.v(tag, "parseGameEventsFromDocument: Converted Firestore map to JsonObject for doc ${document.id}: $jsonObject")
 
                 // 2. Deserialize the JsonObject TO a GameEvent object
                 // ktxJson needs classDiscriminator and SerializersModule configured to work here.
                 // This also works if GameEvent is a sealed class and setup for polymorphism
                 val event: GameEvent = AppJsonConfiguration.decodeFromJsonElement(jsonObject)
                 // LOG 5: Log the successfully decoded event
-                Log.d(TAG, "parseGameEventsFromDocument: Successfully decoded event for doc ${document.id}: $event")
+                Log.d(tag, "parseGameEventsFromDocument: Successfully decoded event for doc ${document.id}: $event")
                 event
             } catch (e: Exception) {
                 // LOG 6: THIS IS VERY IMPORTANT IF EVENTS ARE MISSING or parsing fails
-                Log.e(TAG, "parseGameEventsFromDocument: Error decoding a single GameEvent from map for doc ${document.id}. Map from Firestore: $eventMapFromFirestore. Error: ", e)
+                Log.e(tag, "parseGameEventsFromDocument: Error decoding a single GameEvent from map for doc ${document.id}. Map from Firestore: $eventMapFromFirestore. Error: ", e)
                 // Optionally log the JsonObject if the mapToJsonObject conversion seems problematic:
                 // try { val problematicJson = mapToJsonObject(eventMapFromFirestore); Log.e(TAG, "Problematic JsonObject: $problematicJson") } catch (jsonEx: Exception) { Log.e(TAG, "Failed to convert map to JsonObject for error logging", jsonEx) }
                 null
@@ -137,13 +135,13 @@ class GameStorageMobile(private val firestore: FirebaseFirestore) {
     }
 
     suspend fun addOrUpdateGame(userId: String, game: Game): Result<Unit> {
-        Log.d(TAG, "addOrUpdateGame: User: $userId, Game ID: ${game.id}, Events in Game object: ${game.events.size}")
+        Log.d(tag, "addOrUpdateGame: User: $userId, Game ID: ${game.id}, Events in Game object: ${game.events.size}")
         if (userId.isBlank()) {
-            Log.e(TAG, "addOrUpdateGame: userId is blank.")
+            Log.e(tag, "addOrUpdateGame: userId is blank.")
             return Result.failure(IllegalArgumentException("User ID cannot be blank"))
         }
         if (game.id.isBlank()) {
-            Log.e(TAG, "addOrUpdateGame: game.id is blank for user $userId.")
+            Log.e(tag, "addOrUpdateGame: game.id is blank for user $userId.")
             return Result.failure(IllegalArgumentException("Game ID cannot be blank for addOrUpdateGame"))
         }
 
@@ -153,72 +151,17 @@ class GameStorageMobile(private val firestore: FirebaseFirestore) {
                 .collection(GAMES_COLLECTION)
                 .document(game.id) // Using game.id as the document ID
 
-            // Convert Game object to a Map for Firestore
-            // Update serialization to include newly added fields
-            val gameDataForFirestore = mutableMapOf<String, Any?>(
-                "id" to game.id,
-                "lastUpdated" to game.lastUpdated,
-                "halfDurationMinutes" to game.halfDurationMinutes,
-                "halftimeDurationMinutes" to game.halftimeDurationMinutes,
-                "gameNumber" to game.gameNumber,
-                "homeTeamName" to game.homeTeamName,
-                "awayTeamName" to game.awayTeamName,
-                "hasExtraTime" to game.hasExtraTime, // True if extra time has been initiated
-                "hasPenalties" to game.hasPenalties, // True if penalties have been initiated
-                "penaltiesTakenHome" to game.penaltiesTakenHome, // Number of penalties taken by home team
-                "penaltiesTakenAway" to game.penaltiesTakenAway, // Number of penalties taken by away team
-                // Correctly handling AgeGroup (which is an enum)
-                "ageGroup" to game.ageGroup?.name, // Store the enum constant's name as a String
-                "competition" to game.competition,
-                "venue" to game.venue,
-                "gameDateTimeEpochMillis" to game.gameDateTimeEpochMillis,
-                "notes" to game.notes,
-                "homeTeamColorArgb" to game.homeTeamColorArgb,
-                "awayTeamColorArgb" to game.awayTeamColorArgb,
-                "status" to game.status.name,
-                "currentPhase" to game.currentPhase.name,
-                "homeScore" to game.homeScore,
-                "awayScore" to game.awayScore,
-                "userId" to userId
-            )
+            // Use the extension function
+            val gameDataForFirestore = game.toFirestoreMap() // Pass AppJsonConfiguration if needed
 
-            // Convert List<GameEvent> to List<Map<String, Any?>> for Firestore
-            val eventsForFirestore = game.events.mapNotNull { event ->
-                try {
-                    // 1. Serialize GameEvent to JSON String
-                    // This uses the specific serializer for the concrete type of 'event'
-                    // (e.g., GoalScoredEvent.serializer(), GenericLogEvent.serializer())
-                    // and includes the classDiscriminator if configured.
-                    val eventJsonString = AppJsonConfiguration.encodeToString(event)
-//                    Log.v(TAG, "addOrUpdateGame: Serialized event to JSON string: $eventJsonString")
-
-
-                    // 2. Parse the JSON String into a kotlinx.serialization.json.JsonObje  ct
-                    // This is a generic JSON object structure.
-                    val jsonObject = AppJsonConfiguration.parseToJsonElement(eventJsonString).jsonObject
-//                    Log.v(TAG, "addOrUpdateGame: Parsed JSON string to JsonObject: $jsonObject")
-
-                    // 3. Convert the JsonObject to Map<String, Any?>
-                    // This map is what Firestore can store.
-                    val eventMap = jsonObjectToMap(jsonObject)
-//                    Log.v(TAG, "addOrUpdateGame: Converted JsonObject to Map: $eventMap")
-                    eventMap
-
-                } catch (e: Exception) {
-                    Log.e(TAG, "addOrUpdateGame: Failed to process a GameEvent for Firestore. Game: ${game.id}, Event: $event, Error: ${e.message}", e)
-                    null
-                }
-            }
-            gameDataForFirestore["events"] = eventsForFirestore
-
-            Log.d(TAG, "addOrUpdateGame: Saving game ${game.id} for user $userId with ${eventsForFirestore.size} events.")
-            Log.v(TAG, "addOrUpdateGame: Data being sent to Firestore: $gameDataForFirestore")
+            Log.d(tag, "addOrUpdateGame (Wear): Saving game ${game.id} for user $userId with ${(gameDataForFirestore["events"] as? List<*>)?.size ?: 0} events.")
+            Log.v(tag, "addOrUpdateGame: Data being sent to Firestore: $gameDataForFirestore")
 
             gameDocumentRef.set(gameDataForFirestore).await()
-            Log.i(TAG, "addOrUpdateGame: Successfully saved game ${game.id} to Firestore for user $userId.")
+            Log.i(tag, "addOrUpdateGame: Successfully saved game ${game.id} to Firestore for user $userId.")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "addOrUpdateGame: Error saving game ${game.id} for user $userId to Firestore. Error: ${e.message}", e)
+            Log.e(tag, "addOrUpdateGame: Error saving game ${game.id} for user $userId to Firestore. Error: ${e.message}", e)
             Result.failure(e)
         }
 
@@ -234,10 +177,10 @@ class GameStorageMobile(private val firestore: FirebaseFirestore) {
                 .document(gameId)
                 .delete()
                 .await()
-            Log.d(TAG, "Game $gameId deleted successfully for user $userId.")
+            Log.d(tag, "Game $gameId deleted successfully for user $userId.")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error deleting game $gameId for user $userId", e)
+            Log.e(tag, "Error deleting game $gameId for user $userId", e)
             Result.failure(e)
         }
     }

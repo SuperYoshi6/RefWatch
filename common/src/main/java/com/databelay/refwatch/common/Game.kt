@@ -13,13 +13,18 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 import com.google.firebase.firestore.Exclude
+import com.google.firebase.firestore.IgnoreExtraProperties
+import kotlinx.serialization.encodeToString // For GameEvent serialization
+import kotlinx.serialization.json.jsonObject // For GameEvent serialization
 import kotlin.Int
 
 // --- Game Settings ---
 @Serializable // Add this
+@IgnoreExtraProperties // Add this annotation to the class
 data class Game(
     // --- Core Game Mechanics Settings ---
     val id: String = UUID.randomUUID().toString(), // Unique ID for these game settings instance
+    val userId: String = "", // User who created this game (for cache and syncing
     var lastUpdated: Long = System.currentTimeMillis(), // Timestamp for when this was last updated by user
     var halfDurationMinutes: Int = 45,
     var halftimeDurationMinutes: Int = 15,
@@ -51,7 +56,6 @@ data class Game(
     var displayedTimeMillis: Long = 45,
     var actualTimeElapsedInPeriodMillis: Long = 0L,
     var isTimerRunning: Boolean = false,
-
     @get:Exclude
     val needsSyncWithPhone: Boolean = false, // Store locally on watch, needs sync with phone
     @get:Exclude
@@ -174,4 +178,57 @@ data class Game(
             }
             return summaryText
         }
+}
+
+// Assuming AppJsonConfiguration and jsonObjectToMap are accessible/moved to common
+// If not, you might need to pass them or adjust.
+
+fun Game.toFirestoreMap(): Map<String, Any?> {
+    val gameData = mutableMapOf<String, Any?>(
+        "id" to this.id,
+        // Ensure lastUpdated is handled correctly.
+        // If it's a @ServerTimestamp Date, Firestore handles it.
+        // If you're setting it manually to a Long (epoch millis), that's fine too.
+        "lastUpdated" to this.lastUpdated, // Or System.currentTimeMillis() if you set it here
+        "halfDurationMinutes" to this.halfDurationMinutes,
+        "halftimeDurationMinutes" to this.halftimeDurationMinutes,
+        "extraTimeHalfDurationMinutes" to this.extraTimeHalfDurationMinutes,
+        "gameNumber" to this.gameNumber,
+        "homeTeamName" to this.homeTeamName,
+        "awayTeamName" to this.awayTeamName,
+        "hasExtraTime" to this.hasExtraTime,
+        "hasPenalties" to this.hasPenalties,
+        "penaltiesTakenHome" to this.penaltiesTakenHome,
+        "penaltiesTakenAway" to this.penaltiesTakenAway,
+        "ageGroup" to this.ageGroup?.name, // Assuming AgeGroup is an enum
+        "competition" to this.competition,
+        "venue" to this.venue,
+        "gameDateTimeEpochMillis" to this.gameDateTimeEpochMillis, // Assuming this is Long or Date
+        "notes" to this.notes,
+        "homeTeamColorArgb" to this.homeTeamColorArgb,
+        "awayTeamColorArgb" to this.awayTeamColorArgb,
+        "status" to this.status.name, // Assuming status is an enum
+        "currentPhase" to this.currentPhase.name, // Assuming currentPhase is an enum
+        "homeScore" to this.homeScore,
+        "awayScore" to this.awayScore,
+        "userId" to this.userId
+        // Add any other fields from your Game class
+    )
+
+    // Manual mapping for events
+    val eventsForFirestore = this.events.mapNotNull { event ->
+        try {
+            // This relies on your common AppJsonConfiguration and GameEvent being serializable
+            val eventJsonString = AppJsonConfiguration.encodeToString(event)
+            val jsonObject = AppJsonConfiguration.parseToJsonElement(eventJsonString).jsonObject
+            jsonObjectToMap(jsonObject) // Assumes jsonObjectToMap is accessible here
+        } catch (e: Exception) {
+            // Log this error appropriately, perhaps with more context (e.g., from where it's called)
+            // Log.e("Game.toFirestoreMap", "Failed to process a GameEvent for Firestore. Game: ${this.id}, Event: $event, Error: ${e.message}", e)
+            null
+        }
+    }
+    gameData["events"] = eventsForFirestore
+
+    return gameData
 }
