@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.tooling.preview.Preview
 import com.databelay.refwatch.BuildConfig
 import java.text.SimpleDateFormat
 import java.util.*
@@ -149,6 +150,7 @@ fun GameListScreen(
     }
 }
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameListItem(
@@ -251,6 +253,8 @@ fun GameListItem(
                         venuePart.ifBlank { fieldPart } // Use whichever is not blank
                     }
                 }
+                // Define a consistent height for the icon button area
+                val iconButtonHeight = 40.dp // Or 48.dp if you prefer standard touch target directly
 
                 if (fullLocationQuery.isNotBlank()) {
                     IconButton(
@@ -278,8 +282,8 @@ fun GameListItem(
                                 }
                             }
                         },
-                        // Modifier to ensure it doesn't take up too much space if text is short
-                        modifier = Modifier.size(40.dp) // Standard IconButton touch target size is 48.dp, icon is smaller
+                        modifier = Modifier.height(iconButtonHeight) // Ensure it takes up consistent height
+                            .size(iconButtonHeight) // You can also use .size()
                     ) {
                         Icon(
                             imageVector = Icons.Filled.LocationOn, // Or Icons.Filled.Navigation or other map-related icon
@@ -288,11 +292,20 @@ fun GameListItem(
                         )
                     }
                 } else {
-                    // Optional: Spacer if no location icon, to keep delete button alignment consistent
-                    // Spacer(Modifier.height(40.dp))
+                    // Placeholder to maintain vertical alignment when location icon is absent
+                    Box(modifier = Modifier.height(iconButtonHeight)) {
+                        // You can leave this Box empty, or put a transparent Spacer if you prefer
+                        // Spacer(Modifier.size(iconButtonHeight)) // Alternative if Box feels wrong
+                    }
                 }
 
-                IconButton(onClick = onDelete) {
+                Spacer(modifier = Modifier.height(8.dp)) // Adjust 8.dp to your desired spacing
+
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.height(iconButtonHeight) // Ensure it takes up consistent height
+                        .size(iconButtonHeight) // Match the size/height
+                ) {
                     Icon(Icons.Filled.Delete, "Delete Game", tint = MaterialTheme.colorScheme.error)
                 }
             }

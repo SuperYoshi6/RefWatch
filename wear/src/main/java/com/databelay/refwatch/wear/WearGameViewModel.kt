@@ -42,6 +42,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map // For mapping network status
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -55,7 +58,7 @@ interface IWearGameViewModel {
     val gamesList: StateFlow<List<Game>>
     val dataFetchStatus: StateFlow<DataFetchStatus>
     val isOnline: StateFlow<Boolean>
-    val activeGame: StateFlow<Game>
+    val activeGame: StateFlow<Game?> // <<<< CHANGE TO NULLABLE HERE
 }
 
 @HiltViewModel
@@ -74,8 +77,10 @@ class WearGameViewModel @Inject constructor(
         it == ConnectivityObserver.Status.AVAILABLE
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    private val _activeGame = MutableStateFlow(loadInitialActiveGame())
-    override val activeGame: StateFlow<Game> = _activeGame.asStateFlow()
+    // Initialize _activeGame as potentially null or with a loading state initially
+    private val _activeGame = MutableStateFlow<Game?>(null) // Start as null
+    override val activeGame: StateFlow<Game?> = _activeGame.asStateFlow() // Expose as nullable
+
 
     private var isCurrentGameSessionActive = false
     private var gameTimerService: GameTimerService? = null
@@ -90,32 +95,38 @@ class WearGameViewModel @Inject constructor(
 
             gameTimerService?.timerStateFlow
                 ?.onEach { serviceState ->
-                    if (!_activeGame.value.inAddedTime && serviceState.inAddedTime) {
-                        Log.i(tag, "Added time is now ACTIVE via TimerService. Starting reminder vibration.")
-                        vibrate(VibrationPattern.ADDED_TIME_REMINDER)
-                    }
-                    if (_activeGame.value.inAddedTime && !serviceState.inAddedTime) {
-                        Log.i(tag, "Added time is now INACTIVE via TimerService. Stopping reminder vibration.")
-                        vibrator?.cancel()
-                    }
-                    _activeGame.update { currentGame ->
-                        currentGame.copy(
-                            isTimerRunning = serviceState.isTimerRunning,
-                            displayedTimeMillis = serviceState.displayedMillis,
-                            actualTimeElapsedInPeriodMillis = serviceState.actualTimeElapsedInPeriodMillis,
-                            inAddedTime = serviceState.inAddedTime,
-                        )
+                    _activeGame.value?.let { currentNonNullGame -> // Use .value and safe call + let
+                        // --- Inside this 'let' block, currentNonNullGame is non-null ---
+                        if (!currentNonNullGame.inAddedTime && serviceState.inAddedTime) {
+                            Log.i(tag, "Added time is now ACTIVE via TimerService. Starting reminder vibration.")
+                            vibrate(VibrationPattern.ADDED_TIME_REMINDER)
+                        }
+                        if (currentNonNullGame.inAddedTime && !serviceState.inAddedTime) {
+                            Log.i(tag, "Added time is now INACTIVE via TimerService. Stopping reminder vibration.")
+                            vibrator?.cancel()
+                        }
+                        _activeGame.update { currentGame -> // currentGame here is Game?
+                            currentGame?.copy( // Safe call for copy
+                                isTimerRunning = serviceState.isTimerRunning,
+                                displayedTimeMillis = serviceState.displayedMillis,
+                                actualTimeElapsedInPeriodMillis = serviceState.actualTimeElapsedInPeriodMillis,
+                                inAddedTime = serviceState.inAddedTime,
+                            )
+                        }
                     }
                 }
                 ?.launchIn(viewModelScope)
 
-            val currentActiveGameOnConnect = _activeGame.value // Use a local val
-            if (currentActiveGameOnConnect.status == GameStatus.IN_PROGRESS) {
-                Log.d(tag, "Service connected. Current game phase: ${currentActiveGameOnConnect.currentPhase}, timer running: ${currentActiveGameOnConnect.isTimerRunning}")
-                gameTimerService?.configureTimerForGame(
-                    game = currentActiveGameOnConnect,
-                    startImmediately = currentActiveGameOnConnect.isTimerRunning
-                )
+            val currentActiveGameOnConnect = _activeGame.value // This is Game?
+            // Check if game exists AND is IN_PROGRESS
+            currentActiveGameOnConnect?.let { gameToConfigure ->
+                if (gameToConfigure.status == GameStatus.IN_PROGRESS) {
+                    Log.d(tag, "Service connected. Current game phase: ${gameToConfigure.currentPhase}, timer running: ${gameToConfigure.isTimerRunning}")
+                    gameTimerService?.configureTimerForGame(
+                        game = gameToConfigure,
+                        startImmediately = gameToConfigure.isTimerRunning
+                    )
+                }
             }
         }
 
@@ -129,10 +140,28 @@ class WearGameViewModel @Inject constructor(
     init {
         Log.d(tag, "WearGameViewModel initializing.")
 
-        _activeGame.onEach { game ->
-            if (game.status != GameStatus.COMPLETED) { // Avoid re-saving if just completed by this VM
+        viewModelScope.launch {
+            val initialGames = gameStorage.gamesListFlow
+                .filter { it.isNotEmpty() }
+                .stateIn(viewModelScope)
+                .first()
+
+            val loadedGame = loadInitialActiveGameInternal(initialGames)
+            _activeGame.value = loadedGame
+
+            loadedGame?.let { game -> // Ensure loadedGame is not null before using it
+                _activeGame.update { current ->
+                    current?.copy(
+                        displayedTimeMillis = calculateInitialDisplayTime(game) // game here is non-null from loadedGame.let
+                    )
+                }
+            }
+        }
+
+        _activeGame.filterNotNull().onEach { game ->
+            if (game.status != GameStatus.COMPLETED) {
                 saveActiveGameStateToHandle()
-                viewModelScope.launch { // Launch in viewModelScope for suspend function
+                viewModelScope.launch {
                     gameStorage.addOrUpdateGame(game)
                 }
                 Log.d(tag, "Active game ${game.id} state change persisted.")
@@ -141,7 +170,6 @@ class WearGameViewModel @Inject constructor(
 
         isOnline.onEach { online ->
             Log.i(tag, "Network status in ViewModel: ${if (online) "Online" else "Offline"}")
-            // GameStorageWear's init block handles triggering syncPendingGames.
         }.launchIn(viewModelScope)
 
         Intent(getApplication(), GameTimerService::class.java).also { intent ->
@@ -153,35 +181,32 @@ class WearGameViewModel @Inject constructor(
             }
         }
         bindToGameTimerService()
-
-        val initialGame = _activeGame.value
-        _activeGame.update { game ->
-            var initialDisplayTime = game.regulationPeriodDurationMillis()
-            if (!game.isTimerRunning && game.currentPhase.hasTimer()) {
-                val regulationDuration = game.regulationPeriodDurationMillis()
-                initialDisplayTime = if (game.actualTimeElapsedInPeriodMillis >= regulationDuration) {
-                    game.actualTimeElapsedInPeriodMillis - regulationDuration
-                } else {
-                    regulationDuration - game.actualTimeElapsedInPeriodMillis
-                }
-            }
-            game.copy(displayedTimeMillis = initialDisplayTime)
-        }
-        // updateCurrentPeriodKickOffTeam(initialGame.currentPhase, initialGame.kickOffTeam) // This was problematic, kickOffTeam should be set by user or phase progression
-        Log.d(tag, "Initial active game ID: ${initialGame.id}, Phase: ${initialGame.currentPhase}, KickOff: ${initialGame.kickOffTeam}")
     }
 
 
     val allGamesMap: StateFlow<Map<String, Game>> =
         kotlinx.coroutines.flow.combine(gamesList, _activeGame) { scheduled, active ->
             val gameMap = scheduled.associateBy { it.id }.toMutableMap()
-            active?.let { gameMap[it.id] = it } // Handle active potentially being null if interface changes
-            gameMap.toMap() // Return immutable map
+            active?.let { gameMap[it.id] = it }
+            gameMap.toMap()
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyMap()
         )
+
+    private fun calculateInitialDisplayTime(game: Game): Long { // game parameter is non-null
+        var initialDisplayTime = game.regulationPeriodDurationMillis()
+        if (!game.isTimerRunning && game.currentPhase.hasTimer()) {
+            val regulationDuration = game.regulationPeriodDurationMillis()
+            initialDisplayTime = if (game.actualTimeElapsedInPeriodMillis >= regulationDuration) {
+                game.actualTimeElapsedInPeriodMillis - regulationDuration
+            } else {
+                regulationDuration - game.actualTimeElapsedInPeriodMillis
+            }
+        }
+        return initialDisplayTime
+    }
 
     private fun bindToGameTimerService() {
         if (!isServiceBound && gameTimerService == null) {
@@ -206,53 +231,53 @@ class WearGameViewModel @Inject constructor(
         unbindFromGameTimerService()
     }
 
-    private fun loadInitialActiveGame(): Game {
+    private fun loadInitialActiveGameInternal(currentGames: List<Game>): Game {
         val savedGameJson: String? = savedStateHandle.get("activeGameJson")
-        val gameFromState = savedGameJson?.let {
+        savedGameJson?.let { json ->
             try {
-                Log.d(tag, "Loading active game from SavedStateHandle.")
-                AppJsonConfiguration.decodeFromString<Game>(it)
+                val gameFromState = AppJsonConfiguration.decodeFromString<Game>(json)
+                Log.d(tag, "Loaded active game from SavedStateHandle: ${gameFromState.id}")
+                return gameFromState
             } catch (e: Exception) {
-                Log.e(tag, "Error decoding active game from JSON for SavedStateHandle.", e)
-                null
+                Log.e(tag, "Error decoding game from SavedStateHandle", e)
             }
         }
-        if (gameFromState != null) return gameFromState
 
-        Log.d(tag, "No active game in SavedStateHandle, trying from scheduled or default.")
-        val firstScheduledGame = gamesList.value.firstOrNull { it.status == GameStatus.SCHEDULED }
+        Log.d(tag, "No active game in SavedStateHandle, trying from provided scheduled games.")
+        val firstScheduledGame = currentGames.firstOrNull { it.status == GameStatus.SCHEDULED }
+
         return firstScheduledGame?.copy(
             currentPhase = GamePhase.NOT_STARTED,
             homeScore = 0, awayScore = 0, events = emptyList()
-            // Retain its scheduled status and other details
         ) ?: Game().also {
-            Log.d(tag, "No game in SavedStateHandle or scheduled. Using new default game.")
+            Log.e(tag, "LOAD_INITIAL_ACTIVE_GAME_INTERNAL: No game from state or scheduled. Using new default. ID: ${it.id}")
         }
     }
 
     private fun saveActiveGameStateToHandle() {
-        try {
-            val activeGameJson = AppJsonConfiguration.encodeToString(_activeGame.value)
-            savedStateHandle["activeGameJson"] = activeGameJson
-            Log.d(tag, "Active game state saved to SavedStateHandle. ID: ${_activeGame.value.id}")
-        } catch (e: Exception) {
-            Log.e(tag, "Error saving active game state to JSON for SavedStateHandle", e)
+        _activeGame.value?.let { game ->
+            try {
+                val activeGameJson = AppJsonConfiguration.encodeToString(game)
+                savedStateHandle["activeGameJson"] = activeGameJson
+                Log.d(tag, "Active game state saved to SavedStateHandle. ID: ${game.id}")
+            } catch (e: Exception) {
+                Log.e(tag, "Error saving active game state to JSON for SavedStateHandle", e)
+            }
         }
     }
 
     fun createNewDefaultGame() {
-        cancelTimer() // Resets isCurrentGameSessionActive
+        cancelTimer()
         val newDefaultGame = Game(gameDateTimeEpochMillis = System.currentTimeMillis())
         _activeGame.value = newDefaultGame.copy(
             displayedTimeMillis = newDefaultGame.regulationPeriodDurationMillis(GamePhase.FIRST_HALF),
             status = GameStatus.IN_PROGRESS
         )
-        // KickOffTeam should be set via UI interaction if needed, or defaults to HOME
         Log.d(tag, "New default game created with ID: ${newDefaultGame.id}. Setting as active.")
     }
 
     fun selectGameToStart(gameFromList: Game) {
-        cancelTimer() // Resets isCurrentGameSessionActive
+        cancelTimer()
         Log.d(tag, "Selecting game from list to start: ${gameFromList.id}")
         val cleanGameForStart = gameFromList.copy(
             currentPhase = GamePhase.NOT_STARTED,
@@ -262,54 +287,52 @@ class WearGameViewModel @Inject constructor(
             actualTimeElapsedInPeriodMillis = 0L,
             isTimerRunning = false,
             events = emptyList(),
-            status = GameStatus.IN_PROGRESS, // Mark as IN_PROGRESS once user selects it
+            status = GameStatus.IN_PROGRESS,
             lastUpdated = System.currentTimeMillis()
-            // kickOffTeam is retained from gameFromList
         )
         _activeGame.value = cleanGameForStart
         Log.d(tag, "Selected game ${cleanGameForStart.id} set as active.")
     }
 
     fun finishAndSyncActiveGame(onSyncComplete: () -> Unit) {
-        Log.d(tag, "finishAndSyncActiveGame called for game: ${_activeGame.value.id}")
-        cancelTimer() // Resets isCurrentGameSessionActive
-        val finalGameData = _activeGame.value.copy(
-            currentPhase = GamePhase.GAME_ENDED,
-            status = GameStatus.COMPLETED,
-            isTimerRunning = false,
-            lastUpdated = System.currentTimeMillis()
-        )
-        // Update _activeGame. This triggers the onEach in init to save to GameStorageWear
-        _activeGame.value = finalGameData
-        Log.d(tag, "Game ${finalGameData.id} marked as COMPLETED in ViewModel.")
+        _activeGame.value?.let { currentGame ->
+            Log.d(tag, "finishAndSyncActiveGame called for game: ${currentGame.id}")
+            cancelTimer()
+            val finalGameData = currentGame.copy(
+                currentPhase = GamePhase.GAME_ENDED,
+                status = GameStatus.COMPLETED,
+                isTimerRunning = false,
+                lastUpdated = System.currentTimeMillis()
+            )
+            _activeGame.value = finalGameData
+            Log.d(tag, "Game ${finalGameData.id} marked as COMPLETED in ViewModel.")
 
-        // The save to GameStorageWear is now handled by the _activeGame.onEach collector.
-        // GameStorageWear will attempt to sync this update to Firestore.
-        // This callback is called immediately after handing off.
-        viewModelScope.launch {
-            Log.i(tag, "Game ${finalGameData.id} processing for completion finished. Resetting UI.")
-            resetActiveGameToDefaultOrNextScheduled()
-            onSyncComplete()
+            viewModelScope.launch {
+                Log.i(tag, "Game ${finalGameData.id} processing for completion finished. Resetting UI.")
+                resetActiveGameToDefaultOrNextScheduled()
+                onSyncComplete()
+            }
+        } ?: run {
+            Log.w(tag, "finishAndSyncActiveGame called but no active game.")
+            onSyncComplete() // Still call callback to not block UI flows
         }
     }
 
     @Deprecated("GameStorageWear handles sync automatically. This function may be removed.")
     fun attemptSyncPendingGames() {
         Log.w(tag, "attemptSyncPendingGames called, but this is now primarily handled by GameStorageWear.")
-        // If an explicit trigger is truly needed from UI:
-        // viewModelScope.launch { gameStorage.syncPendingGames() }
-        // Note: syncPendingGames in GameStorageWear now doesn't require userId as it uses currentUserId from WatchAuthManager.
     }
 
     fun resetActiveGameToDefaultOrNextScheduled() {
         cancelTimer()
+        val activeGameId = _activeGame.value?.id
         val nextScheduledGame = gamesList.value
-            .filter { it.status == GameStatus.SCHEDULED && it.id != _activeGame.value.id }
+            .filter { it.status == GameStatus.SCHEDULED && it.id != (activeGameId ?: "") }
             .minByOrNull { it.gameDateTimeEpochMillis ?: Long.MAX_VALUE }
 
         val newActiveGame = nextScheduledGame?.copy(
             currentPhase = GamePhase.NOT_STARTED, homeScore = 0, awayScore = 0, events = emptyList(),
-            status = GameStatus.SCHEDULED, // Keep its scheduled status
+            status = GameStatus.SCHEDULED,
             isTimerRunning = false, actualTimeElapsedInPeriodMillis = 0L,
             displayedTimeMillis = nextScheduledGame.regulationPeriodDurationMillis(GamePhase.FIRST_HALF)
         ) ?: Game().let { defaultGame ->
@@ -318,12 +341,12 @@ class WearGameViewModel @Inject constructor(
             )
         }
         _activeGame.value = newActiveGame
-        Log.d(tag, "Active game has been reset. New active game ID: ${_activeGame.value.id}")
+        Log.d(tag, "Active game has been reset. New active game ID: ${newActiveGame.id}")
     }
 
 
     fun toggleTimer() {
-        val currentGame = _activeGame.value
+        val currentGame = _activeGame.value ?: return
         val currentPhase = currentGame.currentPhase
         vibrate(VibrationPattern.GENERIC_EVENT)
 
@@ -353,8 +376,8 @@ class WearGameViewModel @Inject constructor(
                 isCurrentGameSessionActive = true
             }
         }
-        if (currentGame.status == GameStatus.SCHEDULED && !currentGame.isTimerRunning) { // If starting timer for a scheduled game
-            _activeGame.update { it.copy(status = GameStatus.IN_PROGRESS) }
+        if (currentGame.status == GameStatus.SCHEDULED && !currentGame.isTimerRunning) {
+            _activeGame.update { it?.copy(status = GameStatus.IN_PROGRESS) }
         }
     }
 
@@ -364,14 +387,12 @@ class WearGameViewModel @Inject constructor(
         vibrator?.cancel()
         isCurrentGameSessionActive = false
         _activeGame.update {
-            it.copy(isTimerRunning = false)
+            it?.copy(isTimerRunning = false)
         }
     }
 
     fun proceedToNextPhaseManager(gameAtPeriodEndInput: Game) {
-//        gameTimerService?.pauseGameTimer(updateNotificationText = "Paused: ${gameAtPeriodEndInput.currentPhase.readable()}")
-
-        var gameAtPeriodEnd = gameAtPeriodEndInput.copy(isTimerRunning = false) // Ensure timer is marked as stopped
+        var gameAtPeriodEnd = gameAtPeriodEndInput.copy(isTimerRunning = false)
 
         if (gameAtPeriodEnd.currentPhase.isPlayablePhase()) {
             val regulationDur = gameAtPeriodEnd.regulationPeriodDurationMillis()
@@ -385,9 +406,6 @@ class WearGameViewModel @Inject constructor(
         var nextPhase: GamePhase = when (gameAtPeriodEnd.currentPhase) {
             GamePhase.NOT_STARTED -> GamePhase.PRE_GAME
             GamePhase.PRE_GAME -> GamePhase.KICK_OFF_SELECTION_FIRST_HALF
-////             TODO: BEGIN TEMP remove
-//            GamePhase.PRE_GAME -> GamePhase.EXTRA_TIME_SECOND_HALF
-////             TODO: END TEMP remove
             GamePhase.KICK_OFF_SELECTION_FIRST_HALF -> GamePhase.FIRST_HALF
             GamePhase.FIRST_HALF -> GamePhase.HALF_TIME
             GamePhase.HALF_TIME -> GamePhase.SECOND_HALF
@@ -398,27 +416,21 @@ class WearGameViewModel @Inject constructor(
             GamePhase.EXTRA_TIME_SECOND_HALF -> if (gameAtPeriodEnd.homeScore == gameAtPeriodEnd.awayScore && gameAtPeriodEnd.hasPenalties) GamePhase.KICK_OFF_SELECTION_PENALTIES else GamePhase.GAME_ENDED
             GamePhase.KICK_OFF_SELECTION_PENALTIES -> GamePhase.PENALTIES
             GamePhase.PENALTIES -> GamePhase.GAME_ENDED
-            else -> gameAtPeriodEnd.currentPhase // Should not happen
+            else -> gameAtPeriodEnd.currentPhase
         }
-//        // TODO: BEGIN TEMP remove
-//        gameAtPeriodEnd = gameAtPeriodEnd.copy(
-//            hasExtraTime = true,
-//            hasPenalties = true
-//        )
-//        // TODO: END TEMP remove
 
         val newKickOffTeam = when (nextPhase) {
             GamePhase.FIRST_HALF, GamePhase.EXTRA_TIME_FIRST_HALF, GamePhase.PENALTIES -> lastPhaseKickOffTeam
             GamePhase.SECOND_HALF, GamePhase.EXTRA_TIME_SECOND_HALF -> lastPhaseKickOffTeam.opposite()
-            GamePhase.HALF_TIME -> lastPhaseKickOffTeam.opposite() // Who kicks off after halftime
-            GamePhase.EXTRA_TIME_HALF_TIME -> lastPhaseKickOffTeam.opposite() // Who kicks off after ET halftime
-            else -> lastPhaseKickOffTeam // For KICK_OFF_SELECTION phases, GAME_ENDED, etc.
+            GamePhase.HALF_TIME -> lastPhaseKickOffTeam.opposite()
+            GamePhase.EXTRA_TIME_HALF_TIME -> lastPhaseKickOffTeam.opposite()
+            else -> lastPhaseKickOffTeam
         }
 
         val updatedGame = gameAtPeriodEnd.copy(
             currentPhase = nextPhase,
             actualTimeElapsedInPeriodMillis = 0L,
-            displayedTimeMillis = gameAtPeriodEnd.regulationPeriodDurationMillis(nextPhase), // Use gameAtPeriodEnd as context for duration
+            displayedTimeMillis = gameAtPeriodEnd.regulationPeriodDurationMillis(nextPhase),
             status = if (nextPhase == GamePhase.GAME_ENDED) GameStatus.COMPLETED else GameStatus.IN_PROGRESS,
             kickOffTeam = newKickOffTeam,
             lastUpdated = System.currentTimeMillis()
@@ -429,26 +441,21 @@ class WearGameViewModel @Inject constructor(
 
         if (updatedGame.currentPhase == GamePhase.GAME_ENDED) {
             gameTimerService?.commandStopGameSessionAndCleanup()
-            isCurrentGameSessionActive = false // Explicitly ensure session is marked inactive
-            // UI should prompt to confirm game end, which might call finishAndSyncActiveGame
+            isCurrentGameSessionActive = false
         } else if (updatedGame.currentPhase.needsKickOffSelection()) {
-            // If next phase is a kick-off selection, do not start timer. Let user interact.
             gameTimerService?.configureTimerForGame(game = updatedGame, startImmediately = false)
         } else {
-            // For playable phases or breaks, configure timer (breaks might auto-start)
              gameTimerService?.configureTimerForGame(
                 game = updatedGame,
-                startImmediately = updatedGame.currentPhase.isBreak() // Auto-start timer for breaks
+                startImmediately = updatedGame.currentPhase.isBreak()
             )
         }
     }
 
 
     fun setKickOffTeam(team: Team) {
-        // This function primarily sets the team that will take the *first* kick-off of the game,
-        // or the team for a specific kick-off selection phase (like penalties).
         _activeGame.update {
-            it.copy(
+            it?.copy(
                 kickOffTeam = team,
                 lastUpdated = System.currentTimeMillis()
             )
@@ -456,23 +463,17 @@ class WearGameViewModel @Inject constructor(
         Log.d(tag, "Kick-off team for current context set to $team")
     }
 
-    // Called from UI after user presses "Kick Off"
-
     fun kickOff() {
-        val currentGame = _activeGame.value
+        val currentGame = _activeGame.value ?: return
         val currentPhase = currentGame.currentPhase
 
         if (currentPhase.needsKickOff()) {
-            val teamName =
-                if (currentGame.kickOffTeam == Team.HOME) currentGame.homeTeamName else currentGame.awayTeamName
+            val teamName = if (currentGame.kickOffTeam == Team.HOME) currentGame.homeTeamName else currentGame.awayTeamName
             val kickOffMessage = "Kick Off - ${teamName} - ${currentPhase.readable()}"
             val kickOffEvent = GenericLogEvent(message = kickOffMessage)
             Log.i(tag, kickOffMessage)
-            _activeGame.update {currentGame -> currentGame.copy(events = currentGame.events+kickOffEvent)}
-            gameTimerService?.startGameTimer(_activeGame.value)
-
-            // Proceed to the actual playing phase (e.g., FIRST_HALF from KICK_OFF_SELECTION_FIRST_HALF)
-//            proceedToNextPhaseManager(currentGame.copy(events = currentGame.events + kickOffEvent))
+            _activeGame.update { game -> game?.copy(events = game.events + kickOffEvent) }
+            gameTimerService?.startGameTimer(currentGame) // Pass nullable game
         } else {
             Log.w(tag, "KickOff action attempted in inappropriate phase: $currentPhase")
         }
@@ -480,27 +481,27 @@ class WearGameViewModel @Inject constructor(
 
 
     fun setToHaveExtraTime() {
-        _activeGame.update { it.copy(hasExtraTime = true, lastUpdated = System.currentTimeMillis()) }
+        _activeGame.update { it?.copy(hasExtraTime = true, lastUpdated = System.currentTimeMillis()) }
     }
 
     fun setToHavePenalties() {
-        _activeGame.update { it.copy(hasPenalties = true, lastUpdated = System.currentTimeMillis()) }
+        _activeGame.update { it?.copy(hasPenalties = true, lastUpdated = System.currentTimeMillis()) }
     }
 
     fun addGoal(team: Team) {
-        val currentGame = _activeGame.value
+        val currentGame = _activeGame.value ?: return
         if (!currentGame.currentPhase.isPlayablePhase()) return
 
         val newHomeScore = if (team == Team.HOME) currentGame.homeScore + 1 else currentGame.homeScore
         val newAwayScore = if (team == Team.AWAY) currentGame.awayScore + 1 else currentGame.awayScore
         val goalEvent = GoalScoredEvent(
             team = team,
-            gameTimeMillis = currentGame.actualTimeElapsedInPeriodMillis.toDouble(), // Capture time at event
+            gameTimeMillis = currentGame.actualTimeElapsedInPeriodMillis.toDouble(),
             homeScoreAtTime = newHomeScore,
             awayScoreAtTime = newAwayScore
         )
         _activeGame.update {
-            it.copy(
+            it?.copy(
                 homeScore = newHomeScore,
                 awayScore = newAwayScore,
                 events = it.events + goalEvent,
@@ -508,12 +509,12 @@ class WearGameViewModel @Inject constructor(
             )
         }
         vibrate(VibrationPattern.GOAL_SCORED)
-        Log.d(tag, "Goal added for $team. Score: ${_activeGame.value.homeScore}-${_activeGame.value.awayScore}")
+        Log.d(tag, "Goal added for $team. Score: ${_activeGame.value?.homeScore}-${_activeGame.value?.awayScore}")
     }
 
 
     fun addCard(team: Team, playerNumber: Int, cardType: CardType) {
-        val currentGame = _activeGame.value
+        val currentGame = _activeGame.value ?: return
         if (!currentGame.currentPhase.isPlayablePhase()) return
 
         val cardEvent = CardIssuedEvent(
@@ -523,55 +524,64 @@ class WearGameViewModel @Inject constructor(
             gameTimeMillis = currentGame.actualTimeElapsedInPeriodMillis.toDouble()
         )
         _activeGame.update {
-            it.copy(
+            it?.copy(
                 events = it.events + cardEvent,
                 lastUpdated = System.currentTimeMillis()
             )
         }
     }
 
-    fun updateGameNumber(gameNumber: String) { _activeGame.update { it.copy(gameNumber = gameNumber, lastUpdated = System.currentTimeMillis()) } }
-    fun updateHomeTeamName(name: String) { _activeGame.update { it.copy(homeTeamName = name, lastUpdated = System.currentTimeMillis()) } }
-    fun updateAwayTeamName(name: String) { _activeGame.update { it.copy(awayTeamName = name, lastUpdated = System.currentTimeMillis()) } }
-    fun updateHomeTeamColor(color: Color) { _activeGame.update { it.copy(homeTeamColorArgb = color.toArgb(), lastUpdated = System.currentTimeMillis()) } }
-    fun updateAwayTeamColor(color: Color) { _activeGame.update { it.copy(awayTeamColorArgb = color.toArgb(), lastUpdated = System.currentTimeMillis()) } }
+    fun updateGameNumber(gameNumber: String) { _activeGame.update { it?.copy(gameNumber = gameNumber, lastUpdated = System.currentTimeMillis()) } }
+    fun updateHomeTeamName(name: String) { _activeGame.update { it?.copy(homeTeamName = name, lastUpdated = System.currentTimeMillis()) } }
+    fun updateAwayTeamName(name: String) { _activeGame.update { it?.copy(awayTeamName = name, lastUpdated = System.currentTimeMillis()) } }
+    fun updateHomeTeamColor(color: Color) { _activeGame.update { it?.copy(homeTeamColorArgb = color.toArgb(), lastUpdated = System.currentTimeMillis()) } }
+    fun updateAwayTeamColor(color: Color) { _activeGame.update { it?.copy(awayTeamColorArgb = color.toArgb(), lastUpdated = System.currentTimeMillis()) } }
 
     fun setHalfDuration(minutes: Int) {
         _activeGame.update { currentGame ->
-            val newHalfDurationMillis = minutes * 60 * 1000L
-            var newDisplayedTime = currentGame.displayedTimeMillis
-            if ((currentGame.currentPhase == GamePhase.PRE_GAME || currentGame.currentPhase.isKickOffSelectionPhase()) && !currentGame.isTimerRunning) {
-                newDisplayedTime = newHalfDurationMillis // Set full duration if pre-game/selection
-            } else if (currentGame.currentPhase.usesHalfDuration() && !currentGame.isTimerRunning) {
-                // If timer not running in a playable phase, adjust based on elapsed time if any
-                val timeAlreadyElapsed = currentGame.actualTimeElapsedInPeriodMillis
-                newDisplayedTime = (newHalfDurationMillis - timeAlreadyElapsed).coerceAtLeast(0L)
+            currentGame?.let { game ->
+                val newHalfDurationMillis = minutes * 60 * 1000L
+                var newDisplayedTime = game.displayedTimeMillis
+                if ((game.currentPhase == GamePhase.PRE_GAME || game.currentPhase.isKickOffSelectionPhase()) && !game.isTimerRunning) {
+                    newDisplayedTime = newHalfDurationMillis
+                } else if (game.currentPhase.usesHalfDuration() && !game.isTimerRunning) {
+                    val timeAlreadyElapsed = game.actualTimeElapsedInPeriodMillis
+                    newDisplayedTime = (newHalfDurationMillis - timeAlreadyElapsed).coerceAtLeast(0L)
+                }
+                game.copy(
+                    halfDurationMinutes = minutes,
+                    displayedTimeMillis = newDisplayedTime,
+                    lastUpdated = System.currentTimeMillis()
+                )
             }
-            currentGame.copy(
-                halfDurationMinutes = minutes,
-                displayedTimeMillis = newDisplayedTime,
-                lastUpdated = System.currentTimeMillis()
-            )
         }
     }
 
     fun setHalftimeDuration(minutes: Int) {
         _activeGame.update { currentGame ->
-            var newDisplayedTime = currentGame.displayedTimeMillis
-            if (currentGame.currentPhase == GamePhase.HALF_TIME && !currentGame.isTimerRunning) {
-                newDisplayedTime = (minutes * 60 * 1000L - currentGame.actualTimeElapsedInPeriodMillis).coerceAtLeast(0L)
+            currentGame?.let { game ->
+                var newDisplayedTime = game.displayedTimeMillis
+                if (game.currentPhase == GamePhase.HALF_TIME && !game.isTimerRunning) {
+                    newDisplayedTime = (minutes * 60 * 1000L - game.actualTimeElapsedInPeriodMillis).coerceAtLeast(0L)
+                }
+                game.copy(
+                    halftimeDurationMinutes = minutes,
+                    displayedTimeMillis = newDisplayedTime,
+                    lastUpdated = System.currentTimeMillis()
+                )
             }
-            currentGame.copy(
-                halftimeDurationMinutes = minutes,
-                displayedTimeMillis = newDisplayedTime,
-                lastUpdated = System.currentTimeMillis()
-            )
         }
     }
+
     fun resetGame() {
-        Log.d(tag, "Reset game called for game: ${_activeGame.value.id}")
+        val originalGame = _activeGame.value ?: run {
+            Log.w(tag, "resetGame called but no active game to reset. Creating new default game instead.")
+            createNewDefaultGame() // Or simply return if that's preferred
+            return
+        }
+        Log.d(tag, "Reset game called for game: ${originalGame.id}")
         cancelTimer()
-        val originalGame = _activeGame.value
+
         val resetGame = Game(id = originalGame.id, gameDateTimeEpochMillis = originalGame.gameDateTimeEpochMillis)
             .copy(
                 gameNumber = originalGame.gameNumber,
@@ -579,33 +589,35 @@ class WearGameViewModel @Inject constructor(
                 homeTeamName = originalGame.homeTeamName,
                 awayTeamName = originalGame.awayTeamName,
                 ageGroup = originalGame.ageGroup,
-                halfDurationMinutes = originalGame.halfDurationMinutes, // Keep configured durations
+                halfDurationMinutes = originalGame.halfDurationMinutes,
                 halftimeDurationMinutes = originalGame.halftimeDurationMinutes,
                 hasExtraTime = originalGame.hasExtraTime,
                 hasPenalties = originalGame.hasPenalties,
-                kickOffTeam = originalGame.kickOffTeam, // Keep original kick-off team setting
-                displayedTimeMillis = Game().regulationPeriodDurationMillis(GamePhase.FIRST_HALF), // Reset display time
-                status = GameStatus.SCHEDULED, // Revert to scheduled if was finished
+                kickOffTeam = originalGame.kickOffTeam,
+                displayedTimeMillis = Game().regulationPeriodDurationMillis(GamePhase.FIRST_HALF),
+                status = GameStatus.SCHEDULED,
                 currentPhase = GamePhase.NOT_STARTED,
             )
         _activeGame.value = resetGame
     }
 
     fun resetTimer() {
-        val gameBeforeReset = _activeGame.value
-        cancelTimer() // Stops service timer and updates local isTimerRunning, resets session flag
+        val gameBeforeReset = _activeGame.value ?: return
+        cancelTimer()
         _activeGame.update {
-            it.copy(
-                displayedTimeMillis = gameBeforeReset.regulationPeriodDurationMillis(gameBeforeReset.currentPhase),
+            it?.copy(
+                displayedTimeMillis = gameBeforeReset.regulationPeriodDurationMillis(gameBeforeReset.currentPhase), // gameBeforeReset is non-null here
                 actualTimeElapsedInPeriodMillis = 0L,
                 lastUpdated = System.currentTimeMillis()
             )
         }
-        gameTimerService?.configureTimerForGame(game = _activeGame.value, startImmediately = false)
+        val gameAfterReset = _activeGame.value ?: return
+
+        gameTimerService?.configureTimerForGame(game = gameAfterReset, startImmediately = false) // Pass nullable game
     }
 
     fun recordPenaltyAttempt(scored: Boolean) {
-        val currentGame = _activeGame.value
+        val currentGame = _activeGame.value ?: return
         val taker = currentGame.kickOffTeam
 
         if (currentGame.currentPhase != GamePhase.PENALTIES) {
@@ -615,39 +627,41 @@ class WearGameViewModel @Inject constructor(
         Log.d(tag, "Recording penalty attempt for ${taker.name}. Scored: $scored")
 
         _activeGame.update { game ->
-            var newScoreHome = game.homeScore
-            var newScoreAway = game.awayScore
-            val newKickOffTeamForNext = game.kickOffTeam.opposite()
-            var updatedPenaltiesTakenHome = game.penaltiesTakenHome
-            var updatedPenaltiesTakenAway = game.penaltiesTakenAway
-            val eventMessage: String
+            game?.let {
+                var newScoreHome = it.homeScore
+                var newScoreAway = it.awayScore
+                val newKickOffTeamForNext = it.kickOffTeam.opposite()
+                var updatedPenaltiesTakenHome = it.penaltiesTakenHome
+                var updatedPenaltiesTakenAway = it.penaltiesTakenAway
+                val eventMessage: String
 
-            if (taker == Team.HOME) {
-                updatedPenaltiesTakenHome++
-                if (scored) newScoreHome++
-                eventMessage = "Penalty by ${game.homeTeamName} (${taker.name}): ${if (scored) "SCORED" else "MISSED/SAVED"}"
-            } else { // taker == Team.AWAY
-                updatedPenaltiesTakenAway++
-                if (scored) newScoreAway++
-                eventMessage = "Penalty by ${game.awayTeamName} (${taker.name}): ${if (scored) "SCORED" else "MISSED/SAVED"}"
-            }
-            val penaltyEvent = GenericLogEvent(message = eventMessage)
-            var newPhase = game.currentPhase
-            if (checkShootoutEndCondition(newScoreHome, newScoreAway, updatedPenaltiesTakenHome, updatedPenaltiesTakenAway)) {
-                newPhase = GamePhase.GAME_ENDED
-                Log.i(tag, "Penalty shootout ended. Final Score: H $newScoreHome - A $newScoreAway")
-            }
+                if (taker == Team.HOME) {
+                    updatedPenaltiesTakenHome++
+                    if (scored) newScoreHome++
+                    eventMessage = "Penalty by ${it.homeTeamName} (${taker.name}): ${if (scored) "SCORED" else "MISSED/SAVED"}"
+                } else { // taker == Team.AWAY
+                    updatedPenaltiesTakenAway++
+                    if (scored) newScoreAway++
+                    eventMessage = "Penalty by ${it.awayTeamName} (${taker.name}): ${if (scored) "SCORED" else "MISSED/SAVED"}"
+                }
+                val penaltyEvent = GenericLogEvent(message = eventMessage)
+                var newPhase = it.currentPhase
+                if (checkShootoutEndCondition(newScoreHome, newScoreAway, updatedPenaltiesTakenHome, updatedPenaltiesTakenAway)) {
+                    newPhase = GamePhase.GAME_ENDED
+                    Log.i(tag, "Penalty shootout ended. Final Score: H $newScoreHome - A $newScoreAway")
+                }
 
-            game.copy(
-                homeScore = newScoreHome,
-                awayScore = newScoreAway,
-                penaltiesTakenHome = updatedPenaltiesTakenHome,
-                penaltiesTakenAway = updatedPenaltiesTakenAway,
-                events = game.events + penaltyEvent,
-                kickOffTeam = newKickOffTeamForNext,
-                currentPhase = newPhase,
-                lastUpdated = System.currentTimeMillis()
-            )
+                it.copy(
+                    homeScore = newScoreHome,
+                    awayScore = newScoreAway,
+                    penaltiesTakenHome = updatedPenaltiesTakenHome,
+                    penaltiesTakenAway = updatedPenaltiesTakenAway,
+                    events = it.events + penaltyEvent,
+                    kickOffTeam = newKickOffTeamForNext,
+                    currentPhase = newPhase,
+                    lastUpdated = System.currentTimeMillis()
+                )
+            }
         }
     }
 
@@ -655,22 +669,18 @@ class WearGameViewModel @Inject constructor(
     private fun checkShootoutEndCondition(
         currentHomeScore: Int, currentAwayScore: Int,
         penaltiesTakenHome: Int, penaltiesTakenAway: Int,
-        shootoutRoundLimit: Int = 5 // Standard is 5
+        shootoutRoundLimit: Int = 5
     ): Boolean {
-        // If all 5 rounds are complete for both, and scores are still tied, it continues to sudden death (handled by first condition on subsequent kicks)
-        // If all 5 rounds complete and scores are different, it's over.
-
         if (penaltiesTakenHome >= shootoutRoundLimit && penaltiesTakenAway >= shootoutRoundLimit) {
-            return currentHomeScore != currentAwayScore && penaltiesTakenHome == penaltiesTakenAway// Sudden death: any score difference ends it
+            return currentHomeScore != currentAwayScore && penaltiesTakenHome == penaltiesTakenAway
         }
         else {
-            // Check for decisive lead within the first 5 rounds
             val kicksRemainingHome = shootoutRoundLimit - penaltiesTakenHome
             val kicksRemainingAway = shootoutRoundLimit - penaltiesTakenAway
 
-            if (currentHomeScore > currentAwayScore + kicksRemainingAway) return true // Home has an insurmountable lead
-            if (currentAwayScore > currentHomeScore + kicksRemainingHome) return true // Away has an insurmountable lead
-            return false // No winner yet
+            if (currentHomeScore > currentAwayScore + kicksRemainingAway) return true
+            if (currentAwayScore > currentHomeScore + kicksRemainingHome) return true
+            return false
         }
     }
 
@@ -715,4 +725,3 @@ fun GamePhase.usesHalfDuration(): Boolean {
             this == GamePhase.EXTRA_TIME_FIRST_HALF || this == GamePhase.EXTRA_TIME_SECOND_HALF ||
             this == GamePhase.PRE_GAME // Allow setting duration in pre-game
 }
-

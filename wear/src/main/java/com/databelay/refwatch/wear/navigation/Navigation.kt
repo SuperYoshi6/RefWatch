@@ -59,8 +59,10 @@ fun NavigationRoutes() {
     val allGames by gameViewModel.allGamesMap.collectAsState()
 
     // Determine start destination based on whether a game is resumable
-    val startDestination = remember(activeGame.currentPhase) {
-        mapGamePhaseToRoute(activeGame.currentPhase)
+    val startDestination = remember(activeGame) { // Pass activeGameNullable
+        activeGame?.let { game -> // If not null, use it
+            mapGamePhaseToRoute(game.currentPhase)
+        } ?: WearNavRoutes.GAME_LIST_SCREEN // Default if null (e.g., no active game)
     }
     Log.d("${TAG}:startDestination", "Current start route: ${navController.currentDestination?.route}")
 /*    // Add the destination changed listener (for debugging)
@@ -93,21 +95,26 @@ fun NavigationRoutes() {
                     viewModel = gameViewModel, // Pass the shared ViewModel
                     onGameSelected = { selectedGame ->
                         gameViewModel.selectGameToStart(selectedGame) // ViewModel updates activeGame
-                        gameViewModel.proceedToNextPhaseManager(gameViewModel.activeGame.value.copy())
+                        gameViewModel.activeGame.value?.let { game ->
+                            gameViewModel.proceedToNextPhaseManager(game.copy())
+                        } ?: Log.w(TAG, "onGameSelected: Cannot proceed, active game is null after selection.")
                         navController.navigate(WearNavRoutes.PRE_GAME_SETUP_SCREEN)
                         // popUpTo can be tricky here if startDestination was PRE_GAME_SETUP_SCREEN
                     },
                     onViewLog = { gameId ->
                         navController.navigate(WearNavRoutes.gameLogRoute(gameId))
                     },
-                    onNavigateToGameScreen = { // <<<<  Implement the resume navigation
-                        // The game is already active in the ViewModel, just navigate
-                        val route = mapGamePhaseToRoute(activeGame.currentPhase)
-                        navController.navigate(route)
+                    onNavigateToGameScreen = {
+                        activeGame?.let { game ->
+                            val route = mapGamePhaseToRoute(game.currentPhase)
+                            navController.navigate(route)
+                        } ?: navController.navigate(WearNavRoutes.GAME_LIST_SCREEN) // Or some other fallback
                     },
                     onNavigateToNewGame = {
                         gameViewModel.createNewDefaultGame() // Prepare a new default game
-                        gameViewModel.proceedToNextPhaseManager(gameViewModel.activeGame.value.copy())
+                        gameViewModel.activeGame.value?.let { game ->
+                            gameViewModel.proceedToNextPhaseManager(game.copy())
+                        } ?: Log.w(TAG, "onNavigateToNewGame: Cannot proceed, active game is null after creating new game.")
                         navController.navigate(WearNavRoutes.PRE_GAME_SETUP_SCREEN)
                     }
                 )
@@ -117,7 +124,9 @@ fun NavigationRoutes() {
                 PreGameSetupScreen(
                     gameViewModel = gameViewModel, // Pass the ViewModel
                     onCreateMatch = {
-                        gameViewModel.proceedToNextPhaseManager(gameViewModel.activeGame.value.copy())
+                        gameViewModel.activeGame.value?.let { game ->
+                            gameViewModel.proceedToNextPhaseManager(game.copy())
+                        } ?: Log.w(TAG, "onCreateMatch: Cannot proceed, active game is null.")
                         navController.navigate(WearNavRoutes.KICK_OFF_SELECTION_SCREEN) {
                             popUpTo(WearNavRoutes.GAME_LIST_SCREEN) {inclusive = false}
                             launchSingleTop = true
@@ -130,7 +139,9 @@ fun NavigationRoutes() {
                 KickOffSelectionScreen(
                     gameViewModel = gameViewModel,
                     onConfirm = {
-                        gameViewModel.proceedToNextPhaseManager(gameViewModel.activeGame.value.copy())
+                        gameViewModel.activeGame.value?.let { game ->
+                            gameViewModel.proceedToNextPhaseManager(game.copy())
+                        } ?: Log.w(TAG, "KickOffSelectionScreen onConfirm: Cannot proceed, active game is null.")
                         navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
                             popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
                             launchSingleTop = true
@@ -145,11 +156,20 @@ fun NavigationRoutes() {
                     gameViewModel = gameViewModel,
                     onToggleTimer = { gameViewModel.toggleTimer() },
                     onAddGoal = { team -> gameViewModel.addGoal(team) },
-                    onEndPhase = { gameViewModel.proceedToNextPhaseManager(gameViewModel.activeGame.value.copy()) },
+                    onEndPhase = {
+                        gameViewModel.activeGame.value?.let { game ->
+                            gameViewModel.proceedToNextPhaseManager(game.copy())
+                        } ?: Log.w(TAG, "GameScreenWithPager onEndPhase: Cannot proceed, active game is null.")
+                    },
                     onNavigateToLogCard = { team: Team, cardType: CardType ->
                         navController.navigate(WearNavRoutes.logCardRoute(team, cardType))
                     },
-                    onNavigateToGameLog = { navController.navigate(WearNavRoutes.gameLogRoute(activeGame.id)) },
+                    onNavigateToGameLog = {
+                        activeGame?.let { game -> // Check if not null
+                            navController.navigate(WearNavRoutes.gameLogRoute(game.id))
+                        } ?: Log.w(TAG, "Cannot navigate to game log, active game is null")
+                        // Or navigate to an error/selection screen},
+                    },
                     // This lambda defines what happens when the user finishes the game
                     onResetPeriodTimer = {
                         Log.d(TAG, "Reset period action triggered from UI.")

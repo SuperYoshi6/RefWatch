@@ -93,7 +93,7 @@ fun PreGameSetupScreen(
                 // Home Team Name Chip
                 OutlinedChip(
                     onClick = { teamNameToEdit = "Home" to gameViewModel::updateHomeTeamName },
-                    label = { Text(activeGame.homeTeamName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    label = { Text(activeGame?.homeTeamName ?: "Home", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     icon = { Icon(Icons.Default.Edit, contentDescription = "Edit Home Team Name") },
                     modifier = Modifier.weight(1f)
                 )
@@ -101,7 +101,7 @@ fun PreGameSetupScreen(
                 // Away Team Name Chip
                 OutlinedChip(
                     onClick = { teamNameToEdit = "Away" to gameViewModel::updateAwayTeamName },
-                    label = { Text(activeGame.awayTeamName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    label = { Text(activeGame?.awayTeamName ?: "Away", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     icon = { Icon(Icons.Default.Edit, contentDescription = "Edit Away Team Name") },
                     modifier = Modifier.weight(1f)
                 )
@@ -117,8 +117,8 @@ fun PreGameSetupScreen(
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
             ) {
-                ColorPickerButton("Home", activeGame.homeTeamColor) { showHomeColorPicker = true }
-                ColorPickerButton("Away", activeGame.awayTeamColor) { showAwayColorPicker = true }
+                ColorPickerButton("Home", activeGame?.homeTeamColor ?: Color.Gray) { showHomeColorPicker = true }
+                ColorPickerButton("Away", activeGame?.awayTeamColor ?: Color.LightGray) { showAwayColorPicker = true }
             }
         }
 
@@ -126,7 +126,7 @@ fun PreGameSetupScreen(
         item {
             DurationSettingStepper(
                 label = "Half Duration",
-                currentValue = activeGame.halfDurationMinutes,
+                currentValue = activeGame?.halfDurationMinutes ?: 30,
                 onValueChange = { gameViewModel.setHalfDuration(it) },
                 valueRange = 15..60
             )
@@ -136,7 +136,7 @@ fun PreGameSetupScreen(
         item {
             DurationSettingStepper(
                 label = "Halftime Duration",
-                currentValue = activeGame.halftimeDurationMinutes,
+                currentValue = activeGame?.halftimeDurationMinutes ?: 10,
                 onValueChange = { gameViewModel.setHalftimeDuration(it) },
                 valueRange = 5..30
             )
@@ -172,7 +172,7 @@ fun PreGameSetupScreen(
     teamNameToEdit?.let { (teamLabel, onSave) ->
         TeamNameEditDialog(
             teamLabel = teamLabel,
-            initialValue = if (teamLabel == "Home") activeGame.homeTeamName else activeGame.awayTeamName,
+            initialValue = if (teamLabel == "Home") activeGame?.homeTeamName ?: "Home" else activeGame?.awayTeamName ?: "Away",
             onSave = { newName ->
                 onSave(newName)
                 teamNameToEdit = null // Close dialog

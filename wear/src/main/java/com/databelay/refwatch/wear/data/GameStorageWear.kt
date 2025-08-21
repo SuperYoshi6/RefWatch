@@ -235,6 +235,7 @@ class GameStorageWear @Inject constructor(
 
     suspend fun addOrUpdateGame(game: Game): Result<Unit> {
         val userId = currentUserId
+        Log.d(tag, "addOrUpdateGame (Wear): User: $userId, Game ID: ${game.id}, Events in Game object: ${game.events.size}")
         if (userId.isNullOrBlank()) {
             Log.w(tag, "No authenticated user. Cannot save/update game.")
             _dataFetchStatusFlow.value = DataFetchStatus.NO_USER_AUTHENTICATED
@@ -250,7 +251,6 @@ class GameStorageWear @Inject constructor(
             return Result.failure(IllegalArgumentException("Game ID cannot be blank for addOrUpdateGame"))
         }
 
-        Log.d(tag, "addOrUpdateGame (Wear): User: $userId, Game ID: ${game.id}, Events in Game object: ${game.events.size}")
         if (game.id.isBlank()) {
             Log.e(tag, "addOrUpdateGame (Wear): game.id is blank for user $userId.")
             // return Result.failure(IllegalArgumentException("Game ID cannot be blank")) // Adapt error handling

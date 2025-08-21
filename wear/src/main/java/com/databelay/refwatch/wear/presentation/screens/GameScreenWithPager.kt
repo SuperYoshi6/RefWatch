@@ -17,8 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.navigation.NavController
 import com.databelay.refwatch.common.CardType
+import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.hasTimer
@@ -45,29 +45,20 @@ fun GameScreenWithPager(
 ) {
 
     val context = LocalContext.current
-    val activeGame by gameViewModel.activeGame.collectAsState()
+    val activeGame by gameViewModel.activeGame.collectAsState() // activeGame is Game?
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
     var showEndOfMainTimeDialog by remember { mutableStateOf(false) }
-    val isPenaltiesPhase = activeGame.currentPhase == GamePhase.PENALTIES
-    val isPlayableRegularPhase = activeGame.currentPhase.isPlayablePhase() && !isPenaltiesPhase
+
+    // Use safe calls for properties of activeGame
+    val isPenaltiesPhase = activeGame?.currentPhase == GamePhase.PENALTIES
+    val isPlayableRegularPhase = activeGame?.currentPhase?.isPlayablePhase() == true && !isPenaltiesPhase
+
     // Pager state is only relevant if it's a playable regular phase
     val pagerState = rememberPagerState(
         initialPage = 1, // Default to main display (index 1 of 3) when pager is active
         pageCount = { if (isPlayableRegularPhase) 3 else 1 } // Pager has 3 pages only if playable
     )
-/*    // If the phase changes to PENALTIES while the user is on a TeamActionsPage,
-    // snap them back to the MainGameDisplayScreen.
-    LaunchedEffect(isPenaltiesPhase, pagerPageCount) {
-        if (isPenaltiesPhase && pagerState.currentPage != 0) { // If penalties and not on the (new) page 0
-            pagerState.scrollToPage(0) // Snap to the main display (which is now page 0)
-        } else if (!isPenaltiesPhase && pagerState.currentPage != 1 && pagerPageCount == 3) {
-            // Optional: If phase changes *from* penalties back to something else,
-            // and you want to ensure they are on the central page (page 1 of 3).
-            // This might be less critical or could be handled by user expectation.
-            // pagerState.scrollToPage(1)
-        }
-    }*/
 
     Box(
         modifier = Modifier
@@ -80,97 +71,101 @@ fun GameScreenWithPager(
                 )
             }
     ) {
-        when {
-            isPenaltiesPhase -> {
-                // Directly show PenaltyShootoutScreen
-                PenaltyShootoutScreen(
-                    game = activeGame,
-                    onPenaltyAttemptRecorded = onPenaltyAttemptRecorded,
-                    modifier = Modifier.fillMaxSize() // It takes the whole screen
-                )
-            }
-            isPlayableRegularPhase -> {
-                // Show HorizontalPager for playable regular phases
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
-                    // beyondBoundsPageCount = 1 // Consider if needed for performance/preloading
-                ) { page ->
-                    when (page) {
-                        0 -> TeamActionsPage(
-                            team = Team.HOME,
-                            game = activeGame,
-                            onAddGoal = { onAddGoal(Team.HOME) },
-                            onNavigateToLogCard = onNavigateToLogCard
-                        )
+        activeGame?.let { game -> // game is non-null Game here
+            when {
+                isPenaltiesPhase -> { // isPenaltiesPhase was calculated using activeGame?.currentPhase
+                    // Directly show PenaltyShootoutScreen
+                    PenaltyShootoutScreen(
+                        game = game,
+                        onPenaltyAttemptRecorded = onPenaltyAttemptRecorded,
+                        modifier = Modifier.fillMaxSize() // It takes the whole screen
+                    )
+                }
+                isPlayableRegularPhase -> { // isPlayableRegularPhase also used activeGame?
+                    // Show HorizontalPager for playable regular phases
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        // beyondBoundsPageCount = 1 // Consider if needed for performance/preloading
+                    ) { page ->
+                        when (page) {
+                            0 -> TeamActionsPage(
+                                team = Team.HOME,
+                                game = game,
+                                onAddGoal = { onAddGoal(Team.HOME) },
+                                onNavigateToLogCard = onNavigateToLogCard
+                            )
 
-                        1 -> MainGameDisplayScreen( // The main timer/score view
-                            game = activeGame,
-                            onKickOff = {gameViewModel.kickOff()}
-                        )
+                            1 -> MainGameDisplayScreen( // The main timer/score view
+                                game = game,
+                                onKickOff = { gameViewModel.kickOff() }
+                            )
 
-                        2 -> TeamActionsPage(
-                            team = Team.AWAY,
-                            game = activeGame,
-                            onAddGoal = { onAddGoal(Team.AWAY) },
-                            onNavigateToLogCard = onNavigateToLogCard
-                        )
+                            2 -> TeamActionsPage(
+                                team = Team.AWAY,
+                                game = game,
+                                onAddGoal = { onAddGoal(Team.AWAY) },
+                                onNavigateToLogCard = onNavigateToLogCard
+                            )
+                        }
                     }
                 }
+                else -> {
+                    // For non-playable, non-penalty phases (e.g., HALF_TIME, GAME_ENDED, NOT_STARTED)
+                    // Show only the MainGameDisplayScreen (which typically shows timer/status)
+                    MainGameDisplayScreen( // The main timer/score view
+                        game = game,
+                        onKickOff = { gameViewModel.kickOff() }
+                    )
+                }
             }
-            else -> {
-                // For non-playable, non-penalty phases (e.g., HALF_TIME, GAME_ENDED, NOT_STARTED)
-                // Show only the MainGameDisplayScreen (which typically shows timer/status)
-                MainGameDisplayScreen( // The main timer/score view
-                    game = activeGame,
-                    onKickOff = {gameViewModel.kickOff()}
+
+            if (showSettingsDialog) {
+                GameSettingsDialog(
+                    game = game, // Pass non-null game
+                    onDismiss = { showSettingsDialog = false },
+                    onViewLog = {
+                        showSettingsDialog = false
+                        onNavigateToGameLog() // Use the passed lambda
+                    },
+                    onFinishGame = {
+                        showSettingsDialog = false
+                        onConfirmEndMatch()
+                    },
+                    onResetPeriodTimer = {
+                        showSettingsDialog = false
+                        showResetConfirmDialog = true
+                    },
+                    onResetGame = {
+                        showSettingsDialog = false
+                        gameViewModel.resetGame()
+                    },
+                    onToggleTimer = {
+                        showSettingsDialog = false
+                        onToggleTimer()
+                    },
+                    onEndPhase = {
+                        showSettingsDialog = false
+                        // Use game (non-null) here instead of activeGame (nullable)
+                        if (game.currentPhase == GamePhase.SECOND_HALF && game.isTied)
+                            showEndOfMainTimeDialog = true
+                        else
+                            onEndPhase()
+                    },
                 )
             }
+        } ?: run {
+            Log.d(TAG, "GameScreenWithPager: activeGame is null, game content UI not rendered.")
+            // Optionally, show a loading indicator or placeholder here
+            // Text("Loading game details...")
         }
 
-        if (showSettingsDialog) {
-            GameSettingsDialog(
-                game = activeGame,
-                onDismiss = { showSettingsDialog = false },
-                onViewLog = {
-                    showSettingsDialog = false
-                    onNavigateToGameLog() // Use the passed lambda
-                },
-                onFinishGame = {
-                    // --- FINISH CODE IS HERE ---
-                    // Hide the settings dialog first.
-                    showSettingsDialog = false
-                    // Then, call the onFinishGame callback that was passed from the NavHost.
-                    // This signals the user's intent to the parent composable.
-                    onConfirmEndMatch()
-                },
-                // "reset current period timer"
-                onResetPeriodTimer = { // This is "End Game & Reset" from settings
-                    showSettingsDialog = false
-                    showResetConfirmDialog = true // Show confirmation for reset
-                },
-                onResetGame = {
-                    showSettingsDialog = false
-                    gameViewModel.resetGame()
-                },
-                onToggleTimer = {
-                    showSettingsDialog = false // Also dismiss menu on timer toggle
-                    onToggleTimer()
-                },
-                onEndPhase = {
-                    showSettingsDialog = false // Also dismiss menu on timer toggle
-                    if (activeGame.currentPhase == GamePhase.SECOND_HALF && activeGame.isTied)
-                        showEndOfMainTimeDialog = true
-                    else                            // For other phases, call general end phase
-                        onEndPhase()
-                },
-            )
-        }
 
         if (showResetConfirmDialog) {
-            if (activeGame.currentPhase.hasTimer()) {
+            // Use activeGame with safe calls for properties
+            if (activeGame?.currentPhase?.hasTimer() == true) {
                 ConfirmationDialog(
-                    message = "Reset timer for ${activeGame.currentPhase.readable()}?",
+                    message = "Reset timer for ${activeGame?.currentPhase?.readable() ?: "current phase"}?",
                     onConfirm = {
                         showResetConfirmDialog = false
                         onResetPeriodTimer() // Call the passed lambda for resetting
@@ -178,32 +173,26 @@ fun GameScreenWithPager(
                     onDismiss = { showResetConfirmDialog = false }
                 )
             } else {
-                // If the phase doesn't have a duration, show a toast and dismiss the dialog
                 Toast.makeText(context, "No timer in this phase.", Toast.LENGTH_SHORT).show()
                 showResetConfirmDialog = false
             }
-
         }
 
-        // --- New Dialog for End of Main Time ---
         if (showEndOfMainTimeDialog)
             EndOfMainTimeDialog(
                 onDismiss = {
-                    showEndOfMainTimeDialog = false /* Consider if dismissing should do anything else */
+                    showEndOfMainTimeDialog = false
                 },
                 onStartExtraTime = {
                     showEndOfMainTimeDialog = false
                     gameViewModel.setToHaveExtraTime()
-                    // Simple solution for now: penalties if tied after extra time
                     gameViewModel.setToHavePenalties()
                     onEndPhase()
                 },
                 onEndMatch = {
                     showEndOfMainTimeDialog = false
-//                    onConfirmEndMatch() // Call the lambda passed from NavHost/ViewModel
                     onEndPhase()
                 }
             )
     }
 }
-
