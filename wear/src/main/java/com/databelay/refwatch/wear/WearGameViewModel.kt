@@ -89,7 +89,6 @@ class WearGameViewModel @Inject constructor(
             isServiceBound = true
 
             gameTimerService?.timerStateFlow
-                // FIXME: why service is still in addedtime? buzzing timer after extra time 2nd half is over  during penalties
                 ?.onEach { serviceState ->
                     if (!_activeGame.value.inAddedTime && serviceState.inAddedTime) {
                         Log.i(tag, "Added time is now ACTIVE via TimerService. Starting reminder vibration.")
@@ -569,7 +568,6 @@ class WearGameViewModel @Inject constructor(
             )
         }
     }
-
     fun resetGame() {
         Log.d(tag, "Reset game called for game: ${_activeGame.value.id}")
         cancelTimer()
@@ -577,6 +575,7 @@ class WearGameViewModel @Inject constructor(
         val resetGame = Game(id = originalGame.id, gameDateTimeEpochMillis = originalGame.gameDateTimeEpochMillis)
             .copy(
                 gameNumber = originalGame.gameNumber,
+                fieldNumber = originalGame.fieldNumber,
                 homeTeamName = originalGame.homeTeamName,
                 awayTeamName = originalGame.awayTeamName,
                 ageGroup = originalGame.ageGroup,
@@ -586,7 +585,8 @@ class WearGameViewModel @Inject constructor(
                 hasPenalties = originalGame.hasPenalties,
                 kickOffTeam = originalGame.kickOffTeam, // Keep original kick-off team setting
                 displayedTimeMillis = Game().regulationPeriodDurationMillis(GamePhase.FIRST_HALF), // Reset display time
-                status = if (originalGame.status == GameStatus.COMPLETED || originalGame.status == GameStatus.CANCELLED) GameStatus.SCHEDULED else originalGame.status // Revert to scheduled if was finished
+                status = GameStatus.SCHEDULED, // Revert to scheduled if was finished
+                currentPhase = GamePhase.NOT_STARTED,
             )
         _activeGame.value = resetGame
     }
@@ -651,26 +651,27 @@ class WearGameViewModel @Inject constructor(
         }
     }
 
+
     private fun checkShootoutEndCondition(
         currentHomeScore: Int, currentAwayScore: Int,
         penaltiesTakenHome: Int, penaltiesTakenAway: Int,
         shootoutRoundLimit: Int = 5 // Standard is 5
     ): Boolean {
-        // Check after each pair of kicks if shootout is beyond initial 5 rounds
-        if (penaltiesTakenHome >= shootoutRoundLimit && penaltiesTakenAway >= shootoutRoundLimit && penaltiesTakenHome == penaltiesTakenAway) {
-            return currentHomeScore != currentAwayScore // Sudden death: any score difference ends it
-        }
-
-        // Check for decisive lead within the first 5 rounds
-        val kicksRemainingHome = shootoutRoundLimit - penaltiesTakenHome
-        val kicksRemainingAway = shootoutRoundLimit - penaltiesTakenAway
-
-        if (currentHomeScore > currentAwayScore + kicksRemainingAway) return true // Home has an insurmountable lead
-        if (currentAwayScore > currentHomeScore + kicksRemainingHome) return true // Away has an insurmountable lead
-
         // If all 5 rounds are complete for both, and scores are still tied, it continues to sudden death (handled by first condition on subsequent kicks)
         // If all 5 rounds complete and scores are different, it's over.
-        return penaltiesTakenHome >= shootoutRoundLimit && penaltiesTakenAway >= shootoutRoundLimit && currentHomeScore != currentAwayScore
+
+        if (penaltiesTakenHome >= shootoutRoundLimit && penaltiesTakenAway >= shootoutRoundLimit) {
+            return currentHomeScore != currentAwayScore && penaltiesTakenHome == penaltiesTakenAway// Sudden death: any score difference ends it
+        }
+        else {
+            // Check for decisive lead within the first 5 rounds
+            val kicksRemainingHome = shootoutRoundLimit - penaltiesTakenHome
+            val kicksRemainingAway = shootoutRoundLimit - penaltiesTakenAway
+
+            if (currentHomeScore > currentAwayScore + kicksRemainingAway) return true // Home has an insurmountable lead
+            if (currentAwayScore > currentHomeScore + kicksRemainingHome) return true // Away has an insurmountable lead
+            return false // No winner yet
+        }
     }
 
 
@@ -678,7 +679,7 @@ class WearGameViewModel @Inject constructor(
     private fun vibrate(pattern: VibrationPattern) {
         if (vibrator?.hasVibrator() == true) {
             val effect = when (pattern) {
-                VibrationPattern.ADDED_TIME_REMINDER -> VibrationEffect.createWaveform(longArrayOf(0, 300, 100, 300, 100, 300, 5000), 0)
+                VibrationPattern.ADDED_TIME_REMINDER -> VibrationEffect.createWaveform(longArrayOf(0, 300, 100, 300, 100, 300, 10000), 0)
                 VibrationPattern.GOAL_SCORED -> VibrationEffect.createWaveform(longArrayOf(0, 150, 50, 150, 50, 300), -1)
                 VibrationPattern.GENERIC_EVENT -> VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE)
             }

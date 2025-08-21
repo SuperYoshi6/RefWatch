@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -36,6 +37,8 @@ import com.databelay.refwatch.common.GameStatus
 import com.databelay.refwatch.common.getAppVersionCode
 import com.databelay.refwatch.common.getAppVersionName
 import com.databelay.refwatch.common.readable
+import android.content.Intent
+import android.net.Uri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,7 +157,7 @@ fun GameListItem(
     onViewLog: (Game) -> Unit, // The callback to view the log
     onDelete: () -> Unit) {
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy 'at' HH:mm", Locale.getDefault()) }
-
+    val context = LocalContext.current // Get context for launching Intent
     Card(
         // Add conditional logic to the onClick lambda
         onClick = {
@@ -194,9 +197,27 @@ fun GameListItem(
                 game.formattedGameDateTime?.let {
                     Text("Time: $it", style = MaterialTheme.typography.bodyMedium)
                 }
-                game.venue?.let {
-                    Text("Location: $it", style = MaterialTheme.typography.bodyMedium)
+                // --- Display Venue and/or Field Number ---
+                val locationDetails = mutableListOf<String>()
+                game.venue?.takeIf { it.isNotBlank() }?.let { venueText ->
+                    locationDetails.add(venueText) // Add venue if it exists
                 }
+                game.fieldNumber?.takeIf { it.isNotBlank() }?.let { fieldNum ->
+                    locationDetails.add("Field: $fieldNum") // Add field number if it exists
+                }
+
+                if (locationDetails.isNotEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = locationDetails.joinToString(" - "), // e.g., "City Park - Field: 3" or just "Field: 3" or just "City Park"
+                            style = MaterialTheme.typography.bodyMedium,
+                            color =  MaterialTheme.colorScheme.tertiary,
+                            maxLines = 2
+                        )
+
+                    }
+                }
+                // --- End Display Venue and/or Field Number ---
                 Text(
                     "H: ${game.homeScore} - A: ${game.awayScore}",
                     /*(${game.currentPhase.readable()})*/
@@ -213,8 +234,67 @@ fun GameListItem(
                 //     Text("Away", style = MaterialTheme.typography.bodySmall)
                 // }
             }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.Delete, "Delete Game", tint = MaterialTheme.colorScheme.error)
+            // Right side: Location IconButton (if location exists) and Delete IconButton
+            Column(horizontalAlignment = Alignment.End) { // Aligns buttons to the right
+                val fullLocationQuery = remember(game.venue, game.fieldNumber) {
+                    // Construct a query string. Prioritize venue if available.
+                    // If only field number, it might not be enough for a good map search.
+                    // You might want to combine with city/state if you have that info elsewhere.
+                    val venuePart = game.venue?.takeIf { it.isNotBlank() } ?: ""
+                    val fieldPart = game.fieldNumber?.takeIf { it.isNotBlank() }?.let { "Field $it" } ?: ""
+
+                    if (venuePart.isNotBlank() && fieldPart.isNotBlank() && venuePart.contains(fieldPart, ignoreCase = true)) {
+                        venuePart // If venue already contains field info, just use venue
+                    } else if (venuePart.isNotBlank() && fieldPart.isNotBlank()) {
+                        "$venuePart, $fieldPart" // Combine them
+                    } else {
+                        venuePart.ifBlank { fieldPart } // Use whichever is not blank
+                    }
+                }
+
+                if (fullLocationQuery.isNotBlank()) {
+                    IconButton(
+                        onClick = {
+                            // Create an Intent to open Google Maps
+                            // Use geo:0,0?q=lat,lng(label) or geo:0,0?q=address
+                            val mapQuery = Uri.encode(fullLocationQuery)
+                            val gmmIntentUri = Uri.parse("geo:0,0?q=$mapQuery")
+                            val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+                            mapIntent.setPackage("com.google.android.apps.maps") // Specific to Google Maps app
+
+                            // Verify that the intent will resolve to an activity
+                            if (mapIntent.resolveActivity(context.packageManager) != null) {
+                                context.startActivity(mapIntent)
+                            } else {
+                                // Optionally, handle the case where Google Maps is not installed
+                                // You could try a generic geo intent without setPackage,
+                                // or show a toast message.
+                                val genericMapIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$mapQuery"))
+                                try {
+                                    context.startActivity(genericMapIntent)
+                                } catch (e: Exception) {
+                                    Log.e("MapLink", "No map app found to handle: $fullLocationQuery", e)
+                                    // Toast.makeText(context, "No map application found.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        // Modifier to ensure it doesn't take up too much space if text is short
+                        modifier = Modifier.size(40.dp) // Standard IconButton touch target size is 48.dp, icon is smaller
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.LocationOn, // Or Icons.Filled.Navigation or other map-related icon
+                            contentDescription = "Open in Maps",
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                } else {
+                    // Optional: Spacer if no location icon, to keep delete button alignment consistent
+                    // Spacer(Modifier.height(40.dp))
+                }
+
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Filled.Delete, "Delete Game", tint = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }

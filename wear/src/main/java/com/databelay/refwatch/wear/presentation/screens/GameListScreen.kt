@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SyncProblem
 import androidx.compose.material3.MaterialTheme
@@ -284,14 +285,33 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
         },
         secondaryLabel = {
             Column(horizontalAlignment = Alignment.Start) {
-                // Combine venue and date/time if available
                 val dateTimeString = game.formattedGameDateTime ?: "No time set"
                 val venueString = game.venue?.takeIf { it.isNotBlank() }
+                val fieldNumberString = game.fieldNumber?.takeIf { it.isNotBlank() } // Get field number
 
                 Text(text = dateTimeString)
-                if (venueString != null) {
-                    Text(text = venueString, maxLines = 1)
+
+                // Combine Venue and Field Number if they exist
+                val locationDetails = mutableListOf<String>()
+                venueString?.let { locationDetails.add(it) }
+                fieldNumberString?.let { locationDetails.add("Field: $it") }
+
+                if (locationDetails.isNotEmpty()) {
+                    Text(
+                        text = locationDetails.joinToString(" - "), // e.g., "Main Stadium - Field: 3"
+                        maxLines = 1,
+                        style = MaterialTheme.typography.labelSmall // Or MaterialTheme.typography.bodySmall for M3
+                    )
                 }
+            }
+        },
+        icon = { // Example: If you want an icon specifically if field number exists
+            game.fieldNumber?.let {
+                Icon(
+                    imageVector = Icons.Filled.LocationOn, // Example icon, choose something appropriate
+                    contentDescription = "Field Number available",
+                    modifier = Modifier.size(ChipDefaults.IconSize)
+                )
             }
         }
     )

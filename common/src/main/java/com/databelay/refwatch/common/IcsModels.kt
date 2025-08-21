@@ -28,7 +28,8 @@ data class SimpleIcsEvent(
     var homeTeam: String? = null,
     var awayTeam: String? = null,
     var ageGroup: AgeGroup? = null,
-    var gameNumber: String? = null
+    var gameNumber: String? = null,
+    var fieldNumber: String? = null
 ) {
     override fun toString(): String {
         val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
@@ -43,7 +44,8 @@ data class SimpleIcsEvent(
                 Home Team: $homeTeam,
                 Away Team: $awayTeam,
                 Age Group: ${ageGroup?.displayName ?: "N/A"},
-                Game Number: $gameNumber
+                Game Number: $gameNumber,
+                Field Number: $fieldNumber
             )
         """.trimIndent()
     }
@@ -137,6 +139,7 @@ object SimpleIcsEventFactory {
     private val SUMMARY_PATTERN: Pattern = Pattern.compile("^\\s*SUMMARY:(.+)$", Pattern.MULTILINE)
     private val DESCRIPTION_PATTERN: Pattern = Pattern.compile("^\\s*DESCRIPTION:(.+)$", Pattern.MULTILINE)
     private val LOCATION_PATTERN: Pattern = Pattern.compile("^\\s*LOCATION:(.+)$", Pattern.MULTILINE)
+    private val FIELD_NUMBER_PATTERN: Pattern = Pattern.compile(""".*-\s*Field\s+([\w\d-]+)\s*(?:-.*|$|\))""", Pattern.MULTILINE or Pattern.CASE_INSENSITIVE)
     private val DATETIME_PROPERTY_PATTERN: Pattern = Pattern.compile("^\\s*(DTSTART|DTEND)(?:;TZID=([^:]+))?:(\\d{8}T\\d{6})(Z)?$", Pattern.MULTILINE)
     private val ICS_DATETIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss")
     private val TEAM_BIRTH_YEAR_PATTERN: Pattern = Pattern.compile("\\b(\\d{4})(?:[/\\-]\\d{2,4})?\\b")
@@ -145,8 +148,60 @@ object SimpleIcsEventFactory {
         Pattern.CASE_INSENSITIVE
     )
 
-    private fun getPropertyValue(pattern: Pattern, eventBlock: String): String? {
-        return pattern.matcher(eventBlock).run { if (find()) group(1)?.trim() else null }
+    // Inside SimpleIcsEventFactory or a utility object
+
+    /**
+     * Unescapes characters in an ICS property value according to RFC 5545.
+     * Specifically handles:
+     * - \\ -> \
+     * - \; -> ;
+     * - \, -> ,
+     * - \N or \n -> newline character (platform specific, usually \n)
+     */
+    private fun unescapeIcsPropertyValue(escapedValue: String): String {
+        if (escapedValue.isEmpty()) {
+            return ""
+        }
+        // Using a StringBuilder for efficiency as string concatenation in a loop can be costly.
+        val sb = StringBuilder(escapedValue.length)
+        var i = 0
+        while (i < escapedValue.length) {
+            val char = escapedValue[i]
+            if (char == '\\' && i + 1 < escapedValue.length) {
+                when (val nextChar = escapedValue[i + 1]) {
+                    '\\' -> sb.append('\\') // Literal backslash
+                    ';' -> sb.append(';')   // Literal semicolon
+                    ',' -> sb.append(',')   // Literal comma
+                    'N', 'n' -> sb.append('\n') // Newline
+                    else -> {
+                        // This case handles situations where a backslash might be followed
+                        // by a character not specifically defined for unescaping in common scenarios.
+                        // RFC 5545 is somewhat open here. For properties like TEXT,
+                        // a backslash followed by other characters might just mean the backslash
+                        // and then that character.
+                        // For maximum safety, you might just append both if the sequence isn't recognized.
+                        // Or, if you know your ICS files only use the defined escapes,
+                        // you could even throw an error or log a warning for unexpected sequences.
+                        sb.append(char) // Keep the original backslash
+                        sb.append(nextChar) // Keep the character after the backslash
+                    }
+                }
+                i += 2 // Move past the backslash and the escaped character
+            } else {
+                sb.append(char)
+                i++
+            }
+        }
+        return sb.toString()
+    }
+
+    private fun getPropertyValue(pattern: Pattern, eventBlock: String, unescape: Boolean = false): String? {
+        val rawValue = pattern.matcher(eventBlock).run { if (find()) group(1)?.trim() else null }
+        return if (unescape && rawValue != null) {
+            unescapeIcsPropertyValue(rawValue)
+        } else {
+            rawValue
+        }
     }
 
     private fun parseIcsDateTime(dateTimeString: String, tzid: String?, isUtc: Boolean): LocalDateTime? {
@@ -194,9 +249,9 @@ object SimpleIcsEventFactory {
     }
 
     private fun populateBasicDetails(eventBlockContent: String, event: SimpleIcsEvent) {
-        event.summary = getPropertyValue(SUMMARY_PATTERN, eventBlockContent)
-        event.description = getPropertyValue(DESCRIPTION_PATTERN, eventBlockContent)
-        event.location = getPropertyValue(LOCATION_PATTERN, eventBlockContent)
+        event.summary = getPropertyValue(SUMMARY_PATTERN, eventBlockContent, unescape = true) // Also unescape summary
+        event.description = getPropertyValue(DESCRIPTION_PATTERN, eventBlockContent, unescape = true) // And description
+        event.location = getPropertyValue(LOCATION_PATTERN, eventBlockContent, unescape = true) // <<<< APPLY UNESCAPING HERE
     }
 
     private fun populateDateTimes(eventBlockContent: String, event: SimpleIcsEvent): Boolean {
@@ -229,9 +284,11 @@ object SimpleIcsEventFactory {
         var away: String? = null
         var ageGroup: AgeGroup = AgeGroup.UNKNOWN
         var birthYear: Int? = null
+        var fieldNumber: String? = null
         val currentYear: Int = LocalDate.now().year
         if (event.summary != null) {
-            val teamMatcher = TEAM_VS_PATTERN.matcher(event.summary)
+            val summaryText = event.summary!! // Safe due to null check
+            val teamMatcher = TEAM_VS_PATTERN.matcher(summaryText)
             if (teamMatcher.find()) {
                 gameNumber = teamMatcher.group(1)?.trim()
                 home = teamMatcher.group(2)?.trim()
@@ -241,17 +298,23 @@ object SimpleIcsEventFactory {
                 away = if (away.isNullOrEmpty()) "EMPTY" else away
                 birthYear = home.let { extractBirthYearFromTeamName(it) } ?: away?.let { extractBirthYearFromTeamName(it) }
             }
+            val fieldMatcher = FIELD_NUMBER_PATTERN.matcher(summaryText)
+            if (fieldMatcher.find()) {
+                fieldNumber = fieldMatcher.group(1)?.trim() // Assign to local fieldNumber
+                Log.d("IcsFactory", "Extracted Field Number from summary: '$fieldNumber' for UID: ${event.uid}")
+            }
         }
         event.gameNumber = gameNumber
+        event.fieldNumber = fieldNumber
         event.homeTeam = home
         event.awayTeam = away
         if (birthYear != null) {
             val calculatedAge = currentYear - birthYear
-            ageGroup = AgeGroup.fromCalculatedAge(calculatedAge)
+            event.ageGroup = AgeGroup.fromCalculatedAge(calculatedAge)
         } else {
-            ageGroup = AgeGroup.fromString(event.summary)
-            if (ageGroup == AgeGroup.UNKNOWN) {
-                ageGroup = AgeGroup.fromString(event.description)
+            event.ageGroup = AgeGroup.fromString(event.summary)
+            if (event.ageGroup == AgeGroup.UNKNOWN) {
+                event.ageGroup = AgeGroup.fromString(event.description)
             }
         }
     }

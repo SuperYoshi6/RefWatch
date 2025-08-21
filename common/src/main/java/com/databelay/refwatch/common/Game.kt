@@ -33,6 +33,7 @@ data class Game(
 //
     // --- Match Information (can be pre-filled from a schedule) ---
     var gameNumber: String = "XXXX", // Default, can be overridden
+    var fieldNumber: String? = null, // Default, can be overridden
     var homeTeamName: String = "Home", // Default, can be overridden
     var awayTeamName: String = "Away", // Default, can be overridden
     var ageGroup: AgeGroup? = null,          // e.g., "U12 Boys", "Adult Men"
@@ -81,6 +82,8 @@ data class Game(
             game.ageGroup = null
             game.competition = null
             game.venue = null
+            game.fieldNumber = null
+            game.gameNumber = "XXXX"
             game.gameDateTimeEpochMillis = null
             game.notes = null
             game.hasExtraTime = false
@@ -98,6 +101,7 @@ data class Game(
     constructor(icsEvent: SimpleIcsEvent) : this(
         id = icsEvent.uid ?: UUID.randomUUID().toString(), // Assign if uid is not null, otherwise generate
         gameNumber = icsEvent.gameNumber ?: "XXXX",
+        fieldNumber = icsEvent.fieldNumber,
         homeTeamName = icsEvent.homeTeam ?: "Home",
         awayTeamName = icsEvent.awayTeam ?: "Away",
         venue = icsEvent.location,
@@ -194,6 +198,7 @@ fun Game.toFirestoreMap(): Map<String, Any?> {
         "halftimeDurationMinutes" to this.halftimeDurationMinutes,
         "extraTimeHalfDurationMinutes" to this.extraTimeHalfDurationMinutes,
         "gameNumber" to this.gameNumber,
+        "fieldNumber" to this.fieldNumber,
         "homeTeamName" to this.homeTeamName,
         "awayTeamName" to this.awayTeamName,
         "hasExtraTime" to this.hasExtraTime,
