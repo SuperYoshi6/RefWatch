@@ -31,9 +31,9 @@
         </activity>
         <service
             android:name=".wear.data.GameTimerService"
-            android:foregroundServiceType="shortService" />
+            android:foregroundServiceType="mediaPlayback" />
 
-        <service
+<!--        <service
             android:name=".wear.data.WearDataListenerService"
             android:exported="true">
             <intent-filter>
@@ -50,7 +50,7 @@
                 <data android:pathPrefix="/games_list_all" />
                 <data android:pathPrefix="/phone_user_id" />
             </intent-filter>
-        </service>
+        </service>-->
         <!-- ▲▲▲ END OF SERVICE DECLARATION ▲▲▲ -->
 
     </application>

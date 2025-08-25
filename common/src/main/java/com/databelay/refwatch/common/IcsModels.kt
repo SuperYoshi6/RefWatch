@@ -142,7 +142,10 @@ object SimpleIcsEventFactory {
     private val FIELD_NUMBER_PATTERN: Pattern = Pattern.compile(""".*-\s*Field\s+([\w\d-]+)\s*(?:-.*|$|\))""", Pattern.MULTILINE or Pattern.CASE_INSENSITIVE)
     private val DATETIME_PROPERTY_PATTERN: Pattern = Pattern.compile("^\\s*(DTSTART|DTEND)(?:;TZID=([^:]+))?:(\\d{8}T\\d{6})(Z)?$", Pattern.MULTILINE)
     private val ICS_DATETIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss")
-    private val TEAM_BIRTH_YEAR_PATTERN: Pattern = Pattern.compile("\\b(\\d{4})(?:[/\\-]\\d{2,4})?\\b")
+    private val TEAM_BIRTH_YEAR_PATTERN: Pattern = Pattern.compile(
+        "\\b(\\d{4})(?:[A-Z]|(?:[/\\-]\\d{2,4}))?\\b", // The year itself is group 1
+        Pattern.CASE_INSENSITIVE
+    )
     private val TEAM_VS_PATTERN: Pattern = Pattern.compile(
         """Referee Assignment:\s*(?:Referee|Asst Referee \d)\s*-\s*(\d+)(?:\s+(.*?))?\s*vs\.?\s*(.*?)\s*-\s*(.*)""",
         Pattern.CASE_INSENSITIVE
@@ -308,6 +311,7 @@ object SimpleIcsEventFactory {
         event.fieldNumber = fieldNumber
         event.homeTeam = home
         event.awayTeam = away
+
         if (birthYear != null) {
             val calculatedAge = currentYear - birthYear
             event.ageGroup = AgeGroup.fromCalculatedAge(calculatedAge)

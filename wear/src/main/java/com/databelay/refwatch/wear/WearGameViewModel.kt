@@ -13,6 +13,7 @@ import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.size
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -32,16 +33,20 @@ import com.databelay.refwatch.common.isBreak
 import com.databelay.refwatch.common.isPlayablePhase
 import com.databelay.refwatch.common.opposite
 import com.databelay.refwatch.common.readable
+import com.databelay.refwatch.common.toSnapshotForStorage
 import com.databelay.refwatch.wear.data.DataFetchStatus
 import com.databelay.refwatch.wear.data.GameStorageWear
 import com.databelay.refwatch.wear.data.GameTimerService
 import com.databelay.refwatch.wear.util.ConnectivityObserver // For network status
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -61,6 +66,7 @@ interface IWearGameViewModel {
     val activeGame: StateFlow<Game?> // <<<< CHANGE TO NULLABLE HERE
 }
 
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class WearGameViewModel @Inject constructor(
     @ApplicationContext applicationContext: Context, // Renamed for clarity
@@ -68,9 +74,17 @@ class WearGameViewModel @Inject constructor(
     private val gameStorage: GameStorageWear,
     private val vibrator: Vibrator?
 ) : AndroidViewModel(applicationContext as Application), IWearGameViewModel {
-    private val tag = "WearGameViewModelTAG" // Renamed for uniqueness from class name
+    private val tag = "WearGameViewModel" // Renamed for uniqueness from class name
 
     override val gamesList: StateFlow<List<Game>> = gameStorage.gamesListFlow
+        .onEach { list -> // DEBUG LOGGING
+            Log.d(tag, "gamesList updated. Total games: ${list.size}")
+            list.forEach { game ->
+                Log.d(tag, "Game in gamesList - ID: ${game.id}, Status: ${game.status}, Score: ${game.homeScore}-${game.awayScore}, Events: ${game.events.size}")
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()) // Ensure initialValue and proper stateIn usage
+
     override val dataFetchStatus: StateFlow<DataFetchStatus> = gameStorage.dataFetchStatusFlow
 
     override val isOnline: StateFlow<Boolean> = gameStorage.networkStatusFlow.map {
@@ -158,15 +172,36 @@ class WearGameViewModel @Inject constructor(
             }
         }
 
-        _activeGame.filterNotNull().onEach { game ->
-            if (game.status != GameStatus.COMPLETED) {
-                saveActiveGameStateToHandle()
-                viewModelScope.launch {
-                    gameStorage.addOrUpdateGame(game)
+        // Collector 1: For SavedStateHandle (fairly frequent)
+        _activeGame.filterNotNull()
+            // .debounce(100L) // Optional: very short debounce if even this is too much
+            .onEach { game ->
+                if (game.status != GameStatus.COMPLETED) {
+                    saveActiveGameStateToHandle()
+                    // Log.d(tag, "Game ${game.id} saved to SavedStateHandle.") // Can be verbose
                 }
-                Log.d(tag, "Active game ${game.id} state change persisted.")
-            }
-        }.launchIn(viewModelScope)
+            }.launchIn(viewModelScope)
+
+        // Collector 2: For gameStorage (more selective and debounced)
+
+        _activeGame.filterNotNull()
+            .map { game -> game.toSnapshotForStorage() } // Use the extension function here
+            .distinctUntilChanged() // Only emit if the *significant* snapshot changes
+            .debounce(750L) // Debounce for 750ms to group rapid significant changes
+            .onEach { snapshot ->
+                // Now that a significant, debounced change has occurred,
+                // get the *latest* full Game object to save all fields including recent timer values.
+                val latestGameToSave = _activeGame.value
+                if (latestGameToSave != null && latestGameToSave.id == snapshot.id && latestGameToSave.status != GameStatus.COMPLETED) {
+                    viewModelScope.launch {
+                        Log.i(tag, "Significant change for game ${snapshot.id}. Persisting to gameStorage.")
+                        gameStorage.addOrUpdateGame(latestGameToSave)
+                    }
+                } else if (latestGameToSave == null || latestGameToSave.id != snapshot.id) {
+                    Log.w(tag, "Snapshot changed for ${snapshot.id}, but current active game is now different (${latestGameToSave?.id}) or null. Skipping save to gameStorage.")
+                }
+            }.launchIn(viewModelScope)
+
 
         isOnline.onEach { online ->
             Log.i(tag, "Network status in ViewModel: ${if (online) "Online" else "Offline"}")
@@ -259,7 +294,7 @@ class WearGameViewModel @Inject constructor(
             try {
                 val activeGameJson = AppJsonConfiguration.encodeToString(game)
                 savedStateHandle["activeGameJson"] = activeGameJson
-                Log.d(tag, "Active game state saved to SavedStateHandle. ID: ${game.id}")
+//                Log.d(tag, "Active game state saved to SavedStateHandle. ID: ${game.id}")
             } catch (e: Exception) {
                 Log.e(tag, "Error saving active game state to JSON for SavedStateHandle", e)
             }
@@ -295,20 +330,31 @@ class WearGameViewModel @Inject constructor(
     }
 
     fun finishAndSyncActiveGame(onSyncComplete: () -> Unit) {
+        val finishedEvent = GenericLogEvent(message = "Finished game")
+        _activeGame.update { game -> game?.copy(events = game.events + finishedEvent) }
+
         _activeGame.value?.let { currentGame ->
             Log.d(tag, "finishAndSyncActiveGame called for game: ${currentGame.id}")
             cancelTimer()
-            val finalGameData = currentGame.copy(
+            val finalGame = currentGame.copy(
                 currentPhase = GamePhase.GAME_ENDED,
                 status = GameStatus.COMPLETED,
                 isTimerRunning = false,
                 lastUpdated = System.currentTimeMillis()
             )
-            _activeGame.value = finalGameData
-            Log.d(tag, "Game ${finalGameData.id} marked as COMPLETED in ViewModel.")
+            _activeGame.value = finalGame
+            Log.d(tag, "Game ${finalGame.id} marked as COMPLETED in ViewModel.")
 
             viewModelScope.launch {
-                Log.i(tag, "Game ${finalGameData.id} processing for completion finished. Resetting UI.")
+                Log.i(tag, "finishAndSyncActiveGame: Explicitly saving COMPLETED game ${finalGame.id} to gameStorage. Events: ${finalGame.events.size}")
+                val result = gameStorage.addOrUpdateGame(finalGame) // <<<< CRITICAL CALL
+                if (result.isSuccess) {
+                    Log.i(tag, "finishAndSyncActiveGame: Successfully initiated save for COMPLETED game ${finalGame.id}.")
+                } else {
+                    Log.e(tag, "finishAndSyncActiveGame: Failed to initiate save for COMPLETED game ${finalGame.id}. Error: ${result.exceptionOrNull()?.message}")
+                }
+
+                Log.i(tag, "Game ${finalGame.id} processing for completion finished. Resetting UI.")
                 resetActiveGameToDefaultOrNextScheduled()
                 onSyncComplete()
             }
@@ -325,23 +371,44 @@ class WearGameViewModel @Inject constructor(
 
     fun resetActiveGameToDefaultOrNextScheduled() {
         cancelTimer()
-        val activeGameId = _activeGame.value?.id
+        val activeGameIdBeforeReset = _activeGame.value?.id // Mostly for logging or comparison
+
         val nextScheduledGame = gamesList.value
-            .filter { it.status == GameStatus.SCHEDULED && it.id != (activeGameId ?: "") }
+            .filter { it.status == GameStatus.SCHEDULED && it.id != (activeGameIdBeforeReset ?: "") }
             .minByOrNull { it.gameDateTimeEpochMillis ?: Long.MAX_VALUE }
 
-        val newActiveGame = nextScheduledGame?.copy(
-            currentPhase = GamePhase.NOT_STARTED, homeScore = 0, awayScore = 0, events = emptyList(),
-            status = GameStatus.SCHEDULED,
-            isTimerRunning = false, actualTimeElapsedInPeriodMillis = 0L,
-            displayedTimeMillis = nextScheduledGame.regulationPeriodDurationMillis(GamePhase.FIRST_HALF)
-        ) ?: Game().let { defaultGame ->
-            defaultGame.copy(
-                displayedTimeMillis = defaultGame.regulationPeriodDurationMillis(GamePhase.FIRST_HALF)
+        val newActiveState: Game? // Explicitly nullable
+
+        if (nextScheduledGame != null) {
+            newActiveState = nextScheduledGame.copy(
+                currentPhase = GamePhase.NOT_STARTED, // Or PRE_GAME
+                homeScore = 0,
+                awayScore = 0,
+                events = emptyList(),
+                status = GameStatus.SCHEDULED, // It's scheduled, not yet in progress
+                isTimerRunning = false,
+                actualTimeElapsedInPeriodMillis = 0L,
+                displayedTimeMillis = nextScheduledGame.regulationPeriodDurationMillis(GamePhase.FIRST_HALF) // Or NOT_STARTED phase default
             )
+            Log.d(tag, "Resetting active game to next scheduled: ${newActiveState.id}")
+        } else {
+            // No next scheduled game. Should we create a default one or set to null?
+            // Option 1: Set to null (Recommended for clarity)
+            newActiveState = null
+            Log.d(tag, "No next scheduled game. Resetting active game to null.")
+
+            // Option 2: Create a new blank/default game (Your current approach)
+            /*
+            newActiveState = Game().let { defaultGame ->
+                defaultGame.copy(
+                    displayedTimeMillis = defaultGame.regulationPeriodDurationMillis(GamePhase.FIRST_HALF),
+                    status = GameStatus.SCHEDULED // Or some other initial status
+                )
+            }
+            Log.d(tag, "No next scheduled game. Creating a new default game: ${newActiveState.id}")
+            */
         }
-        _activeGame.value = newActiveGame
-        Log.d(tag, "Active game has been reset. New active game ID: ${newActiveGame.id}")
+        _activeGame.value = newActiveState
     }
 
 
@@ -422,8 +489,6 @@ class WearGameViewModel @Inject constructor(
         val newKickOffTeam = when (nextPhase) {
             GamePhase.FIRST_HALF, GamePhase.EXTRA_TIME_FIRST_HALF, GamePhase.PENALTIES -> lastPhaseKickOffTeam
             GamePhase.SECOND_HALF, GamePhase.EXTRA_TIME_SECOND_HALF -> lastPhaseKickOffTeam.opposite()
-            GamePhase.HALF_TIME -> lastPhaseKickOffTeam.opposite()
-            GamePhase.EXTRA_TIME_HALF_TIME -> lastPhaseKickOffTeam.opposite()
             else -> lastPhaseKickOffTeam
         }
 
@@ -462,6 +527,10 @@ class WearGameViewModel @Inject constructor(
         }
         Log.d(tag, "Kick-off team for current context set to $team")
     }
+
+    // FIXME: don't run timer service when no game in on
+
+    // FIXME: Buzzing only once on half end but ok on halftime end
 
     fun kickOff() {
         val currentGame = _activeGame.value ?: return
@@ -612,6 +681,9 @@ class WearGameViewModel @Inject constructor(
             )
         }
         val gameAfterReset = _activeGame.value ?: return
+        val resetMessage = "Timer for the period ${gameAfterReset.currentPhase.readable()} has been reset."
+        val resetEvent = GenericLogEvent(message = resetMessage)
+        _activeGame.update { game -> game?.copy(events = game.events + resetEvent) }
 
         gameTimerService?.configureTimerForGame(game = gameAfterReset, startImmediately = false) // Pass nullable game
     }
@@ -689,8 +761,8 @@ class WearGameViewModel @Inject constructor(
     private fun vibrate(pattern: VibrationPattern) {
         if (vibrator?.hasVibrator() == true) {
             val effect = when (pattern) {
-                VibrationPattern.ADDED_TIME_REMINDER -> VibrationEffect.createWaveform(longArrayOf(0, 300, 100, 300, 100, 300, 10000), 0)
-                VibrationPattern.GOAL_SCORED -> VibrationEffect.createWaveform(longArrayOf(0, 150, 50, 150, 50, 300), -1)
+                VibrationPattern.ADDED_TIME_REMINDER -> VibrationEffect.createWaveform(longArrayOf(0, 300, 100, 300, 10000), 0)
+                VibrationPattern.GOAL_SCORED -> VibrationEffect.createWaveform(longArrayOf(0, 150, 50, 150, 50), -1)
                 VibrationPattern.GENERIC_EVENT -> VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE)
             }
             vibrator.vibrate(effect)

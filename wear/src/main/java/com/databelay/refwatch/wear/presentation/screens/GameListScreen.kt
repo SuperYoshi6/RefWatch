@@ -1,4 +1,5 @@
 package com.databelay.refwatch.wear.presentation.screens
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,7 +36,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.size
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.material.Chip
@@ -111,8 +114,10 @@ fun GameListScreen(
     onNavigateToGameScreen: () -> Unit
 ) {
     val TAG = "GameListScreen"
-
-    val allGames by viewModel.gamesList.collectAsState()
+    val allGames by viewModel.gamesList.collectAsStateWithLifecycle()
+    LaunchedEffect(allGames) { // Or just log within the composable body (less efficient)
+        Log.d(TAG, "Games list updated. Number of games: ${allGames.size}")
+    }
     val dataFetchStatus by viewModel.dataFetchStatus.collectAsState()
     val isOnline by viewModel.isOnline.collectAsState()
     val activeGame by viewModel.activeGame.collectAsState()
@@ -190,7 +195,7 @@ fun GameListScreen(
                     }
                 )
             }
-            // Phone connectivity status
+            // Internet connectivity status
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Box(

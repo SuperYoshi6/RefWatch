@@ -68,18 +68,26 @@ enum class AgeGroup(
          */
         fun fromCalculatedAge(age: Int): AgeGroup {
             return when (age) {
-                in 0..8 -> U8 // If 10 or less, default to U10 for simplicity here
-                10 -> U10
-                11 -> U11
-                12 -> U12
-                13 -> U13
-                14 -> U14
-                15 -> U15
-                16 -> U16
-                17 -> U17
-                18 -> U18
-                19 -> U19
-                else -> if (age > 19) GENERIC_ADULT else UNKNOWN
+                // Assuming age is actual age, and U-group is age+1
+                // So, if age is 7, they play U8.
+                // If age is 8, they play U9.
+                // etc.
+                in 0..7  -> U8    // Ages 0-7 typically play U8 (or younger if you have U6, U7 etc.)
+                // If U8 is the lowest, ages 7 and under might fall here.
+                8  -> U10    // 8 year olds play U10
+                9  -> U10   // 9 year olds play U10
+                10 -> U11   // 10 year olds play U11
+                11 -> U12   // 11 year olds play U12
+                12 -> U13   // 12 year olds play U13
+                13 -> U14   // 13 year olds play U14
+                14 -> U15   // 14 year olds play U15
+                15 -> U16   // 15 year olds play U16
+                16 -> U17   // 16 year olds play U17
+                17 -> U18   // 17 year olds play U18
+                18 -> U19   // 18 year olds play U19 (often the highest youth bracket)
+
+                // For ages older than what's typical for U19
+                else -> if (age > 18) GENERIC_ADULT else UNKNOWN
             }
         }
 

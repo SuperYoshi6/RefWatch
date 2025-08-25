@@ -184,9 +184,44 @@ data class Game(
         }
 }
 
+// Helper data class to identify significant game changes for persistence
+data class GameSnapshotForStorage(
+    val id: String,
+    val status: GameStatus,
+    val currentPhase: GamePhase,
+    val homeScore: Int,
+    val awayScore: Int,
+    val events: List<GameEvent>, // Assuming GameEvent has a stable equals/hashCode
+    val gameNumber: String,
+    val homeTeamName: String,
+    val awayTeamName: String,
+    val halfDurationMinutes: Int,
+    val halftimeDurationMinutes: Int,
+    val penaltiesTakenHome: Int,
+    val penaltiesTakenAway: Int,
+)
+
+
+fun Game.toSnapshotForStorage(): GameSnapshotForStorage {
+    return GameSnapshotForStorage(
+        id = this.id,
+        status = this.status,
+        currentPhase = this.currentPhase,
+        homeScore = this.homeScore,
+        awayScore = this.awayScore,
+        events = this.events.toList(), // Ensure a copy if events list might be a mutable reference
+        gameNumber = this.gameNumber,
+        homeTeamName = this.homeTeamName,
+        awayTeamName = this.awayTeamName,
+        halfDurationMinutes = this.halfDurationMinutes,
+        halftimeDurationMinutes = this.halftimeDurationMinutes,
+        penaltiesTakenHome = this.penaltiesTakenHome,
+        penaltiesTakenAway = this.penaltiesTakenAway,
+    )
+}
+
 // Assuming AppJsonConfiguration and jsonObjectToMap are accessible/moved to common
 // If not, you might need to pass them or adjust.
-
 fun Game.toFirestoreMap(): Map<String, Any?> {
     val gameData = mutableMapOf<String, Any?>(
         "id" to this.id,

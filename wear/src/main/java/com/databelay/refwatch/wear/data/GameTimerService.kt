@@ -81,8 +81,7 @@ class GameTimerService : Service() {
         // Start in foreground immediately or very soon after creation
         startForeground(ONGOING_NOTIFICATION_ID_SERVICE, createServiceNotification("Timer Initializing..."))
     }
-    // FIXME: creates a blank game every time the watch starts
-// FIXME: when installing app notifications are disabled (could be debug only?)
+    // FIXME: when installing app notifications are disabled (could be debug only?)
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             ONGOING_NOTIFICATION_CHANNEL_ID,
@@ -445,7 +444,7 @@ class GameTimerService : Service() {
     }
 
     override fun onDestroy() {
-        // Log.d("GameTimerService", "onDestroy called")
+         Log.d(TAG, "onDestroy called")
         gameCountDownTimer?.cancel()
         releaseWakeLock()
         serviceJob.cancel() // Cancel all coroutines started by serviceScope

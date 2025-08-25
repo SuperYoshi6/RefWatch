@@ -5,6 +5,7 @@ import com.databelay.refwatch.common.AppJsonConfiguration
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameEvent
 import com.databelay.refwatch.common.mapToJsonObject
+import com.databelay.refwatch.common.parseGameEventsFromDocument
 import com.databelay.refwatch.common.toFirestoreMap
 
 import com.google.firebase.firestore.DocumentSnapshot
@@ -21,7 +22,6 @@ import kotlinx.serialization.json.decodeFromJsonElement
 
 
 class GameStorageMobile(private val firestore: FirebaseFirestore) {
-
     companion object {
         private const val USERS_COLLECTION = "users"
         private const val GAMES_COLLECTION = "games"
@@ -94,45 +94,6 @@ class GameStorageMobile(private val firestore: FirebaseFirestore) {
         }
     }
 
-
-    // This function is now correctly placed and used by getGamesFlow
-    private fun parseGameEventsFromDocument(document: DocumentSnapshot): List<GameEvent> {
-        val eventMapsFirestore = document.get("events") as? List<Map<String, Any?>> ?: run {
-            Log.d(tag, "parseGameEventsFromDocument: Document ${document.id} has no 'events' field, or it's not a list. Returning empty list.")
-            return emptyList()
-        }
-
-        if (eventMapsFirestore.isEmpty()) {
-            Log.d(tag, "parseGameEventsFromDocument: Document ${document.id} has an empty 'events' list (read from Firestore).")
-            return emptyList()
-        }
-        Log.d(tag, "parseGameEventsFromDocument: Document ${document.id} has ${eventMapsFirestore.size} event maps to parse from Firestore.")
-
-        return eventMapsFirestore.mapNotNull { eventMapFromFirestore ->
-            // LOG 3: Log the individual event map from Firestore
-            Log.v(tag, "parseGameEventsFromDocument: Attempting to decode event map for doc ${document.id}: $eventMapFromFirestore")
-            try {
-                // 1. Convert Map<String, Any?> from Firestore TO a kotlinx.serialization.json.JsonObject
-                val jsonObject = mapToJsonObject(eventMapFromFirestore)
-                // LOG 4: Log the JsonObject before ktx.serialization decodes it to GameEvent
-                Log.v(tag, "parseGameEventsFromDocument: Converted Firestore map to JsonObject for doc ${document.id}: $jsonObject")
-
-                // 2. Deserialize the JsonObject TO a GameEvent object
-                // ktxJson needs classDiscriminator and SerializersModule configured to work here.
-                // This also works if GameEvent is a sealed class and setup for polymorphism
-                val event: GameEvent = AppJsonConfiguration.decodeFromJsonElement(jsonObject)
-                // LOG 5: Log the successfully decoded event
-                Log.d(tag, "parseGameEventsFromDocument: Successfully decoded event for doc ${document.id}: $event")
-                event
-            } catch (e: Exception) {
-                // LOG 6: THIS IS VERY IMPORTANT IF EVENTS ARE MISSING or parsing fails
-                Log.e(tag, "parseGameEventsFromDocument: Error decoding a single GameEvent from map for doc ${document.id}. Map from Firestore: $eventMapFromFirestore. Error: ", e)
-                // Optionally log the JsonObject if the mapToJsonObject conversion seems problematic:
-                // try { val problematicJson = mapToJsonObject(eventMapFromFirestore); Log.e(TAG, "Problematic JsonObject: $problematicJson") } catch (jsonEx: Exception) { Log.e(TAG, "Failed to convert map to JsonObject for error logging", jsonEx) }
-                null
-            }
-        }
-    }
 
     suspend fun addOrUpdateGame(userId: String, game: Game): Result<Unit> {
         Log.d(tag, "addOrUpdateGame: User: $userId, Game ID: ${game.id}, Events in Game object: ${game.events.size}")

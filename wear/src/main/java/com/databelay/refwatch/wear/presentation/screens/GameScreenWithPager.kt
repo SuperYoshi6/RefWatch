@@ -2,6 +2,7 @@ package com.databelay.refwatch.wear.presentation.screens
 
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.result.launch
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -28,6 +30,7 @@ import com.databelay.refwatch.presentation.screens.pager.PenaltyShootoutScreen
 import com.databelay.refwatch.wear.WearGameViewModel
 import com.databelay.refwatch.wear.navigation.TAG
 import com.databelay.refwatch.wear.presentation.components.ConfirmationDialog
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -59,6 +62,7 @@ fun GameScreenWithPager(
         initialPage = 1, // Default to main display (index 1 of 3) when pager is active
         pageCount = { if (isPlayableRegularPhase) 3 else 1 } // Pager has 3 pages only if playable
     )
+    val coroutineScope = rememberCoroutineScope()
 
     Box(
         modifier = Modifier
@@ -92,7 +96,10 @@ fun GameScreenWithPager(
                             0 -> TeamActionsPage(
                                 team = Team.HOME,
                                 game = game,
-                                onAddGoal = { onAddGoal(Team.HOME) },
+                                onAddGoal = {
+                                    onAddGoal(Team.HOME)
+                                    coroutineScope.launch {pagerState.animateScrollToPage(1)}
+                                },
                                 onNavigateToLogCard = onNavigateToLogCard
                             )
 
@@ -104,7 +111,10 @@ fun GameScreenWithPager(
                             2 -> TeamActionsPage(
                                 team = Team.AWAY,
                                 game = game,
-                                onAddGoal = { onAddGoal(Team.AWAY) },
+                                onAddGoal = {
+                                    onAddGoal(Team.AWAY)
+                                    coroutineScope.launch {pagerState.animateScrollToPage(1)}
+                                },
                                 onNavigateToLogCard = onNavigateToLogCard
                             )
                         }

@@ -64,7 +64,7 @@ fun NavigationRoutes() {
             mapGamePhaseToRoute(game.currentPhase)
         } ?: WearNavRoutes.GAME_LIST_SCREEN // Default if null (e.g., no active game)
     }
-    Log.d("${TAG}:startDestination", "Current start route: ${navController.currentDestination?.route}")
+//    Log.d("${TAG}:startDestination", "Current start route: ${navController.currentDestination?.route}")
 /*    // Add the destination changed listener (for debugging)
     DisposableEffect(navController) {
         val listener = NavController.OnDestinationChangedListener { controller, destination, arguments ->

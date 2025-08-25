@@ -1,5 +1,6 @@
 package com.databelay.refwatch.wear.presentation.screens // << MAKE SURE THIS MATCHES YOUR PACKAGE
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +40,16 @@ fun GameLogScreen(
     game: Game?, // <-- Change parameter to be nullable
     onDismiss: () -> Unit
 ) {
+    val tag = "GameLogScreen"
+
+    LaunchedEffect(game) { // Or directly in the Composable body if game is not null
+        game?.let {
+            Log.d(tag, "Displaying Game ID: ${it.id}, Status: ${it.status}")
+            Log.d(tag, "Scores: ${it.homeScore}-${it.awayScore}")
+            Log.d(tag, "Events Count: ${it.events.size}")
+            Log.d(tag, "Events Data: ${it.events.joinToString { event -> event.toString() }}")
+        } ?: Log.d(tag, "Game object is null.")
+    }
     val listState = rememberScalingLazyListState()
     Scaffold(
         timeText = { TimeText(modifier = Modifier.scrollAway(listState)) },
@@ -83,7 +95,9 @@ fun GameLogScreen(
             item {
                 Button(
                     onClick = onDismiss,
-                    modifier = Modifier.padding(top = 10.dp).fillMaxWidth(0.7f)
+                    modifier = Modifier
+                        .padding(top = 10.dp)
+                        .fillMaxWidth(0.7f)
                 ) {
                     Text("Back")
                 }
@@ -104,7 +118,9 @@ fun EventLogItem(event: GameEvent) {
     // The 'when' statement is no longer needed to build the description
     // if each event has a 'displayString'.
 
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 4.dp)) {
         Text(
             text = event.displayString, // <<<< SIMPLY USE THIS!
             style = MaterialTheme.typography.body2
