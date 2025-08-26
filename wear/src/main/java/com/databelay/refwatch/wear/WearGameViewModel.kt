@@ -97,6 +97,8 @@ class WearGameViewModel @Inject constructor(
 
 
     private var isCurrentGameSessionActive = false
+    // Keep track of whether the reminder vibration is currently supposed to be active
+    private var isAddedTimeReminderVibrating = false
     private var gameTimerService: GameTimerService? = null
     private var isServiceBound = false
 
@@ -108,25 +110,44 @@ class WearGameViewModel @Inject constructor(
             isServiceBound = true
 
             gameTimerService?.timerStateFlow
+                // Make distinctUntilChanged less aggressive or remove it for general state updates
+                // if it's preventing displayedTimeMillis from updating.
+                // For now, let's allow updates if any key part of the service state changes.
+                ?.distinctUntilChanged { oldState, newState ->
+                    oldState.isTimerRunning == newState.isTimerRunning &&
+                            oldState.displayedMillis == newState.displayedMillis && // Also check displayedMillis
+                            oldState.actualTimeElapsedInPeriodMillis == newState.actualTimeElapsedInPeriodMillis &&
+                            oldState.inAddedTime == newState.inAddedTime
+                }
                 ?.onEach { serviceState ->
-                    _activeGame.value?.let { currentNonNullGame -> // Use .value and safe call + let
-                        // --- Inside this 'let' block, currentNonNullGame is non-null ---
-                        if (!currentNonNullGame.inAddedTime && serviceState.inAddedTime) {
-                            Log.i(tag, "Added time is now ACTIVE via TimerService. Starting reminder vibration.")
-                            vibrate(VibrationPattern.ADDED_TIME_REMINDER)
+                    // Log the state received from the service, especially for debugging
+                    Log.d(tag, "ServiceState received: inAddedTime=${serviceState.inAddedTime}, isTimerRunning=${serviceState.isTimerRunning}. Current reminder vibrating: $isAddedTimeReminderVibrating")
+
+                    val currentActiveGame = _activeGame.value // Get current game state
+
+                    // Determine if the conditions are met to START the reminder
+                    if (serviceState.inAddedTime && (currentActiveGame?.status == GameStatus.IN_PROGRESS || currentActiveGame?.currentPhase?.hasTimer() == true)) {
+                        if (!isAddedTimeReminderVibrating) {
+                            Log.i(tag, "Conditions met for ADDED TIME reminder. Starting vibration.")
+                            startAddedTimeReminderVibration()
                         }
-                        if (currentNonNullGame.inAddedTime && !serviceState.inAddedTime) {
-                            Log.i(tag, "Added time is now INACTIVE via TimerService. Stopping reminder vibration.")
-                            vibrator?.cancel()
+                    }
+                    // Determine if the conditions are met to STOP the reminder
+                    else { // Not in added time, or game not in a state where it should buzz
+                        if (isAddedTimeReminderVibrating) {
+                            Log.i(tag, "Conditions no longer met for ADDED TIME reminder (inAddedTime=${serviceState.inAddedTime}, gameStatus=${currentActiveGame?.status}). Stopping vibration.")
+                            stopAddedTimeReminderVibration()
                         }
-                        _activeGame.update { currentGame -> // currentGame here is Game?
-                            currentGame?.copy( // Safe call for copy
-                                isTimerRunning = serviceState.isTimerRunning,
-                                displayedTimeMillis = serviceState.displayedMillis,
-                                actualTimeElapsedInPeriodMillis = serviceState.actualTimeElapsedInPeriodMillis,
-                                inAddedTime = serviceState.inAddedTime,
-                            )
-                        }
+                    }
+
+                    // Update _activeGame with the latest service state (as before)
+                    _activeGame.update { currentGame ->
+                        currentGame?.copy(
+                            isTimerRunning = serviceState.isTimerRunning,
+                            displayedTimeMillis = serviceState.displayedMillis,
+                            actualTimeElapsedInPeriodMillis = serviceState.actualTimeElapsedInPeriodMillis,
+                            inAddedTime = serviceState.inAddedTime,
+                        )
                     }
                 }
                 ?.launchIn(viewModelScope)
@@ -260,9 +281,28 @@ class WearGameViewModel @Inject constructor(
         }
     }
 
+    @RequiresPermission(Manifest.permission.VIBRATE)
+    private fun startAddedTimeReminderVibration() {
+        if (vibrator?.hasVibrator() != true) {
+            Log.w(tag, "No vibrator available to start reminder.")
+            return
+        }
+        // Make sure the pattern is REPEATING for an ongoing reminder
+        // repeat index 0 means repeat the whole pattern from the start.
+        vibrate(VibrationPattern.ADDED_TIME_REMINDER)
+        isAddedTimeReminderVibrating = true
+        Log.d(tag, "ADDED_TIME_REMINDER vibration started with repeating pattern.")
+    }
+
+    private fun stopAddedTimeReminderVibration() {
+        vibrator?.cancel()
+        isAddedTimeReminderVibrating = false
+        Log.d(tag, "ADDED_TIME_REMINDER vibration stopped (cancelled).")
+    }
     override fun onCleared() {
         super.onCleared()
         Log.d(tag, "WearGameViewModel onCleared")
+        stopAddedTimeReminderVibration()
         unbindFromGameTimerService()
     }
 
@@ -452,6 +492,7 @@ class WearGameViewModel @Inject constructor(
         Log.d(tag, "cancelTimer called in ViewModel.")
         gameTimerService?.commandStopGameSessionAndCleanup()
         vibrator?.cancel()
+        stopAddedTimeReminderVibration() // Stop it when game finishes
         isCurrentGameSessionActive = false
         _activeGame.update {
             it?.copy(isTimerRunning = false)
@@ -528,9 +569,7 @@ class WearGameViewModel @Inject constructor(
         Log.d(tag, "Kick-off team for current context set to $team")
     }
 
-    // FIXME: don't run timer service when no game in on
-
-    // FIXME: Buzzing only once on half end but ok on halftime end
+    // FIXME: don't run timer service when no game in on. is it running?
 
     fun kickOff() {
         val currentGame = _activeGame.value ?: return
