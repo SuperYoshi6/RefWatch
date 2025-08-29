@@ -1,24 +1,18 @@
 package com.databelay.refwatch.games
 
+// import com.google.gson.Gson // No longer needed for event parsing if using ktx.serialization consistently
+
 import android.util.Log
-import com.databelay.refwatch.common.AppJsonConfiguration
 import com.databelay.refwatch.common.Game
-import com.databelay.refwatch.common.GameEvent
-import com.databelay.refwatch.common.mapToJsonObject
 import com.databelay.refwatch.common.parseGameEventsFromDocument
 import com.databelay.refwatch.common.toFirestoreMap
-
-import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.toObject
-// import com.google.gson.Gson // No longer needed for event parsing if using ktx.serialization consistently
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
-
-import kotlinx.serialization.json.decodeFromJsonElement
 
 
 class GameStorageMobile(private val firestore: FirebaseFirestore) {

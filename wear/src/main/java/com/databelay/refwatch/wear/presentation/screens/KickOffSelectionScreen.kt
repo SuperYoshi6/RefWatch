@@ -24,12 +24,13 @@ import androidx.wear.compose.material.ButtonDefaults
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.Text
+import com.databelay.refwatch.common.IWearGameViewModel
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.readable
-import com.databelay.refwatch.wear.IWearGameViewModel
-import com.databelay.refwatch.wear.presentation.screens.PreviewTools.createExtraFirstHalfSampleGame
-import com.databelay.refwatch.wear.presentation.screens.PreviewTools.createFirstHalfSampleGame
-import com.databelay.refwatch.wear.presentation.screens.PreviewTools.createPenaltiesSampleGame
+import com.databelay.refwatch.common.PreviewTools.createExtraFirstHalfSampleGame
+import com.databelay.refwatch.common.PreviewTools.createFirstHalfSampleGame
+import com.databelay.refwatch.common.PreviewTools.createPenaltiesSampleGame
+import com.databelay.refwatch.common.PreviewWearGameViewModel
 
 
 @Composable
@@ -109,7 +110,7 @@ fun KickOffSelectionScreen(
 fun KickOffSelectionScreenPreview_FirstHalf() {
     MaterialTheme {
         KickOffSelectionScreen(
-            PreviewWearGameViewModel(initialActiveGame  = createFirstHalfSampleGame()),
+            PreviewWearGameViewModel(initialActiveGame = createFirstHalfSampleGame()),
             onConfirm = {}, // Empty lambda for preview
             onSetKickOffTeam = {} // Empty lambda for preview
         )
@@ -121,7 +122,7 @@ fun KickOffSelectionScreenPreview_FirstHalf() {
 fun KickOffSelectionScreenPreview_ExtraFirstHalf() {
     MaterialTheme {
         KickOffSelectionScreen(
-            PreviewWearGameViewModel(initialActiveGame  = createExtraFirstHalfSampleGame()),
+            PreviewWearGameViewModel(initialActiveGame = createExtraFirstHalfSampleGame()),
             onConfirm = {}, // Empty lambda for preview
             onSetKickOffTeam = {} // Empty lambda for preview
         )
@@ -133,7 +134,7 @@ fun KickOffSelectionScreenPreview_ExtraFirstHalf() {
 fun KickOffSelectionScreenPreview_Penalties() {
     MaterialTheme {
         KickOffSelectionScreen(
-            PreviewWearGameViewModel(initialActiveGame  = createPenaltiesSampleGame()),
+            PreviewWearGameViewModel(initialActiveGame = createPenaltiesSampleGame()),
             onConfirm = {}, // Empty lambda for preview
             onSetKickOffTeam = {} // Empty lambda for preview
         )

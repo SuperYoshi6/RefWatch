@@ -1,18 +1,44 @@
 package com.databelay.refwatch.auth
 
+import android.content.Intent
+import android.net.Uri
 import android.util.Log
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.databelay.refwatch.common.LegalLinks
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,12 +52,9 @@ fun AuthScreen(
 
     val authState by authViewModel.authState.collectAsState()
     val isLoading by authViewModel.isLoading.collectAsState()
+    val currentErrorMessage by authViewModel.authError.collectAsState() // Use 'by'
 
-    // Capture the errorMessage value here
-    val currentErrorMessage = authViewModel.authError.collectAsState().value
-    // Or, if you prefer to keep the 'by' delegate for other uses, do it just before usage:
-    // val errorMessage by authViewModel.authError.collectAsState()
-    // val currentErrorMessage = errorMessage // If needed for a specific block
+    val context = LocalContext.current // For opening URLs
 
     LaunchedEffect(authState) {
         if (authState is AuthState.Authenticated) {
@@ -51,13 +74,80 @@ fun AuthScreen(
             if (isLoginMode) "Login" else "Sign Up",
             style = MaterialTheme.typography.headlineMedium
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp)) // Reduced space a bit
+
+        // Terms and Privacy Text - only shown in Sign Up mode
+        if (!isLoginMode) {
+            val annotatedString = buildAnnotatedString {
+                append("By signing up, you agree to our\n") // Added newline for better spacing
+
+                pushStringAnnotation(tag = "TERMS", annotation = LegalLinks.TERMS_OF_USE_URL)
+                withStyle(
+                    style = SpanStyle(
+                        color = MaterialTheme.colorScheme.primary,
+                        textDecoration = TextDecoration.Underline
+                    )
+                ) {
+                    append("Terms of Use")
+                }
+                pop()
+
+                append(" and ")
+
+                pushStringAnnotation(tag = "PRIVACY", annotation = LegalLinks.PRIVACY_POLICY_URL)
+                withStyle(
+                    style = SpanStyle(
+                        color = MaterialTheme.colorScheme.primary,
+                        textDecoration = TextDecoration.Underline
+                    )
+                ) {
+                    append("Privacy Policy")
+                }
+                pop()
+                append(".")
+            }
+
+            ClickableText(
+                text = annotatedString,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    textAlign = TextAlign.Center, // Center align the text
+                    color = MaterialTheme.colorScheme.onBackground // Ensure good contrast
+                ),
+                onClick = { offset ->
+                    annotatedString.getStringAnnotations(tag = "TERMS", start = offset, end = offset)
+                        .firstOrNull()?.let { annotation ->
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(annotation.item))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Log.e("AuthScreen", "Could not open Terms of Use URL", e)
+                            }
+                        }
+
+                    annotatedString.getStringAnnotations(tag = "PRIVACY", start = offset, end = offset)
+                        .firstOrNull()?.let { annotation ->
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(annotation.item))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Log.e("AuthScreen", "Could not open Privacy Policy URL", e)
+                            }
+                        }
+                },
+                modifier = Modifier.padding(horizontal = 16.dp) // Add some horizontal padding
+            )
+            Spacer(modifier = Modifier.height(24.dp)) // Space before email field
+        } else {
+            // Add some space if login mode and the text isn't shown, to keep fields consistent
+            Spacer(modifier = Modifier.height(24.dp + (MaterialTheme.typography.bodySmall.fontSize.value * 2).dp)) // Approximate height of the ClickableText + Spacer
+        }
+
 
         OutlinedTextField(
             value = email,
             onValueChange = {
                 email = it
-                if (currentErrorMessage != null) { // Use local variable
+                if (currentErrorMessage != null) {
                     authViewModel.clearAuthError()
                 }
             },
@@ -66,10 +156,10 @@ fun AuthScreen(
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             enabled = !isLoading,
-            isError = currentErrorMessage != null && ( // Use local variable
-                    currentErrorMessage.contains("email", ignoreCase = true) ||
-                            currentErrorMessage.contains("credentials", ignoreCase = true) ||
-                            currentErrorMessage.contains("empty", ignoreCase = true) && email.isEmpty()
+            isError = currentErrorMessage != null && (
+                    currentErrorMessage!!.contains("email", ignoreCase = true) ||
+                            currentErrorMessage!!.contains("credentials", ignoreCase = true) ||
+                            currentErrorMessage!!.contains("empty", ignoreCase = true) && email.isEmpty()
                     )
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -77,7 +167,7 @@ fun AuthScreen(
             value = password,
             onValueChange = {
                 password = it
-                if (currentErrorMessage != null) { // Use local variable
+                if (currentErrorMessage != null) {
                     authViewModel.clearAuthError()
                 }
             },
@@ -87,15 +177,15 @@ fun AuthScreen(
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             enabled = !isLoading,
-            isError = currentErrorMessage != null && ( // Use local variable
-                    currentErrorMessage.contains("password", ignoreCase = true) ||
-                            currentErrorMessage.contains("credentials", ignoreCase = true) ||
-                            currentErrorMessage.contains("empty", ignoreCase = true) && password.isEmpty()
+            isError = currentErrorMessage != null && (
+                    currentErrorMessage!!.contains("password", ignoreCase = true) ||
+                            currentErrorMessage!!.contains("credentials", ignoreCase = true) ||
+                            currentErrorMessage!!.contains("empty", ignoreCase = true) && password.isEmpty()
                     )
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        currentErrorMessage?.let { errMessage -> // Use local variable
+        currentErrorMessage?.let { errMessage ->
             Text(
                 text = errMessage,
                 color = MaterialTheme.colorScheme.error,
@@ -133,7 +223,7 @@ fun AuthScreen(
         TextButton(
             onClick = {
                 isLoginMode = !isLoginMode
-                if (currentErrorMessage != null) { // Use local variable
+                if (currentErrorMessage != null) {
                     authViewModel.clearAuthError()
                 }
             },
@@ -143,4 +233,3 @@ fun AuthScreen(
         }
     }
 }
-

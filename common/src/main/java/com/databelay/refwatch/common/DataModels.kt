@@ -22,8 +22,9 @@ enum class CardType { YELLOW, RED }
 @Serializable
 enum class GameStatus {
     SCHEDULED,
-    IN_PROGRESS, // Can be added for more clarity
     COMPLETED,
+    IN_PROGRESS, // Can be added for more clarity
+
     CANCELLED    // Easy to add later
 }
 

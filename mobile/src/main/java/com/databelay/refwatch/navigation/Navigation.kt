@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -17,9 +16,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -29,19 +34,16 @@ import androidx.navigation.navArgument
 import com.databelay.refwatch.auth.AuthScreen
 import com.databelay.refwatch.auth.AuthState
 import com.databelay.refwatch.auth.AuthViewModel
-import com.databelay.refwatch.common.Game // Your Game class
-import com.databelay.refwatch.common.SimpleIcsParser
+import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.SimpleIcsEvent
-import com.databelay.refwatch.games.GameListScreen
-import com.databelay.refwatch.games.MobileGameViewModel
-import com.databelay.refwatch.games.AddEditGameViewModel
+import com.databelay.refwatch.common.SimpleIcsParser
+import com.databelay.refwatch.games.AddEditGameRoute
 import com.databelay.refwatch.games.AddEditGameScreen
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
+import com.databelay.refwatch.games.AddEditGameViewModel
+import com.databelay.refwatch.games.GameListScreen
 import com.databelay.refwatch.games.GameLogScreen
+import com.databelay.refwatch.games.MobileGameViewModel
+import com.databelay.refwatch.games.SettingsScreen
 import kotlinx.coroutines.launch
 
 const val TAG = "RefWatchNavHost"
@@ -156,6 +158,14 @@ fun RefWatchNavHost() {
         navController = navController,
         startDestination = MobileNavRoutes.LOADING_SCREEN // Start with loading to check auth
     ) {
+        composable(MobileNavRoutes.SETTINGS_SCREEN) {
+            SettingsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onDeleteAccountConfirmed = {
+                    authViewModel.deleteUserAccount()
+                }
+            )
+        }
         composable(MobileNavRoutes.LOADING_SCREEN) {
             LoadingScreen()
             // No navigation logic directly here anymore, handled by the LaunchedEffect above.
@@ -184,48 +194,31 @@ fun RefWatchNavHost() {
         }
 
         composable(MobileNavRoutes.GAME_LIST_SCREEN) {
-            val games by mobileGameViewModel.gamesList.collectAsState()
+            val authStateValue by authViewModel.authState.collectAsStateWithLifecycle()
+            // Assuming MobileGameViewModel provides these:
+            val gamesToDisplay by mobileGameViewModel.gamesList.collectAsStateWithLifecycle(emptyList())
+            val selectedTab by mobileGameViewModel.selectedTab.collectAsStateWithLifecycle()
+
+
             GameListScreen(
-                games = games,
+                authStateValue = authStateValue,
+                games = gamesToDisplay,
+                selectedTab = selectedTab,
+                onTabSelected = { newTab -> mobileGameViewModel.selectTab(newTab) }, // ViewModel handles tab change
                 onAddGame = {
                     // Navigate to AddEditGameScreen for a new game
                     navController.navigate(MobileNavRoutes.addEditGameRoute(null))
                 },
-                onViewLog = { gameToView -> // <-- This correctly handles navigation for completed games
-                    navController.navigate(MobileNavRoutes.gameLogRoute(gameToView.id))
-                },
                 onEditGame = { gameToEdit ->
                     navController.navigate(MobileNavRoutes.addEditGameRoute(gameToEdit.id))
                 },
-                onDeleteGame = { gameToDelete -> mobileGameViewModel.deleteGame(games, gameToDelete) },
-                onSignOut = {
-                    authViewModel.signOut() // Initiate sign out, AuthState change will trigger navigation
+                onViewLog = { gameToView -> // <-- This correctly handles navigation for completed games
+                    navController.navigate(MobileNavRoutes.gameLogRoute(gameToView.id))
                 },
-                onImportGames = {
-                    // Example Import (replace with your actual file picker logic)
-                    Log.d(TAG, "onImportGames triggered. Launching file picker.")
-                    filePickerLauncher.launch("text/calendar")
-
-//                    val icsEvents = SimpleIcsParser.parse(
-//                        """
-//                        BEGIN:VEVENT
-//                        DTSTAMP:20250327T113750Z
-//                        UID:4829e374-f5e1-48d1-8c21-044404e66152
-//                        DTSTART;TZID=America/New_York:20250329T143000
-//                        DTEND;TZID=America/New_York:20250329T163000
-//                        SUMMARY:Referee Assignment: Asst Referee 1 - 3071 Cutters SC U18 Boys Red vs.  Indy Eleven 2007/2008B White - ISL SPRING 2025 (11U-19/20U\, All Divisions)
-//                        END:VEVENT
-//                        BEGIN:VEVENT
-//                        DTSTAMP:20250327T113750Z
-//                        UID:826d01cc-f123-4018-bbd3-08c820b36cc6
-//                        DTSTART;TZID=America/New_York:20250330T130000
-//                        DTEND;TZID=America/New_York:20250330T144500
-//                        SUMMARY:Referee Assignment: Referee - 2846 Cutters SC 2009/10 Boys Red vs.   SCSA Eleven 2009B Red - ISL SPRING 2025 (11U-19/20U\, All Divisions)
-//                        END:VEVENT"""
-//                    )
-//                    val gamesToImport = icsEvents.map { Game(it) }
-//                    mobileGameViewModel.addOrUpdateGames(gamesToImport)
-                },
+                onDeleteGame = { gameToDelete -> mobileGameViewModel.deleteGame(gameToDelete) },
+                onSignOut = { authViewModel.signOut()},
+                onImportGames = {filePickerLauncher.launch("text/calendar")},
+                onNavigateToSettings = { navController.navigate(MobileNavRoutes.SETTINGS_SCREEN) }
             )
         }
         // It tells the NavHost what to display for the "game_log?{gameId}" route.
@@ -240,19 +233,28 @@ fun RefWatchNavHost() {
             )
         ) {
             backStackEntry ->
-            // 1. Retrieve the gameId from the navigation arguments.
-            //    It can be null if no ID was passed.
             val gameId = backStackEntry.arguments?.getString("gameId")
 
-            // 2. Find the correct Game object from the ViewModel's list using the ID.
-            //    The '.value' gets the current list from the StateFlow.
-            //    If gameId is null, this 'find' operation will safely return null.
-            val selectedGame = mobileGameViewModel.gamesList.value.find { it.id == gameId }
+            // 1. Collect the gamesList state
+            val allGames by mobileGameViewModel.gamesList.collectAsStateWithLifecycle() // Or .collectAsState()
 
-            // 3. Display the GameLogScreen with the found game.
-            //    Your GameLogScreen should be designed to handle a null game.
+            // 2. Find the selected game from the collected state
+            //    This find operation will now re-run if 'allGames' (due to gamesList changing)
+            //    or 'gameId' changes.
+            val selectedGame = remember(allGames, gameId) { // Use remember to avoid re-calculating unless inputs change
+                allGames.find { it.id == gameId }
+            }
+
+            // 3. Display the GameLogScreen
+            if (gameId != null && selectedGame == null) {
+                // Optional: Handle case where gameId is provided but game not found
+                // This could be a loading state, an error message, or navigating back.
+                // For now, GameLogScreen will receive null, which it should handle.
+                Log.w(TAG, "GameLogScreen: gameId '$gameId' provided but game not found in the list.")
+            }
+
             GameLogScreen(
-                game = selectedGame,
+                game = selectedGame, // Pass the derived selectedGame
                 navController = navController
             )
         }
@@ -278,11 +280,7 @@ fun RefWatchNavHost() {
                 }
             }
 
-            AddEditGameScreen(
-                navController = navController,
-                mobileGameViewModel = mobileGameViewModel, // Needed to save the game
-                addEditViewModel = addEditViewModel
-            )
+            AddEditGameRoute(navController = navController)
         }
     }
 }

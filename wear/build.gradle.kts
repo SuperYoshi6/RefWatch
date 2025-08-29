@@ -24,8 +24,8 @@ android {
         applicationId = "com.databelay.refwatch"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1001 // always start with 100 for wear
-        versionName = "Peppercorn" // The versions SHALL all be spherical objects of increasing size
+        versionCode = 2001
+        versionName = "Pea" // The versions SHALL all be spherical objects of increasing size
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"") // BUILD_TIME becomes accessible in code
     }

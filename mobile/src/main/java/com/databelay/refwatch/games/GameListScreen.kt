@@ -1,7 +1,9 @@
 package com.databelay.refwatch.games
 
+import android.content.Intent
+import android.content.res.Configuration
+import android.net.Uri
 import android.util.Log
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,8 +11,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -18,39 +20,43 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.databelay.refwatch.BuildConfig
-import java.text.SimpleDateFormat
-import java.util.*
+import com.databelay.refwatch.auth.AuthState
 import com.databelay.refwatch.common.Game
-import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.GameStatus
+import com.databelay.refwatch.common.PreviewTools.createSampleGames
 import com.databelay.refwatch.common.getAppVersionCode
 import com.databelay.refwatch.common.getAppVersionName
-import com.databelay.refwatch.common.readable
-import android.content.Intent
-import android.net.Uri
+import com.databelay.refwatch.common.theme.RefWatchMobileTheme
+import com.google.firebase.auth.FirebaseUser
+import org.mockito.Mockito.mock
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameListScreen(
-    games: List<Game>,
+    authStateValue: AuthState, // << Pass AuthState directly
+    games: List<Game>, // << Pass the list of games to display directly
+    selectedTab: GameStatus,    // << Pass current tab
+    onTabSelected: (GameStatus) -> Unit, // << Callback to change tab
     onAddGame: () -> Unit,
     onEditGame: (Game) -> Unit,
     onViewLog: (Game) -> Unit, // <-- Ensure this is passed
     onDeleteGame: (Game) -> Unit,
-    onSignOut: () -> Unit,
+    onSignOut: () -> Unit, // This might be handled by the calling composable via AuthViewModel
     onImportGames: () -> Unit, // Callback for importing
+    onNavigateToSettings: () -> Unit
 ) {
     var appVersionName by remember { mutableStateOf("Loading...") } // State for version name
     var appVersionNumber by remember { mutableLongStateOf(0L) } // State for version name
@@ -65,8 +71,6 @@ fun GameListScreen(
     }
 
     Log.d("GameListScreen", "Received games: ${games.map { it.id + " -> " + it.status }}") // Log input games
-
-    var selectedTab by remember { mutableStateOf(GameStatus.SCHEDULED) }
 
     // Filter and sort the lists, just like on the watch
     val (upcomingGames, pastGames) = remember(games) {
@@ -83,12 +87,22 @@ fun GameListScreen(
             TopAppBar(
                 title = { Text("My Games") },
                 actions = {
+                    // Conditionally display Settings Button based on AuthState
+                    if (authStateValue is AuthState.Authenticated) {
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = "Settings"
+                            )
+                        }
+                    }
                     IconButton(onClick = onImportGames) {
                         Icon(Icons.Default.UploadFile, contentDescription = "Import ICS")
                     }
                     IconButton(onClick = onSignOut) {
                         Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Sign Out")
-                    }                }
+                    }
+                }
             )
         },
         floatingActionButton = {
@@ -106,15 +120,15 @@ fun GameListScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
             // --- TABS FOR FILTERING ---
-            TabRow(selectedTabIndex = selectedTab.ordinal) {
+            TabRow(selectedTabIndex = if (selectedTab == GameStatus.SCHEDULED) 0 else 1) { // Determine index based on selectedTab
                 Tab(
                     selected = selectedTab == GameStatus.SCHEDULED,
-                    onClick = { selectedTab = GameStatus.SCHEDULED },
+                    onClick = { onTabSelected(GameStatus.SCHEDULED) },
                     text = { Text("Upcoming (${upcomingGames.size})") }
                 )
                 Tab(
                     selected = selectedTab == GameStatus.COMPLETED,
-                    onClick = { selectedTab = GameStatus.COMPLETED },
+                    onClick = { onTabSelected(GameStatus.COMPLETED) },
                     text = { Text("Past (${pastGames.size})") }
                 )
             }
@@ -138,7 +152,7 @@ fun GameListScreen(
             }
             // --- ADD BUILD INFO TEXT HERE ---
             Spacer(modifier = Modifier.height(8.dp))
-            androidx.compose.material3.Text(
+            Text(
                 text = "Version: $appVersionName $buildDateString", // Display version name
                 color = androidx.wear.compose.material.MaterialTheme.colors.primary,
                 style = androidx.wear.compose.material.MaterialTheme.typography.caption1.copy(fontSize = 14.sp),
@@ -149,7 +163,6 @@ fun GameListScreen(
         }
     }
 }
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -282,7 +295,8 @@ fun GameListItem(
                                 }
                             }
                         },
-                        modifier = Modifier.height(iconButtonHeight) // Ensure it takes up consistent height
+                        modifier = Modifier
+                            .height(iconButtonHeight) // Ensure it takes up consistent height
                             .size(iconButtonHeight) // You can also use .size()
                     ) {
                         Icon(
@@ -303,7 +317,8 @@ fun GameListItem(
 
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier.height(iconButtonHeight) // Ensure it takes up consistent height
+                    modifier = Modifier
+                        .height(iconButtonHeight) // Ensure it takes up consistent height
                         .size(iconButtonHeight) // Match the size/height
                 ) {
                     Icon(Icons.Filled.Delete, "Delete Game", tint = MaterialTheme.colorScheme.error)
@@ -313,3 +328,184 @@ fun GameListItem(
     }
 }
 
+
+
+
+// ---------------------- PREVIEWS ---------------------------
+// -----------------------------------------------------------
+// Helper to create sample games for previews
+
+@Preview(device = "id:pixel_9", showSystemUi = true, showBackground = true, name = "GameList - Unauthenticated",  uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun GameListScreenPreview_Unauthenticated() {
+    RefWatchMobileTheme {
+        GameListScreen(
+            authStateValue = AuthState.Unauthenticated,
+            games = createSampleGames(),
+            selectedTab = GameStatus.SCHEDULED, // Default, not really visible
+            onTabSelected = {},
+            onAddGame = {},
+            onEditGame = {},
+            onViewLog = {},
+            onDeleteGame = {},
+            onSignOut = {},
+            onImportGames = {},
+            onNavigateToSettings = {}
+        )
+    }
+}
+
+@Preview(device = "id:pixel_9", showSystemUi = true, showBackground = true, name = "GameList - Loading",  uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun GameListScreenPreview_Loading() {
+    RefWatchMobileTheme {
+        GameListScreen(
+            authStateValue = AuthState.Unauthenticated,
+            games = createSampleGames(),
+            selectedTab = GameStatus.COMPLETED, // Default
+            onTabSelected = {},
+            onAddGame = {},
+            onEditGame = {},
+            onViewLog = {},
+            onDeleteGame = {},
+            onSignOut = {},
+            onImportGames = {},
+            onNavigateToSettings = {}
+        )
+    }
+}
+/*
+
+@Preview(
+    device = "id:pixel_9",
+    showSystemUi = true,
+    backgroundColor = 0xff000000,
+    showBackground = true,
+    name = "GameList - Loading State"
+)
+@Composable
+fun GameListScreenPreview_Loading() {
+    val mockViewModel = PreviewMobileGameViewModel(
+        initialGames = emptyList(),
+    )
+    // RefWatchTheme {
+    GameListScreen(
+        viewModel = mockViewModel,
+        onAddGame = {},
+        onEditGame = {},
+        onViewLog = {},
+        onDeleteGame = {},
+        onImportGames = {},
+        onNavigateToSettings = {}
+    )
+    // }
+}
+
+@Preview(
+    device = "id:pixel_9",
+    showSystemUi = true,
+    backgroundColor = 0xff000000,
+    showBackground = true,
+    name = "GameList - Error State"
+)
+@Composable
+fun GameListScreenPreview_Error() {
+    val mockViewModel = PreviewMobileGameViewModel(
+        initialGames = emptyList(),
+    )
+    // RefWatchTheme {
+    GameListScreen(
+        viewModel = mockViewModel,
+        onAddGame = {},
+        onEditGame = {},
+        onViewLog = {},
+        onDeleteGame = {},
+        onImportGames = {},
+        onNavigateToSettings = {}
+    )
+    // }
+}
+
+@Preview(
+    device = "id:pixel_9",
+    showSystemUi = true,
+    backgroundColor = 0xff000000,
+    showBackground = true,
+    name = "GameList - With Scheduled Games"
+)
+@Composable
+fun GameListScreenPreview_WithScheduledGames() {
+    val mockViewModel =
+        PreviewMobileGameViewModel(initialGames = createSampleGames().filter { it.status == GameStatus.SCHEDULED })
+    // RefWatchTheme {
+    GameListScreen(
+        viewModel = mockViewModel,
+        onAddGame = {},
+        onEditGame = {},
+        onViewLog = {},
+        onDeleteGame = {},
+        onImportGames = {},
+        onNavigateToSettings = {}
+    )
+    // }
+}
+
+@Preview(
+    device = "id:pixel_9",
+    showSystemUi = true,
+    backgroundColor = 0xff000000,
+    showBackground = true,
+    name = "GameList - With Past Games Tab"
+)
+@Composable
+fun GameListScreenPreview_WithPastGames() {
+    // To see the "Past" tab selected, we'd ideally need a way to control
+    // the internal 'selectedTab' state of GameListScreen from the preview,
+    // or the FakeWearGameViewModel could expose a way to hint the initial tab.
+    // For simplicity, this preview will show the games, but the "Scheduled" tab will be selected by default.
+    // To preview the "Past" tab selected, you'd need to modify GameListScreen or its state handling for previews.
+    val mockViewModel = PreviewMobileGameViewModel(initialGames = createSampleGames())
+    // RefWatchTheme {
+    GameListScreen(
+        viewModel = mockViewModel,
+        onAddGame = {},
+        onEditGame = {},
+        onViewLog = {},
+        onDeleteGame = {},
+        onImportGames = {},
+        onNavigateToSettings = {}
+    )
+    // }
+}
+
+@Preview(
+    device = "id:pixel_9",
+    showSystemUi = true,
+    backgroundColor = 0xff000000,
+    showBackground = true,
+    name = "GameList - With Resumable Game"
+)
+@Composable
+fun GameListScreenPreview_WithResumableGame() {
+    val resumableGame = Game(
+        id = "active123",
+        homeTeamName = "Active Team A",
+        awayTeamName = "Active Team B",
+        isTimerRunning = true,
+        displayedTimeMillis = 120000 // 2 minutes in
+    )
+    val mockViewModel = PreviewMobileGameViewModel(initialGames = createSampleGames(),)
+    // RefWatchTheme {
+    GameListScreen(
+        viewModel = mockViewModel,
+        onAddGame = {},
+        onEditGame = {},
+        onViewLog = {},
+        onDeleteGame = {},
+        onImportGames = {},
+        onNavigateToSettings = {}
+    )
+    // }
+}
+
+*/

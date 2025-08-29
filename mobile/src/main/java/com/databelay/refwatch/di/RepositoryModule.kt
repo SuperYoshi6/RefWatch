@@ -1,12 +1,12 @@
 package com.databelay.refwatch.di
-import com.databelay.refwatch.auth.AuthRepository // Import new repository
+import com.databelay.refwatch.auth.AuthRepository
 import com.databelay.refwatch.games.GameStorageMobile
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.auth.FirebaseAuth // Needed for AuthRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent // GameRepository likely a singleton
+import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 @Module

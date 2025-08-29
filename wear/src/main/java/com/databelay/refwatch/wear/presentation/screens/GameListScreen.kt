@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SyncProblem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -36,8 +35,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.size
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
@@ -50,14 +47,17 @@ import androidx.wear.compose.material.ToggleButtonDefaults
 import com.databelay.refwatch.BuildConfig
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameStatus
+import com.databelay.refwatch.common.IWearGameViewModel
 import com.databelay.refwatch.common.getAppVersionCode
 import com.databelay.refwatch.common.getAppVersionName
-import com.databelay.refwatch.wear.IWearGameViewModel
-import com.databelay.refwatch.wear.presentation.screens.PreviewTools.createSampleGames
+import com.databelay.refwatch.common.PreviewTools.createSampleGames
+import com.databelay.refwatch.common.PreviewWearGameViewModel
 import com.databelay.refwatch.wear.data.DataFetchStatus
 
 // Assuming GameStatus.SCHEDULED and GameStatus.COMPLETED
 enum class GameListFilterState { UPCOMING, PAST }
+
+
 
 @Composable
 fun CompactGameFilter(
@@ -118,7 +118,6 @@ fun GameListScreen(
     LaunchedEffect(allGames) { // Or just log within the composable body (less efficient)
         Log.d(TAG, "Games list updated. Number of games: ${allGames.size}")
     }
-    val dataFetchStatus by viewModel.dataFetchStatus.collectAsState()
     val isOnline by viewModel.isOnline.collectAsState()
     val activeGame by viewModel.activeGame.collectAsState()
     var selectedFilterState by remember { mutableStateOf(GameListFilterState.UPCOMING) }
@@ -339,7 +338,6 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
 fun GameListScreenPreview_EmptyScheduled() {
     val mockViewModel = PreviewWearGameViewModel(
         initialGames = emptyList(),
-        initialFetchStatus = DataFetchStatus.NO_DATA_AVAILABLE // Or SUCCESS if list is just empty
     )
     // RefWatchTheme { // Wrap in your app's theme
     GameListScreen(
@@ -363,7 +361,6 @@ fun GameListScreenPreview_EmptyScheduled() {
 fun GameListScreenPreview_Loading() {
     val mockViewModel = PreviewWearGameViewModel(
         initialGames = emptyList(),
-        initialFetchStatus = DataFetchStatus.FETCHING
     )
     // RefWatchTheme {
     GameListScreen(
@@ -387,7 +384,6 @@ fun GameListScreenPreview_Loading() {
 fun GameListScreenPreview_Error() {
     val mockViewModel = PreviewWearGameViewModel(
         initialGames = emptyList(),
-        initialFetchStatus = DataFetchStatus.INITIAL
     )
     // RefWatchTheme {
     GameListScreen(
@@ -409,7 +405,8 @@ fun GameListScreenPreview_Error() {
 )
 @Composable
 fun GameListScreenPreview_WithScheduledGames() {
-    val mockViewModel = PreviewWearGameViewModel(initialGames = createSampleGames().filter { it.status == GameStatus.SCHEDULED })
+    val mockViewModel =
+        PreviewWearGameViewModel(initialGames = createSampleGames().filter { it.status == GameStatus.SCHEDULED })
     // RefWatchTheme {
     GameListScreen(
         viewModel = mockViewModel,

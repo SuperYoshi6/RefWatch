@@ -2,6 +2,8 @@
 
 ![RefWatch App Icon/Screenshot (Optional)](./ic_launcher-playstore.png) 
 
+Short description: RefWatch - manage soccer matches directly from your wrist.
+
 RefWatch Wear is a dedicated Wear OS application designed to assist soccer referees in managing matches efficiently directly from their wrist. It provides essential tools for timekeeping, score tracking, and disciplinary actions, ensuring referees can focus on the game.
 
 Please install RefWatch mobile companion on your phone.

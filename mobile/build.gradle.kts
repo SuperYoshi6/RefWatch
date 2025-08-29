@@ -20,8 +20,8 @@ android {
         applicationId = "com.databelay.refwatch"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "Peppercorn" // The versions SHALL all be spherical objects of increasing size
+        versionCode = 2
+        versionName = "Pea" // The versions SHALL all be spherical objects of increasing size
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"") // BUILD_TIME becomes accessible in code
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -68,6 +68,8 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
+    implementation(libs.androidx.compose.ui.ui.tooling)
+
     implementation(libs.androidx.compose.material) // Replace with latest version
     implementation(libs.androidx.material3)
     implementation(libs.kotlinx.coroutines.android) // You likely have this or core
@@ -81,6 +83,7 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(libs.androidx.hilt.navigation.compose)
 
+    debugImplementation(libs.mockito.core)
     testImplementation(libs.junit)
     testImplementation(libs.google.truth) // Or a newer version
     // For Android Instrumented tests (like yours in androidTest)

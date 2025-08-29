@@ -4,7 +4,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import com.databelay.refwatch.common.*
+import com.databelay.refwatch.common.AgeGroup
+import com.databelay.refwatch.common.Game
+import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.theme.DefaultAwayJerseyColor
 import com.databelay.refwatch.common.theme.DefaultHomeJerseyColor
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,8 +16,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.UUID
 import javax.inject.Inject
 
+
 // Data class to hold the UI state of the form
 data class AddEditGameUiState(
+    val gameId: String? = null, // To know if editing or adding
     val gameNumber: String = "XXXX",
     val fieldNumber: String? = null,
     val homeTeamName: String = "Home",

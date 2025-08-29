@@ -26,6 +26,7 @@ import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.GameStatus
 import com.databelay.refwatch.common.GenericLogEvent
 import com.databelay.refwatch.common.GoalScoredEvent
+import com.databelay.refwatch.common.IWearGameViewModel
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.formatTime
 import com.databelay.refwatch.common.hasTimer
@@ -59,12 +60,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import javax.inject.Inject
 
-interface IWearGameViewModel {
-    val gamesList: StateFlow<List<Game>>
-    val dataFetchStatus: StateFlow<DataFetchStatus>
-    val isOnline: StateFlow<Boolean>
-    val activeGame: StateFlow<Game?> // <<<< CHANGE TO NULLABLE HERE
-}
 
 @OptIn(FlowPreview::class)
 @HiltViewModel
@@ -84,8 +79,6 @@ class WearGameViewModel @Inject constructor(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()) // Ensure initialValue and proper stateIn usage
-
-    override val dataFetchStatus: StateFlow<DataFetchStatus> = gameStorage.dataFetchStatusFlow
 
     override val isOnline: StateFlow<Boolean> = gameStorage.networkStatusFlow.map {
         it == ConnectivityObserver.Status.AVAILABLE

@@ -9,12 +9,12 @@ import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
@@ -214,4 +214,32 @@ class AuthViewModel @Inject constructor(
         firebaseAuth.removeAuthStateListener(firebaseAuthListener) // Clean up listener
         Log.d(TAG, "ViewModel cleared, AuthStateListener removed.")
     }
+    fun deleteUserAccount() {
+        viewModelScope.launch {
+            _isLoading.value = true // Show loading state
+            val user = firebaseAuth.currentUser
+            user?.delete()?.addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    Log.d(TAG, "User account deleted successfully from Firebase Auth.")
+                    // Now delete associated data from Firestore/backend
+                    // This might involve another suspend function call
+                    // clearUserAppData(user.uid) // Example
+
+                    // AuthStateListener will eventually pick up the null user
+                    // and set _authState to Unauthenticated.
+                    // Or you can explicitly set it if needed, though listener is better.
+                    _isLoading.value = false
+                    // _deleteSuccessEvent.value = true // Or use a SingleLiveEvent / SharedFlow for navigation trigger
+                } else {
+                    Log.e(TAG, "Failed to delete user account from Firebase Auth.", task.exception)
+                    _authError.value = "Failed to delete account: ${task.exception?.message}"
+                    _isLoading.value = false
+                }
+            } ?: run {
+                _authError.value = "No user found to delete."
+                _isLoading.value = false
+            }
+        }
+    }
+
 }
