@@ -39,7 +39,6 @@ import com.databelay.refwatch.common.getAppVersionCode
 import com.databelay.refwatch.common.getAppVersionName
 import com.databelay.refwatch.common.theme.RefWatchMobileTheme
 import com.google.firebase.auth.FirebaseUser
-import org.mockito.Mockito.mock
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -334,7 +333,8 @@ fun GameListItem(
 // ---------------------- PREVIEWS ---------------------------
 // -----------------------------------------------------------
 // Helper to create sample games for previews
-
+@Preview(device = "id:Nexus 7 2013", showSystemUi = true, showBackground = true, name = "GameList - Unauthenticated",  uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(device = "id:pixel_c", showSystemUi = true, showBackground = true, name = "GameList - Unauthenticated",  uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Preview(device = "id:pixel_9", showSystemUi = true, showBackground = true, name = "GameList - Unauthenticated",  uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun GameListScreenPreview_Unauthenticated() {

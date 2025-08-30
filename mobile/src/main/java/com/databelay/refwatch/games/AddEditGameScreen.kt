@@ -322,7 +322,8 @@ fun AddEditGameRoute(
 
 // --- Previews ---
 
-@Preview(name = "Add New Game (Light)", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(name = "Add New Game (Dark)", device = "id:7in WSVGA (Tablet)", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Add New Game (Dark)", device = "id:10.1in WXGA (Tablet)", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Preview(name = "Add New Game (Dark)", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun AddEditGameScreen_AddNewPreview() {
@@ -345,7 +346,8 @@ fun AddEditGameScreen_AddNewPreview() {
     }
 }
 
-@Preview(name = "Edit Game (Light)", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_NO)
+
+
 @Preview(name = "Edit Game (Dark)", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun AddEditGameScreen_EditPreview() {
