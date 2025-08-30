@@ -20,8 +20,17 @@ android {
         applicationId = "com.databelay.refwatch"
         minSdk = 31
         targetSdk = 36
-        versionCode = 2
-        versionName = "Pea" // The versions SHALL all be spherical objects of increasing size
+//        Version code scheme explained here:  https://developer.android.com/training/wearables/packaging
+//        Here is a suggested version code scheme:
+//
+//        Set the first two digits of the version code to the targetSdkVersion, such as 28.
+//        Set the next three digits to the product version, such as 152 for a product version of 1.5.2.
+//        Set the next two digits to the build or release number, such as 01.
+//        Reserve the last two digits for a multi-APK variant, such as 00.
+//
+//        For example, the sample values here—28, 152, 01, and 00—result in a version code of 281520100.
+        versionCode = 361010100
+        versionName = "1.0.1"
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"") // BUILD_TIME becomes accessible in code
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
