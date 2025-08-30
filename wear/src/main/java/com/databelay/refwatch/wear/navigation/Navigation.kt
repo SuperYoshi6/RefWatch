@@ -176,14 +176,21 @@ fun NavigationRoutes() {
                         gameViewModel.resetTimer()
                     },
                     onConfirmEndMatch = {
-                        Log.d(TAG, "Finish Match action triggered from UI.")
-                        gameViewModel.finishAndSyncActiveGame {
-                            Log.d(TAG, "Sync complete. Navigating to Home.")
-                            // Navigate back home and clear the history
+                        val gameToEnd = activeGame // This is gameViewModel.activeGame.value
+                        if (gameToEnd != null) {
+                            Log.d(TAG, "Finish Match action triggered from UI for game: ${gameToEnd.id}")
+                            gameViewModel.finishAndSyncActiveGame(gameToEnd.id) // Call with the ID
+
+                            // Navigation after finishing the game:
+                            Log.d(TAG, "Game finished and synced. Navigating to Game List.")
                             navController.navigate(WearNavRoutes.GAME_LIST_SCREEN) {
-                                popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
+                                popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = true } // Pop everything up to and including the list itself
                                 launchSingleTop = true
                             }
+                        } else {
+                            Log.w(TAG, "onConfirmEndMatch: Cannot finish game, activeGame is null.")
+                            // Optionally navigate to an error screen or back to game list
+                            navController.popBackStack(WearNavRoutes.GAME_LIST_SCREEN, false)
                         }
                     },
                     onPenaltyAttemptRecorded = {

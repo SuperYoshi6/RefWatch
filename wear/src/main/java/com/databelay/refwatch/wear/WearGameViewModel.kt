@@ -362,38 +362,55 @@ class WearGameViewModel @Inject constructor(
         Log.d(tag, "Selected game ${cleanGameForStart.id} set as active.")
     }
 
-    fun finishAndSyncActiveGame(onSyncComplete: () -> Unit) {
-        val finishedEvent = GenericLogEvent(message = "Finished game")
-        _activeGame.update { game -> game?.copy(events = game.events + finishedEvent) }
+    // In WearGameViewModel.kt
+    fun finishAndSyncActiveGame(gameId: String) {
+        viewModelScope.launch {
+            val gameToFinish = _activeGame.value?.takeIf { it.id == gameId }
+                ?: gamesList.value.firstOrNull { it.id == gameId }
 
-        _activeGame.value?.let { currentGame ->
-            Log.d(tag, "finishAndSyncActiveGame called for game: ${currentGame.id}")
-            cancelTimer()
-            val finalGame = currentGame.copy(
-                currentPhase = GamePhase.GAME_ENDED,
-                status = GameStatus.COMPLETED,
-                isTimerRunning = false,
-                lastUpdated = System.currentTimeMillis()
-            )
-            _activeGame.value = finalGame
-            Log.d(tag, "Game ${finalGame.id} marked as COMPLETED in ViewModel.")
-
-            viewModelScope.launch {
-                Log.i(tag, "finishAndSyncActiveGame: Explicitly saving COMPLETED game ${finalGame.id} to gameStorage. Events: ${finalGame.events.size}")
-                val result = gameStorage.addOrUpdateGame(finalGame) // <<<< CRITICAL CALL
-                if (result.isSuccess) {
-                    Log.i(tag, "finishAndSyncActiveGame: Successfully initiated save for COMPLETED game ${finalGame.id}.")
-                } else {
-                    Log.e(tag, "finishAndSyncActiveGame: Failed to initiate save for COMPLETED game ${finalGame.id}. Error: ${result.exceptionOrNull()?.message}")
-                }
-
-                Log.i(tag, "Game ${finalGame.id} processing for completion finished. Resetting UI.")
-                resetActiveGameToDefaultOrNextScheduled()
-                onSyncComplete()
+            if (gameToFinish == null) {
+                Log.w(tag, "finishAndSyncActiveGame: Game with ID $gameId not found to finish.")
+                return@launch
             }
-        } ?: run {
-            Log.w(tag, "finishAndSyncActiveGame called but no active game.")
-            onSyncComplete() // Still call callback to not block UI flows
+
+            // --- Stop the timer in the service first ---
+            // It's good to do this before updating the local state to COMPLETED,
+            // especially if the service might still be ticking based on an IN_PROGRESS state.
+            // Check if the game being finished is the one the service might be tracking.
+            // This is a defensive check; often, _activeGame.value would be gameToFinish.
+            if (isServiceBound && gameTimerService != null && (gameToFinish.status == GameStatus.IN_PROGRESS || gameToFinish.isTimerRunning)) {
+                Log.d(tag, "finishAndSyncActiveGame: Game ${gameToFinish.id} was in progress or timer running. Telling service to stop timer and session.")
+                gameTimerService?.stopGameTimerAndSession()
+            }
+            // --- End timer stop ---
+
+            val finishedGame = gameToFinish.copy(
+                status = GameStatus.COMPLETED,
+                isTimerRunning = false, // Ensure this is false after stopping the service's timer
+                // Optionally reset timer display values if needed for final state
+                displayedTimeMillis = 0L, // Or the final time from the service before stopping
+                actualTimeElapsedInPeriodMillis = gameToFinish.actualTimeElapsedInPeriodMillis // Keep final elapsed time
+                // Consider if 'currentPhase' should be updated to a final/completed phase
+            )
+
+            _activeGame.update {
+                if (it?.id == finishedGame.id) {
+                    finishedGame
+                } else {
+                    it
+                }
+            }
+
+            gameStorage.addOrUpdateGame(finishedGame)
+            Log.i(tag, "Game ${finishedGame.id} marked as COMPLETED and saved.")
+
+            if (_activeGame.value?.id == finishedGame.id && _activeGame.value?.status == GameStatus.COMPLETED) {
+                Log.d(tag, "The active game is now the one just completed: ${finishedGame.id}")
+                // Decide on UX:
+                // _activeGame.value = null // To truly clear it
+                // Or simply let the UI react to the 'COMPLETED' status of the activeGame.
+                // If you clear it to null, ensure your UI handles a null activeGame gracefully.
+            }
         }
     }
 
@@ -562,7 +579,6 @@ class WearGameViewModel @Inject constructor(
         Log.d(tag, "Kick-off team for current context set to $team")
     }
 
-    // FIXME: don't run timer service when no game in on. is it running?
 
     fun kickOff() {
         val currentGame = _activeGame.value ?: return

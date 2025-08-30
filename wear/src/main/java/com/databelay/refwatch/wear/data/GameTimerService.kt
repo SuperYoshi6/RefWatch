@@ -47,6 +47,7 @@ data class TimerState(
     val inAddedTime: Boolean = false
 )
 
+
 class GameTimerService : Service() {
     private val TAG = "GameTimerService"
     private val binder = LocalBinder()
@@ -62,7 +63,6 @@ class GameTimerService : Service() {
     // --- StateFlow for communication with ViewModel ---
     private val _timerStateFlow = MutableStateFlow(TimerState())
     val timerStateFlow: StateFlow<TimerState> = _timerStateFlow.asStateFlow()
-    // ---
 
     // To hold the full game state or relevant parts passed from ViewModel
     private var currentInternalGame: Game? = null
@@ -77,11 +77,8 @@ class GameTimerService : Service() {
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager // Initialize here
         // Ensure your notification channel is created (ideally in Application.onCreate)
         createNotificationChannel()
-
-        // Start in foreground immediately or very soon after creation
-        startForeground(ONGOING_NOTIFICATION_ID_SERVICE, createServiceNotification("Timer Initializing..."))
+        Log.d(TAG, "Service Created. Not starting foreground yet.")
     }
-    // FIXME: when installing app notifications are disabled (could be debug only?)
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             ONGOING_NOTIFICATION_CHANNEL_ID,
@@ -149,12 +146,25 @@ class GameTimerService : Service() {
                     regulationPeriodDurationMillis = game.regulationPeriodDurationMillis(),
                 )
             }
+            // Update notification text but don't necessarily start foreground service here yet
+            // The actual startForeground will happen in startGameTimer if startImmediately is true.
             updateNotificationAndOngoingActivity(
-                if (startImmediately) displayedMillis.formatTime() else "Ready: ${game.currentPhase.readable()}"
+                if (startImmediately && game.currentPhase.hasTimer()) {
+                    _timerStateFlow.value.displayedMillis.formatTime() // Or calculate fresh
+                } else {
+                    "Ready: ${game.currentPhase.readable()}"
+                },
+                isOngoing = startImmediately && game.currentPhase.hasTimer()
             )
 
-            if (initialIsTimerRunning) {
-                startGameTimer(game, initialElapsed, isAdded)
+            if (startImmediately && game.currentPhase.hasTimer()) {
+                // startGameTimer will handle startForeground
+                startGameTimer(game, _timerStateFlow.value.actualTimeElapsedInPeriodMillis, _timerStateFlow.value.inAddedTime)
+            } else if (_timerStateFlow.value.isTimerRunning) {
+                // If we configure for a new game, but timer was running for an old one and new one shouldn't start.
+                // This scenario needs careful handling. Typically, ViewModel would stop timer before configuring new one.
+                Log.w(TAG, "Configuring for new game, but timer was running and new game not starting immediately. Pausing timer.")
+                pauseGameTimerInternally("Timer Stoppped") // An internal pause without full stop
             }
         }
     }
@@ -212,6 +222,7 @@ class GameTimerService : Service() {
             // Start Foreground Service if not already started with the right state
             // This is crucial. Even if service is running, ensure it's in FG mode now.
             startForeground(ONGOING_NOTIFICATION_ID_SERVICE, createServiceNotification(_timerStateFlow.value.displayedMillis.formatTime()))
+            updateNotificationAndOngoingActivity(_timerStateFlow.value.displayedMillis.formatTime(), isOngoing = true)
             Log.d(TAG, "GameTimerService brought to foreground explicitly for timer start.")
 
             val timeToCountFrom = Long.MAX_VALUE // For continuous running
@@ -219,7 +230,7 @@ class GameTimerService : Service() {
                 override fun onTick(millisUntilFinished_unused: Long) {
                     if (!(_timerStateFlow.value.isTimerRunning)) { // Check our own state flag
                         this.cancel() // Stop if service state says so
-                        releaseWakeLock()
+                        // Don't release wakelock or stop foreground if it's just a pause
                         return
                     }
 
@@ -243,19 +254,35 @@ class GameTimerService : Service() {
 
 //                    Log.d(TAG, "Timer tick: ${_timerStateFlow.value.displayedMillis.formatTime()}")
                     // Update notification if needed
-                    updateNotificationAndOngoingActivity(_timerStateFlow.value.displayedMillis.formatTime())
+                    updateNotificationAndOngoingActivity(_timerStateFlow.value.displayedMillis.formatTime(), isOngoing = true)
                 }
 
-                override fun onFinish() { // Should ideally not be reached with Long.MAX_VALUE
-                    // This would be an abnormal stop. Normal stop is handled by stopGameTimer.
-                    _timerStateFlow.value = _timerStateFlow.value.copy(isTimerRunning = false)
+                override fun onFinish() {
+                    // This should not be reached with Long.MAX_VALUE
+                    // Handle as an abnormal stop
+                    Log.w(TAG, "CountDownTimer finished unexpectedly!")
+                    _timerStateFlow.update { it.copy(isTimerRunning = false) }
                     releaseWakeLock()
-                    stopForegroundSafely()
+                    stopForegroundSafely("Timer Finished Unexpectedly")
+                    // No stopSelf() here, let ViewModel decide if service should stop.
                 }
             }.start()
             updateNotificationAndOngoingActivity(_timerStateFlow.value.displayedMillis.formatTime())
         }
     }
+
+    /**
+     * Internal pause logic, keeps wakelock, updates notification.
+     * Does not call stopForeground.
+     */
+    private fun pauseGameTimerInternally(notificationText: String) {
+        _timerStateFlow.update { it.copy(isTimerRunning = false) }
+        gameCountDownTimer?.cancel() // Cancel the actual countdown
+        // Wakelock is intentionally kept if this is a temporary pause during an active game session
+        updateNotificationAndOngoingActivity(notificationText, isOngoing = false) // Update notification to show "Paused" or similar
+        Log.d(TAG, "Timer paused internally. Notification: $notificationText")
+    }
+
 
     /**
      * Pauses the current countdown timer, keeps the wakelock (if configured to do so on pause),
@@ -268,14 +295,27 @@ class GameTimerService : Service() {
                 Log.d(TAG, "pauseGameTimer called, but timer was not running.")
                 return@launch
             }
-            _timerStateFlow.update { it.copy(isTimerRunning = false) }
+            // gameCountDownTimer?.cancel() // Already handled by pauseGameTimerInternally if called through it
+            // _timerStateFlow.update { it.copy(isTimerRunning = false) } // Also handled
+
             val textForNotification = updateNotificationText ?: "Paused: ${_timerStateFlow.value.displayedMillis.formatTime()}"
-            updateNotificationAndOngoingActivity(textForNotification) // Update with "Paused" or "Period Ended"
+            pauseGameTimerInternally(textForNotification)
+
+            // DECISION: Do you want to remove the foreground state when paused?
+            // Option A: Keep it foreground, notification updates to "Paused" (current behavior of pauseGameTimerInternally)
+            // Option B: Make notification dismissible but keep service running
+            // stopForeground(Service.STOP_FOREGROUND_DETACH) // Notification can be dismissed, service runs
+            // Option C: Remove notification entirely if pause means "not actively ongoing" for a while
+            // stopForeground(Service.STOP_FOREGROUND_REMOVE)
+
+            // For now, let's assume pause keeps the service prominent if the game session is still active.
+            // The notification text already indicates it's paused.
+            // Wakelock is still held by pauseGameTimerInternally.
         }
     }
 
 
-    fun resumeGameTimer(game: Game) { // Pass game for context (e.g. current phase duration)
+    fun resumeGameTimer(game: Game) {
         Log.d(TAG, "resumeGameTimer called.")
         serviceScope.launch {
             val currentState = _timerStateFlow.value
@@ -283,28 +323,36 @@ class GameTimerService : Service() {
                 Log.w(TAG, "resumeGameTimer called, but timer is already running.")
                 return@launch
             }
-            // ViewModel ensures this is a valid resume context (e.g. game was paused in a playable phase).
-            // WakeLock is assumed to be held by the session.
-
-            currentInternalGame = game // Update internal game for context if needed by startGameTimerLogic
-            val currentPhase = game.currentPhase // Use fresh phase from potentially updated game object
-            if (!currentPhase.hasTimer()) {
-                Log.w(TAG, "Attempted to resume timer in non-timed phase: $currentPhase. Not resuming.")
-                _timerStateFlow.update { it.copy(isTimerRunning = false) } // Ensure it's not running
+            if (!game.currentPhase.hasTimer()) {
+                Log.w(TAG, "Attempted to resume timer in non-timed phase: ${game.currentPhase}. Not resuming.")
+                _timerStateFlow.update { it.copy(isTimerRunning = false) }
                 return@launch
             }
 
-            Log.d(TAG, "Resuming timer for ${currentPhase}. Phase from game: ${game.currentPhase}. WakeLock is held.")
-            _timerStateFlow.update {
-                it.copy(
-                    isTimerRunning = true,
-                    currentPhase = game.currentPhase, // Ensure phase is updated
-                    regulationPeriodDurationMillis = game.regulationPeriodDurationMillis() // Ensure duration is updated
-                    // actualElapsedMillis and inAddedTime are preserved from before pause
-                )
-            }
-            startForeground(ONGOING_NOTIFICATION_ID_SERVICE, createServiceNotification(_timerStateFlow.value.displayedMillis.formatTime()))
+            // startGameTimer will handle acquiring wakelock (if not already held)
+            // and calling startForeground.
             startGameTimer(game, currentState.actualTimeElapsedInPeriodMillis, currentState.inAddedTime)
+            Log.d(TAG, "Timer resumed for ${game.currentPhase}.")
+        }
+    }
+
+
+    // Call this when the game session fully ends or timer is no longer needed at all
+    fun stopGameTimerAndSession() {
+        serviceScope.launch {
+            Log.i(TAG, "Stopping game timer and session.")
+            _timerStateFlow.update { it.copy(isTimerRunning = false, currentPhase = GamePhase.GAME_ENDED) }
+            gameCountDownTimer?.cancel()
+            gameCountDownTimer = null
+            releaseWakeLock()
+            stopForegroundSafely("Game Ended") // Custom message
+            // updateNotificationAndOngoingActivity("Game Ended", isOngoing = false) // Not needed if stopForegroundSafely handles it
+            Log.d(TAG, "Ongoing Activity should be cancelled by updateNotificationAndOngoingActivity due to isOngoing=false or by stopForegroundSafely.")
+
+            // Optional: If no clients are bound and no more work, stop the service.
+            // This depends on your service lifecycle management.
+            // If ViewModel always unbinds and stops, this might not be needed here.
+            // stopSelf()
         }
     }
 
@@ -323,7 +371,7 @@ class GameTimerService : Service() {
                     isTimerRunning = false,
                     displayedMillis = 0L, // Or relevant end-game display
                     actualTimeElapsedInPeriodMillis = 0L,
-                    currentPhase = it.currentPhase ?: GamePhase.GAME_ENDED // Default to a terminal phase
+                    currentPhase = it.currentPhase // Default to a terminal phase
                 )
             }
             releaseWakeLock() // <<<< WAKELOCK RELEASED HERE >>>>
@@ -333,23 +381,28 @@ class GameTimerService : Service() {
     }
 
     // Your existing stopForegroundSafely method
-    private fun stopForegroundSafely() {
-        // Check if there's any reason to stay in foreground (e.g. another game queued immediately)
-        // For now, assume if stopGameTimerAndCleanup is called, we can try to stop foreground.
-        if (_timerStateFlow.value.isTimerRunning) {
-            Log.d(TAG, "stopForegroundSafely: Timer is still running, not stopping foreground.")
-            return
+
+    private fun stopForegroundSafely(notificationTextIfLingering: String? = null) {
+        Log.d(TAG, "stopForegroundSafely called.")
+        stopForeground(Service.STOP_FOREGROUND_REMOVE) // Removes notification
+        // If you want a final "Game Ended" notification that is NOT ongoing:
+        if (notificationTextIfLingering != null && canPostNotifications()) {
+            val finalNotification = NotificationCompat.Builder(this, ONGOING_NOTIFICATION_CHANNEL_ID)
+                .setContentTitle("RefWatch")
+                .setContentText(notificationTextIfLingering)
+                .setSmallIcon(R.drawable.ic_stat_refwatch)
+                .setAutoCancel(true) // Make it dismissible
+                .build()
+            notificationManager.notify(ONGOING_NOTIFICATION_ID_SERVICE + 100, finalNotification) // Use different ID or cancel previous
         }
 
-        Log.d(TAG, "stopForegroundSafely: Attempting to stop foreground and service if idle.")
-        stopForeground(STOP_FOREGROUND_REMOVE) // Or STOP_FOREGROUND_DETACH if you want to keep notification temporarily
-        // Consider calling stopSelf() if no active timers and no clients bound,
-        // or if the service's job is truly done.
-        // This depends on your service's lifecycle requirements (start-sticky vs. self-stopping).
-        // If it should stop when work is done:
-        // if (!isAnyClientBound && !_timerStateFlow.value.isTimerRunning) { // You'd need to track bound clients
-        //    stopSelf()
-        // }
+        // Cancel the specific notification that was driving the OngoingActivity display
+        if (canPostNotifications()) {
+            notificationManager.cancel(ONGOING_NOTIFICATION_ID_VM)
+            Log.d(TAG, "In stopForegroundSafely, cancelled notification (ID: $ONGOING_NOTIFICATION_ID_VM) to stop associated OngoingActivity.")
+        }
+
+        Log.i(TAG, "Service stopped foreground state. OngoingActivity display should be dismissed.")
     }
 
       private fun createServiceNotification(contentText: String): Notification {
@@ -362,7 +415,7 @@ class GameTimerService : Service() {
         )
 
         val notificationBuilder = NotificationCompat.Builder(this, ONGOING_NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher_round) // USE YOUR ACTUAL ICON
+            .setSmallIcon(R.drawable.ic_stat_refwatch) // USE YOUR ACTUAL ICON
             .setContentTitle("RefWatch Timer Active")
             .setContentText(contentText)
             .setCategory(NotificationCompat.CATEGORY_SERVICE) // Or CATEGORY_STOPWATCH
@@ -379,7 +432,7 @@ class GameTimerService : Service() {
         // If using androidx.wear:wear-ongoing:1.1.0 or later
         // (You have androidx.wear:wear-ongoing:1.1.0-beta01 [3] which is fine)
         val ongoingActivity = OngoingActivity.Builder(applicationContext, ONGOING_NOTIFICATION_ID_SERVICE, notificationBuilder)
-            .setStaticIcon(R.mipmap.ic_launcher_round) // USE YOUR ACTUAL ICON
+            .setStaticIcon(R.drawable.ic_stat_refwatch) // USE YOUR ACTUAL ICON
             .setTouchIntent(pendingIntent)
             .setStatus(status)
             .build()
@@ -392,29 +445,73 @@ class GameTimerService : Service() {
     }
 
     // Call this when you need to update the text AND the OngoingActivity status
-    private fun updateNotificationAndOngoingActivity(newContentText: String, newStatusText: String = newContentText) {
-        val activityIntent = Intent(this, MainActivity::class.java).apply { /* ... */ }
-        val pendingIntent = PendingIntent.getActivity(this, 0, activityIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    private fun updateNotificationAndOngoingActivity(text: String, isOngoing: Boolean = _timerStateFlow.value.isTimerRunning) {
+        if (!canPostNotifications()) {
+            Log.w(TAG, "Cannot post notifications, permission denied or not available.")
+            return
+        }
+        // Only update if the service is actually in foreground mode OR if we intend to start it.
+        // The check for isTimerRunning helps decide if the notification should be truly "ongoing"
+        // or just an update (e.g., "Paused").
 
-        val notificationBuilder = NotificationCompat.Builder(this, ONGOING_NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher_round)
-            .setContentTitle("RefWatch Timer Active")
-            .setContentText(newContentText)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-
-        val status = Status.Builder().addTemplate(newStatusText).build()
-        val ongoingActivity = OngoingActivity.Builder(applicationContext, ONGOING_NOTIFICATION_ID_SERVICE, notificationBuilder)
-            .setStaticIcon(R.mipmap.ic_launcher_round)
-            .setTouchIntent(pendingIntent)
-            .setStatus(status)
-            .build()
-        ongoingActivity.apply(this) // Modifies the notificationBuilder
-
-        val notification = notificationBuilder.build()
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notification = createServiceNotification(text)
         notificationManager.notify(ONGOING_NOTIFICATION_ID_SERVICE, notification)
+
+        // Update Ongoing Activity status
+        // Logic for the Notification that is also an Ongoing Activity
+        if (isOngoing && currentInternalGame != null) {
+            val gamePhaseText = currentInternalGame?.currentPhase?.readable() ?: "Game Active"
+            val status = Status.Builder()
+                .addTemplate("$text - $gamePhaseText")
+                .build()
+
+            // This is the Notification Builder for the Ongoing Activity
+            val oaNotificationBuilder = NotificationCompat.Builder(this, ONGOING_NOTIFICATION_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_refwatch) // Use a distinct icon for OA
+                .setContentTitle("RefWatch Active Game")
+                .setContentText("$text - $gamePhaseText")
+                .setCategory(NotificationCompat.CATEGORY_EVENT) // Or other relevant category
+                .setOngoing(true) // The notification itself should be ongoing if it represents an ongoing task
+
+            val ongoingActivity = OngoingActivity.Builder(applicationContext, ONGOING_NOTIFICATION_ID_VM, oaNotificationBuilder)
+                .setStaticIcon(R.drawable.ic_stat_refwatch) // REPLACE
+                .setTouchIntent(
+                    PendingIntent.getActivity(
+                        this, 0, Intent(this, MainActivity::class.java),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                )
+                .setStatus(status)
+                .build()
+            ongoingActivity.apply(applicationContext) // Apply OA features to oaNotificationBuilder
+
+            if (canPostNotifications()) {
+                notificationManager.notify(ONGOING_NOTIFICATION_ID_VM, oaNotificationBuilder.build())
+                Log.d(TAG, "Ongoing Activity notification posted/updated: ID $ONGOING_NOTIFICATION_ID_VM, Text: $text")
+            } else {
+                Log.w(TAG, "Cannot post Ongoing Activity notification, permission denied.")
+            }
+
+        } else {
+            // If not ongoing, cancel the notification that was driving the OngoingActivity
+            if (canPostNotifications()) {
+                notificationManager.cancel(ONGOING_NOTIFICATION_ID_VM)
+                Log.d(TAG, "Ongoing Activity notification cancelled (ID: $ONGOING_NOTIFICATION_ID_VM) because timer/game is not ongoing.")
+            }
+        }
+
+        // Update the service's own foreground notification (if it's different)
+        // This example assumes ONGOING_NOTIFICATION_ID_SERVICE is for the service's foreground state,
+        // and ONGOING_NOTIFICATION_ID_VM is for the user-visible Ongoing Activity.
+        // If they are the same, the above logic might be slightly different.
+        if (_timerStateFlow.value.isTimerRunning) { // Or some other condition for the service's own FG notification
+            val serviceNotification = createServiceNotification(text) // Your existing method
+            // startForeground(ONGOING_NOTIFICATION_ID_SERVICE, serviceNotification) // This is handled in startGameTimer
+            notificationManager.notify(ONGOING_NOTIFICATION_ID_SERVICE, serviceNotification)
+        } else {
+            // Optionally update or remove the service's own notification if it's paused but not fully stopped
+            // stopForeground(Service.STOP_FOREGROUND_DETACH) or update its text
+        }
     }
 
     /**
@@ -444,10 +541,15 @@ class GameTimerService : Service() {
     }
 
     override fun onDestroy() {
-         Log.d(TAG, "onDestroy called")
+        Log.d(TAG, "Service Destroyed.")
+        releaseWakeLock() // Ensure wakelock is released
         gameCountDownTimer?.cancel()
-        releaseWakeLock()
         serviceJob.cancel() // Cancel all coroutines started by serviceScope
+        // Cancel the specific notification that was driving the OngoingActivity display
+        if (canPostNotifications()) {
+            notificationManager.cancel(ONGOING_NOTIFICATION_ID_VM)
+            Log.d(TAG, "In onDestroy, cancelled notification (ID: $ONGOING_NOTIFICATION_ID_VM) to stop associated OngoingActivity.")
+        }
         super.onDestroy()
     }
 }
