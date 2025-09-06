@@ -16,6 +16,23 @@ enum class Team {
 fun Team.opposite(): Team {
     return if (this == HOME) AWAY else HOME
 }
+
+fun shortName(name: String, maxLength: Int = 10): String {
+    if (name.length <= maxLength) {
+        return name
+    }
+
+    val words = name.split(' ').filter { it.isNotBlank() }
+
+    val candidateName = when {
+        words.isEmpty() -> "" // Should ideally not happen for team names
+        words.size == 1 -> words[0]
+        else -> "${words[0]} ${words[1]}" // First two words
+    }
+
+    return candidateName.take(maxLength)
+}
+
 @Serializable
 enum class CardType { YELLOW, RED }
 

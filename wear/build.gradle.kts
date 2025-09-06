@@ -58,7 +58,6 @@ dependencies {
     implementation(libs.ui.tooling.preview)
     implementation(libs.compose.material)
     implementation(libs.compose.foundation)
-    implementation(libs.wear.tooling.preview)
     implementation(libs.activity.compose)
     implementation(libs.core.splashscreen)
     implementation(libs.core.ktx)
@@ -90,10 +89,17 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core) // Or latest stable version
     implementation(libs.gson)
     implementation(libs.androidx.compose.ui.ui.tooling)
-    implementation(libs.androidx.wear.ongoing)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    implementation(libs.horologist.compose.layout)
+    implementation(libs.horologist.compose.material)
+    implementation(libs.wear.tooling.preview)
+    implementation(libs.androidx.wear.ongoing)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.ui.tooling)
+    implementation(libs.androidx.media3.common.ktx)
+
 
 
     ksp(libs.hilt.compiler)

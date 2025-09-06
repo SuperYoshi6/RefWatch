@@ -1,6 +1,7 @@
 package com.databelay.refwatch.games
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.clickable
@@ -39,6 +40,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.databelay.refwatch.common.LegalLinks
+import com.databelay.refwatch.common.theme.RefWatchMobileTheme
+import com.databelay.refwatch.common.theme.RefWatchWearTheme
 
 // Assuming you have an AuthViewModel or similar to handle account deletion
 // import com.databelay.refwatch.auth.AuthViewModel
@@ -183,10 +186,12 @@ fun SettingsScreen(
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, showSystemUi = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL
+)
 @Composable
 fun SettingsScreenMobilePreview() {
-    MaterialTheme {
+    RefWatchMobileTheme {
         SettingsScreen(onNavigateBack = {}, onDeleteAccountConfirmed = {})
     }
 }

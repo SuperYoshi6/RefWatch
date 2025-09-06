@@ -1,5 +1,6 @@
 package com.databelay.refwatch.wear.presentation.screens // Or your package
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,134 +9,97 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-// Removed: import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
-import androidx.wear.compose.material.Button
-import androidx.wear.compose.material.ButtonDefaults
-import androidx.wear.compose.material.Chip
-import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.Text
-import com.databelay.refwatch.common.IWearGameViewModel
+import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
+import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.readable
-import com.databelay.refwatch.common.PreviewTools.createExtraFirstHalfSampleGame
 import com.databelay.refwatch.common.PreviewTools.createFirstHalfSampleGame
-import com.databelay.refwatch.common.PreviewTools.createPenaltiesSampleGame
-import com.databelay.refwatch.common.PreviewWearGameViewModel
+import com.databelay.refwatch.common.theme.RefWatchWearTheme
+import com.databelay.refwatch.wear.presentation.components.ColorIndicator
 
 
 @Composable
 fun KickOffSelectionScreen(
-    gameViewModel: IWearGameViewModel,
-    onConfirm: () -> Unit,
+    game: Game,
     onSetKickOffTeam: (Team) -> Unit
 ) {
-    val activeGame by gameViewModel.activeGame.collectAsState()
-
-    Column( // Replaced ScalingLazyColumn with Column
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 8.dp), // Overall padding for the screen
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center // Center content vertically on the screen
+        verticalArrangement = Arrangement.Center
     ) {
         Text(
-            // Use elvis operator for safety, though activeGame should ideally not be null here
-            text = "Select ${activeGame?.currentPhase?.readable() ?: "Kick-Off"}",
+            text = "${game.currentPhase.readable()} : Kick-Off",
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center,
             modifier = Modifier
-                .fillMaxWidth(0.85f) // Take 85% of width
-                .padding(bottom = 8.dp) // Space below the title
+                .fillMaxWidth(0.85f)
+                .padding(bottom = 8.dp)
         )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center, // Center chips in the Row
+            horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Chip(
-                onClick = { onSetKickOffTeam(Team.HOME) },
-                label = { Text("Home", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-                colors = ChipDefaults.chipColors(
-                    backgroundColor = if (activeGame?.kickOffTeam == Team.HOME) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-                ),
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 2.dp) // Adjust padding as needed
-            )
-
-            Spacer(Modifier.width(8.dp)) // Increased spacer for better visual separation
-
-            Chip(
-                onClick = { onSetKickOffTeam(Team.AWAY) },
-                label = { Text("Away", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-                colors = ChipDefaults.chipColors(
-                    backgroundColor = if (activeGame?.kickOffTeam == Team.AWAY) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-                ),
+                    .clip(MaterialTheme.shapes.medium) // Add clip for visual feedback if needed
+                    .clickable { onSetKickOffTeam(Team.HOME) }
+                    .padding(8.dp) // Add padding to increase clickable area and for visual spacing
+            ) {
+                Text("Home", style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.height(4.dp))
+                ColorIndicator(
+                    color = game.homeTeamColor,
+                    indicatorSize = 60.dp,
+                    outlineWidth = 2.dp,
+                )
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 2.dp) // Adjust padding as needed
-            )
+                    .clip(MaterialTheme.shapes.medium) // Add clip for visual feedback if needed
+                    .clickable { onSetKickOffTeam(Team.AWAY) }
+                    .padding(8.dp) // Add padding to increase clickable area and for visual spacing
+            ) {
+                Text("Away", style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.height(4.dp))
+                ColorIndicator(
+                    color = game.awayTeamColor,
+                    indicatorSize = 60.dp,
+                    outlineWidth = 2.dp,
+                )
+            }
         }
 
-        Spacer(Modifier.height(16.dp)) // Space before the confirm button
-
-        Button(
-            onClick = onConfirm,
-            modifier = Modifier.fillMaxWidth(0.8f), // Button takes 80% of width
-            colors = ButtonDefaults.buttonColors(
-                backgroundColor = MaterialTheme.colorScheme.tertiary // Or primary, depending on your theme
-            )
-        ) {
-            Text("Select")
-        }
+        Spacer(Modifier.height(16.dp)) 
     }
 }
 
 
 // ------------------------ Previews -----------------------------
-// ---------------------------------------------------------------
-@Preview(device = "id:wearos_large_round", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
+@Preview(device = "id:wearos_small_round", name = "KickOffSelection SmRnd", showBackground = true)
+@Preview(device = "id:wearos_large_round", name = "KickOffSelection LrgRnd", showBackground = true)
+@Preview(device = "id:wearos_square", name = "KickOffSelection Sqr", showBackground = true)
+@WearPreviewFontScales
 @Composable
 fun KickOffSelectionScreenPreview_FirstHalf() {
-    MaterialTheme {
+    RefWatchWearTheme {
         KickOffSelectionScreen(
-            PreviewWearGameViewModel(initialActiveGame = createFirstHalfSampleGame()),
-            onConfirm = {}, // Empty lambda for preview
-            onSetKickOffTeam = {} // Empty lambda for preview
-        )
-    }
-}
-
-@Preview(device = "id:wearos_large_round", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
-@Composable
-fun KickOffSelectionScreenPreview_ExtraFirstHalf() {
-    MaterialTheme {
-        KickOffSelectionScreen(
-            PreviewWearGameViewModel(initialActiveGame = createExtraFirstHalfSampleGame()),
-            onConfirm = {}, // Empty lambda for preview
-            onSetKickOffTeam = {} // Empty lambda for preview
-        )
-    }
-}
-
-@Preview(device = "id:wearos_large_round", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
-@Composable
-fun KickOffSelectionScreenPreview_Penalties() {
-    MaterialTheme {
-        KickOffSelectionScreen(
-            PreviewWearGameViewModel(initialActiveGame = createPenaltiesSampleGame()),
-            onConfirm = {}, // Empty lambda for preview
+            game = createFirstHalfSampleGame(),
             onSetKickOffTeam = {} // Empty lambda for preview
         )
     }

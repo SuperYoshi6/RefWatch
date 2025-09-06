@@ -121,7 +121,12 @@ val MobileTypography = androidx.compose.material3.Typography(
 // Define your Wear OS Typography.
 // Adjust font sizes and weights for the smaller Wear OS screen,
 // taking inspiration from the M3 AppTypography.
-val WearTypography = androidx.wear.compose.material.Typography(
+val WearTypography = androidx.wear.compose.material3.Typography()
+/*
+
+    .defaults().copy()
+
+(
     // Display styles (typically large, for timers or key info)
     display1 = TextStyle( // Similar to M3 displayLarge/Medium, but scaled down
         fontFamily = MobileTypography.displayLarge.fontFamily, // Use same family
@@ -215,4 +220,4 @@ val WearTypography = androidx.wear.compose.material.Typography(
         lineHeight = 14.sp,
         letterSpacing = MobileTypography.labelSmall.letterSpacing
     )
-)
+)*/

@@ -336,7 +336,8 @@ class GameTimerService : Service() {
         }
     }
 
-
+    // FIXME: sometimes the service doesn't keep the game in the FG
+    // FIXME: buzzing stops at the end of half after looking at the watch 
     // Call this when the game session fully ends or timer is no longer needed at all
     fun stopGameTimerAndSession() {
         serviceScope.launch {

@@ -1,4 +1,5 @@
 package com.databelay.refwatch.common.theme
+
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
@@ -12,7 +13,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import androidx.wear.compose.material.MaterialTheme // Wear Material Theme
+import androidx.wear.compose.material3.MaterialTheme // Wear Material Theme
 
 // Define your M3 ColorSchemes using the colors from Color.kt
 val AppLightColorScheme: ColorScheme = lightColorScheme(
@@ -80,22 +81,30 @@ val AppDarkColorScheme: ColorScheme = darkColorScheme(
 )
 
 // Create a Wear OS Colors object based on your common M3 colors
-private val WearAppColorPalette: androidx.wear.compose.material.Colors =
-    androidx.wear.compose.material.Colors(
-        primary = md_theme_dark_primary, // Wear OS is typically dark; use M3 dark variants
-        primaryVariant = md_theme_dark_primaryContainer, // Or another suitable dark M3 color
-        secondary = md_theme_dark_secondary,
-        secondaryVariant = md_theme_dark_secondaryContainer, // Or another
-        error = md_theme_dark_error,
-        onPrimary = md_theme_dark_onPrimary,
-        onSecondary = md_theme_dark_onSecondary,
-        onError = md_theme_dark_onError,
-        surface = md_theme_dark_surface, // M3 dark surface
-        onSurface = md_theme_dark_onSurface, // M3 dark onSurface
-        onSurfaceVariant = md_theme_dark_onSurfaceVariant, // M3 dark onSurfaceVariant
-        background = md_theme_dark_background // M3 dark background
-        // Note: Wear Colors doesn't have all the slots M3 ColorScheme has (e.g., tertiary)
-        // You'll map the most important ones.
+private val WearAppColorScheme: androidx.wear.compose.material3.ColorScheme =
+    androidx.wear.compose.material3.ColorScheme(
+        primary = md_theme_dark_primary,              // From Color.kt (Vibrant Green)
+        primaryDim = md_theme_dark_primaryDim, // From Color.kt (Darker Green)
+        primaryContainer = md_theme_dark_primaryContainer,
+        secondary = md_theme_dark_secondary,            // From Color.kt (Vibrant Cyan/Blue)
+        secondaryDim = md_theme_dark_secondaryDim, // From Color.kt (Darker Cyan/Blue)
+        secondaryContainer = md_theme_dark_secondaryContainer,
+        error = md_theme_dark_error,                  // From Color.kt (Bright Red)
+        errorDim = md_theme_dark_errorDim,
+        errorContainer = md_theme_dark_errorContainer,
+        onPrimary = md_theme_dark_onPrimary,            // From Color.kt (Pure Black)
+        onPrimaryContainer = md_theme_dark_onPrimaryContainer,
+        onSecondary = md_theme_dark_onSecondary,          // From Color.kt (Pure Black)
+        onSecondaryContainer = md_theme_light_onSecondaryContainer,
+        onError = md_theme_dark_onError,                // From Color.kt (Pure Black)
+        onErrorContainer = md_theme_dark_onErrorContainer,
+        background = md_theme_dark_background,          // From Color.kt (Pure Black)
+        onBackground = md_theme_dark_onBackground,        // From Color.kt (Pure White)
+        surfaceContainer = md_theme_dark_surfaceContainer,
+        surfaceContainerLow = md_theme_dark_surfaceContainerLow,
+        surfaceContainerHigh = md_theme_dark_surfaceContainerHigh, // From Color.kt (Very dark gray)
+        onSurface = md_theme_dark_onSurface,              // From Color.kt (Pure White)
+        onSurfaceVariant = md_theme_dark_onSurfaceVariant // From Color.kt (Very light gray / off-white)
     )
 
 @Composable
@@ -103,7 +112,7 @@ fun RefWatchWearTheme(
     content: @Composable () -> Unit
 ) {
     MaterialTheme( // androidx.wear.compose.material.MaterialTheme
-        colors = WearAppColorPalette, // Your WearAppColorPalette
+        colorScheme = WearAppColorScheme, // Your WearAppColorPalette
         typography = WearTypography,  // Use WearTypography defined in this module
         content = content
     )
@@ -121,6 +130,7 @@ fun RefWatchMobileTheme( // This is your PHONE App's M3 Theme
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
+
         darkTheme -> AppDarkColorScheme // Use common dark scheme
         else -> AppLightColorScheme     // Use common light scheme
     }
@@ -129,7 +139,8 @@ fun RefWatchMobileTheme( // This is your PHONE App's M3 Theme
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.primary.toArgb() // Example
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme // Or based on primary's luminance
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars =
+                !darkTheme // Or based on primary's luminance
         }
     }
 

@@ -66,6 +66,7 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.junit)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.compose.material3)
 
 
     testImplementation(libs.junit)

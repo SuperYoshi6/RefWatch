@@ -1,12 +1,12 @@
 package com.databelay.refwatch.wear.presentation.screens
 
-import androidx.compose.animation.core.copy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,180 +36,261 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
-import androidx.wear.compose.material.Button
-import androidx.wear.compose.material.ButtonDefaults
+import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material.CompactButton
-import androidx.wear.compose.material.Icon
-import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.OutlinedChip
-import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.dialog.Dialog
+import androidx.wear.compose.material3.AlertDialogDefaults
+import androidx.wear.compose.material3.AppScaffold
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.Dialog
+import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.ListHeader
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.SurfaceTransformation
+import androidx.wear.compose.material3.Text
+import androidx.wear.compose.material3.lazy.rememberTransformationSpec
+import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
+import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.theme.PredefinedJerseyColors
-import com.databelay.refwatch.wear.WearGameViewModel
+import com.databelay.refwatch.common.theme.RefWatchWearTheme
 
 @Composable
 fun PreGameSetupScreen(
-    gameViewModel: WearGameViewModel,
-    onCreateMatch: () -> Unit,
+    game: Game?,
+    onEditHomeTeamNameClick: () -> Unit,
+    onEditAwayTeamNameClick: () -> Unit,
+    onHomeColorPickerClick: () -> Unit,
+    onAwayColorPickerClick: () -> Unit,
+    onSetHalfDuration: (Int) -> Unit,
+    onSetHalftimeDuration: (Int) -> Unit,
+    onCreateMatchClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val activeGame by gameViewModel.activeGame.collectAsState()
+    val columnState = rememberTransformingLazyColumnState()
+    val transformationSpec = rememberTransformationSpec()
 
-    var showHomeColorPicker by remember { mutableStateOf(false) }
-    var showAwayColorPicker by remember { mutableStateOf(false) }
-    // State for managing which team name is being edited
-    var teamNameToEdit by remember { mutableStateOf<Pair<String, (String) -> Unit>?>(null) }
+    val homeTeamName = game?.homeTeamName ?: "Home"
+    val awayTeamName = game?.awayTeamName ?: "Away"
+    val homeTeamColor = game?.homeTeamColor ?: Color.Gray
+    val awayTeamColor = game?.awayTeamColor ?: Color.LightGray
+    val halfDurationMinutes = game?.halfDurationMinutes ?: 30
+    val halftimeDurationMinutes = game?.halftimeDurationMinutes ?: 10
 
-    ScalingLazyColumn(
-        modifier = Modifier
-            .fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp) // Increased default spacing a bit
-    ) {
-        item {
-            Text(
-                "Match Setup",
-                style = MaterialTheme.typography.title3,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 8.dp, bottom = 12.dp) // Added more padding
-            )
-            // Removed Spacer here as padding on Text is used
-        }
+    ScreenScaffold(
+        modifier = modifier,
+        scrollState = columnState,
+        contentPadding = PaddingValues(vertical = 4.dp, horizontal = 2.dp),
+    ) { contentPadding ->
+        TransformingLazyColumn(
+            state = columnState,
+            contentPadding = contentPadding,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            item {
+                ListHeader(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    transformation = SurfaceTransformation(transformationSpec),
+                ) {
+                    Text(
+                        "Match Setup",
+                        style = MaterialTheme.typography.titleSmall,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
 
-        // Team Name Editors
-        item {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceAround,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp)
-            ) {
-                // Home Team Name Chip
-                OutlinedChip(
-                    onClick = { teamNameToEdit = "Home" to gameViewModel::updateHomeTeamName },
-                    label = { Text(activeGame?.homeTeamName ?: "Home", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    icon = { Icon(Icons.Default.Edit, contentDescription = "Edit Home Team Name") },
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                // Away Team Name Chip
-                OutlinedChip(
-                    onClick = { teamNameToEdit = "Away" to gameViewModel::updateAwayTeamName },
-                    label = { Text(activeGame?.awayTeamName ?: "Away", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    icon = { Icon(Icons.Default.Edit, contentDescription = "Edit Away Team Name") },
-                    modifier = Modifier.weight(1f)
+            // Team Name Editors
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                ) {
+                    OutlinedChip(
+                        onClick = onEditHomeTeamNameClick,
+                        label = {
+                            Text(
+                                homeTeamName,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                Icons.Default.Edit,
+                                modifier = Modifier.size(12.dp),
+                                contentDescription = "Edit Home Team Name"
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    OutlinedChip(
+                        onClick = onEditAwayTeamNameClick,
+                        label = {
+                            Text(
+                                awayTeamName,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                Icons.Default.Edit,
+                                modifier = Modifier.size(12.dp),
+                                contentDescription = "Edit Away Team Name"
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            // Jersey Colors
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    ColorPickerButton(
+                        "Home",
+                        homeTeamColor,
+                        onClick = onHomeColorPickerClick
+                    )
+                    ColorPickerButton(
+                        "Away",
+                        awayTeamColor,
+                        onClick = onAwayColorPickerClick
+                    )
+                }
+            }
+
+            // Half Duration
+            item {
+                DurationSettingStepper(
+                    label = "Half Duration",
+                    currentValue = halfDurationMinutes,
+                    onValueChange = onSetHalfDuration,
+                    valueRange = 15..60
                 )
             }
-        }
 
-        // Jersey Colors
-        item {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-            ) {
-                ColorPickerButton("Home", activeGame?.homeTeamColor ?: Color.Gray) { showHomeColorPicker = true }
-                ColorPickerButton("Away", activeGame?.awayTeamColor ?: Color.LightGray) { showAwayColorPicker = true }
-            }
-        }
-
-        // Half Duration
-        item {
-            DurationSettingStepper(
-                label = "Half Duration",
-                currentValue = activeGame?.halfDurationMinutes ?: 30,
-                onValueChange = { gameViewModel.setHalfDuration(it) },
-                valueRange = 15..60
-            )
-        }
-
-        // Halftime Duration
-        item {
-            DurationSettingStepper(
-                label = "Halftime Duration",
-                currentValue = activeGame?.halftimeDurationMinutes ?: 10,
-                onValueChange = { gameViewModel.setHalftimeDuration(it) },
-                valueRange = 5..30
-            )
-        }
-
-        item { Spacer(modifier = Modifier.height(12.dp)) } // Increased spacer before button
-
-        // Create Match Button
-        item {
-            Button(
-                onClick = onCreateMatch,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .defaultMinSize(minHeight = 52.dp), // Made it a bit taller
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = MaterialTheme.colors.secondary
+            // Halftime Duration
+            item {
+                DurationSettingStepper(
+                    label = "Halftime Duration",
+                    currentValue = halftimeDurationMinutes,
+                    onValueChange = onSetHalftimeDuration,
+                    valueRange = 5..30
                 )
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Check, contentDescription = "Create Match")
-                    Spacer(Modifier.width(8.dp)) // Reduced spacer for better balance
-                    Text("Create")
+            }
+
+
+            // Create Match Button
+            item {
+                Button(
+                    onClick = onCreateMatchClick,
+                    modifier = Modifier
+                        .wrapContentWidth()
+                        .padding(horizontal = 32.dp)
+                        .defaultMinSize(minHeight = 52.dp),
+                    transformation = SurfaceTransformation(transformationSpec),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                        Icon(Icons.Filled.Check, contentDescription = "Create Match")
+                        Spacer(Modifier.width(8.dp))
+                        Text("Create")
+                    }
                 }
             }
         }
-        item { Spacer(modifier = Modifier.height(10.dp)) } // Bottom padding
-    }
-
-
-    // --- DIALOGS ---
-
-    // Team Name Edit Dialog
-    teamNameToEdit?.let { (teamLabel, onSave) ->
-        TeamNameEditDialog(
-            teamLabel = teamLabel,
-            initialValue = if (teamLabel == "Home") activeGame?.homeTeamName ?: "Home" else activeGame?.awayTeamName ?: "Away",
-            onSave = { newName ->
-                onSave(newName)
-                teamNameToEdit = null // Close dialog
-            },
-            onDismiss = { teamNameToEdit = null } // Close dialog
-        )
-    }
-
-    // Color Picker Dialogs
-    if (showHomeColorPicker) {
-        SimpleColorPickerDialog(
-            title = "Home Color",
-            availableColors = PredefinedJerseyColors,
-            onColorSelected = { color ->
-                gameViewModel.updateHomeTeamColor(color)
-                showHomeColorPicker = false
-            },
-            onDismiss = { showHomeColorPicker = false }
-        )
-    }
-
-    if (showAwayColorPicker) {
-        SimpleColorPickerDialog(
-            title = "Away Color",
-            availableColors = PredefinedJerseyColors,
-            onColorSelected = { color ->
-                gameViewModel.updateAwayTeamColor(color) // Ensure you have this method in ViewModel
-                showAwayColorPicker = false
-            },
-            onDismiss = { showAwayColorPicker = false }
-        )
     }
 }
 
 
+@Composable
+fun TeamNameEditDialogContent(
+    teamLabel: String,
+    initialValue: String,
+    onSave: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(initialValue) }
+
+    val columnState = rememberTransformingLazyColumnState()
+    val transformationSpec = rememberTransformationSpec()
+    TransformingLazyColumn(
+        state = columnState,
+        contentPadding = PaddingValues(vertical = 8.dp, horizontal = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        item {
+            ListHeader(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                transformation = SurfaceTransformation(transformationSpec),
+            ) {
+                Text(
+                    "Edit Team Name",
+                    style = MaterialTheme.typography.titleSmall,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        item {
+            TextField(
+                value = text,
+                onValueChange = { text = it },
+//                label = { Text("Team Name") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions.Default.copy(
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (text.isNotBlank()) {
+                            onSave(text)
+                        }
+                    }
+                )
+            )
+        }
+        item {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(
+                    8.dp,
+                    Alignment.CenterHorizontally
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                AlertDialogDefaults.ConfirmButton(onClick = { onSave(text) })
+                AlertDialogDefaults.DismissButton(onClick = onDismiss)
+            }
+        }
+    }
+}
+
 /**
- * A new dialog Composable for editing a team's name.
+ * A dialog Composable for editing a team's name.
+ * This remains available for the parent composable to use.
  */
 @Composable
 fun TeamNameEditDialog(
@@ -218,75 +299,45 @@ fun TeamNameEditDialog(
     onSave: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var text by remember { mutableStateOf(initialValue) }
-
     Dialog(
-        showDialog = true,
-        onDismissRequest = onDismiss
+        visible = true,
+        onDismissRequest = onDismiss,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colors.surface)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("Edit $teamLabel Team Name", style = MaterialTheme.typography.title3, textAlign = TextAlign.Center)
-
-            // Text field for input. This will bring up the keyboard on a real device.
-            TextField(
-                value = text,
-                onValueChange = { text = it },
-                label = { Text("Team Name") },
-                singleLine = true, // Good for team names
-                keyboardOptions = KeyboardOptions.Default.copy(
-                    imeAction = ImeAction.Done // Or ImeAction.Go, ImeAction.Send
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        if (text.isNotBlank()) {
-                            onSave(text)
-                        }
-                        // Optionally, you might hide the keyboard explicitly here if needed,
-                        // but Dialog dismissal usually handles it.
-                    }
-                )
-            )
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Button(onClick = onDismiss, colors = ButtonDefaults.secondaryButtonColors()) {
-                    Text("Cancel")
-                }
-                Button(
-                    onClick = { onSave(text) },
-                    enabled = text.isNotBlank() // Save button is disabled if the name is empty
-                ) {
-                    Text("Save")
-                }
-            }
-        }
+        TeamNameEditDialogContent(
+            teamLabel,
+            initialValue,
+            onSave,
+            onDismiss,
+        )
     }
 }
 
 @Composable
 fun ColorPickerButton(label: String, currentColor: Color, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick)) {
-        Text(label, style = MaterialTheme.typography.button)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.height(4.dp))
         Box(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
                 .background(currentColor)
-                .border(1.dp, MaterialTheme.colors.onSurface.copy(alpha = 0.7f), CircleShape)
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    CircleShape
+                )
         )
     }
 }
 
+/**
+ * A dialog Composable for picking a color.
+ * This remains available for the parent composable to use.
+ */
 @Composable
 fun SimpleColorPickerDialog(
     title: String,
@@ -297,25 +348,27 @@ fun SimpleColorPickerDialog(
     Dialog(
         true,
         onDismissRequest = onDismiss,
-        // No properties needed, swipe to dismiss is default for Wear OS Dialog
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize() // Dialogs often fill screen on Wear
-                .background(MaterialTheme.colors.surface)
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceContainer)
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(title, style = MaterialTheme.typography.title3, textAlign = TextAlign.Center)
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                textAlign = TextAlign.Center
+            )
             Spacer(Modifier.height(12.dp))
-            // Use a scrollable column if many colors, or flow layout if supported/needed
-            ScalingLazyColumn(
+            TransformingLazyColumn(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.weight(1f) // Takes available space
-            ){
-                items(availableColors.chunked(3)) { rowColors -> // Simple grid layout
+                modifier = Modifier.weight(1f)
+            ) {
+                items(availableColors.chunked(3)) { rowColors ->
                     Row(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         modifier = Modifier
@@ -331,7 +384,7 @@ fun SimpleColorPickerDialog(
                                     .background(color)
                                     .border(
                                         1.dp,
-                                        MaterialTheme.colors.onSurface.copy(alpha = 0.5f),
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                         CircleShape
                                     )
                                     .clickable { onColorSelected(color) }
@@ -353,11 +406,17 @@ fun DurationSettingStepper(
     label: String,
     currentValue: Int,
     onValueChange: (Int) -> Unit,
-    valueRange: IntRange = 1..60, // Default range
-    step: Int = 5 // Default step
+    valueRange: IntRange = 1..60,
+    step: Int = 5
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        Text(label, style = MaterialTheme.typography.caption1)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.titleSmall
+        ) // Consider a smaller style if too large e.g. titleMedium
         Spacer(Modifier.height(2.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -365,37 +424,77 @@ fun DurationSettingStepper(
             modifier = Modifier.fillMaxWidth()
         ) {
             CompactButton(
-                onClick = { if (currentValue - step >= valueRange.first) onValueChange(currentValue - step) },
+                onClick = {
+                    if (currentValue - step >= valueRange.first) onValueChange(
+                        currentValue - step
+                    )
+                },
                 modifier = Modifier.size(40.dp)
             ) { Text("-", fontSize = 18.sp) }
 
             Text(
                 text = "$currentValue min",
-                style = MaterialTheme.typography.body1,
+                style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier
                     .padding(horizontal = 12.dp)
                     .defaultMinSize(minWidth = 60.dp),
                 textAlign = TextAlign.Center
             )
             CompactButton(
-                onClick = { if (currentValue + step <= valueRange.last) onValueChange(currentValue + step) },
+                onClick = {
+                    if (currentValue + step <= valueRange.last) onValueChange(
+                        currentValue + step
+                    )
+                },
                 modifier = Modifier.size(40.dp)
             ) { Text("+", fontSize = 18.sp) }
         }
     }
 }
-// ----------------------------------------------------------
-@Preview(device = "id:wearos_large_round", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
+
+// --------------------------------------- Previews ----------------------------------------
+@Preview(device = "id:wearos_small_round", name = "PreGameSetupScreen Preview", showBackground = true)
+@Preview(device = "id:wearos_square", name = "PreGameSetupScreen Preview", showBackground = true)
+@Preview(device = "id:wearos_large_round", name = "PreGameSetupScreen Preview", showBackground = true)
+
+@WearPreviewFontScales
+@Composable
+fun PreviewPreGameSetupScreen() {
+    RefWatchWearTheme {
+        // Create a sample Game object for the preview
+        val sampleGame = Game.defaults().copy(
+            homeTeamName = "Spartans",
+            awayTeamName = "Vikings",
+            halfDurationMinutes = 40,
+            halftimeDurationMinutes = 15
+        )
+        PreGameSetupScreen(
+            game = sampleGame,
+            onEditHomeTeamNameClick = {},
+            onEditAwayTeamNameClick = {},
+            onHomeColorPickerClick = {},
+            onAwayColorPickerClick = {},
+            onSetHalfDuration = {},
+            onSetHalftimeDuration = {},
+            onCreateMatchClick = {}
+        )
+    }
+}
+
+@Preview(device = "id:wearos_small_round", name = "PreGameSetupScreen Preview", showBackground = true)
+@Preview(device = "id:wearos_square", name = "PreGameSetupScreen Preview", showBackground = true)
+@Preview(device = "id:wearos_large_round", name = "PreGameSetupScreen Preview", showBackground = true)
+@WearPreviewFontScales
 @Composable
 fun PreviewTeamNameEditDialog_Home() {
-    MaterialTheme { // Use androidx.wear.compose.material.MaterialTheme
-        // Since TeamNameEditDialog internally uses Dialog which takes over the screen,
-        // we can call it directly here.
-        TeamNameEditDialog(
-            teamLabel = "Home",
-            initialValue = "Warriors",
-            onSave = { }, // Log for preview interaction
-            onDismiss = { }    // Log for preview interaction
-        )
+    RefWatchWearTheme {
+        AppScaffold() {
+            TeamNameEditDialogContent(
+                teamLabel = "Home",
+                initialValue = "Warriors",
+                onSave = { },
+                onDismiss = { }
+            )
+        }
     }
 }

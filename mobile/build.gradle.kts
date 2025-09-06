@@ -91,6 +91,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.hilt.android)
     implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.compose.material3)
 
     debugImplementation(libs.mockito.core)
     testImplementation(libs.junit)
