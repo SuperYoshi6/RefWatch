@@ -27,6 +27,7 @@ import com.databelay.refwatch.common.hasTimer
 import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 
+// TODO: add ability to edit games, such as undo the log event
 @Composable
 fun GameSettingsScreen(
     game: Game,

@@ -3,7 +3,17 @@ package com.databelay.refwatch.games
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.* // Keep specific imports if preferred
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -11,9 +21,28 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,9 +55,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.databelay.refwatch.common.Game // Assuming Game is needed for onSave
-import com.databelay.refwatch.common.predefinedColors // If AddEditGameUiState doesn't hold them
-import com.databelay.refwatch.common.theme.RefWatchMobileTheme // Your app's theme
+import com.databelay.refwatch.common.predefinedColors
+import com.databelay.refwatch.common.theme.RefWatchMobileTheme
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -42,6 +70,7 @@ fun AddEditGameScreen(
     onNavigateBack: () -> Unit,
     onHomeTeamNameChange: (String) -> Unit,
     onAwayTeamNameChange: (String) -> Unit,
+    onFieldNumberChange: (String) -> Unit, // Added for Field Number
     onVenueChange: (String) -> Unit,
     onCompetitionChange: (String) -> Unit,
     onGameDateTimeChange: (Long) -> Unit, // Pass epoch millis
@@ -51,9 +80,6 @@ fun AddEditGameScreen(
     onAwayColorSelected: (Color) -> Unit,
     onNotesChanged: (String) -> Unit,
     onSaveGame: () -> Unit, // ViewModel handles constructing Game object
-    // You might also need specific event handlers for date/time picker interactions
-    // if they are complex and managed by the ViewModel.
-    // For simplicity here, we assume basic state updates.
 ) {
     val scrollState = rememberScrollState()
 
@@ -76,7 +102,6 @@ fun AddEditGameScreen(
     // Color Picker States
     var showHomeColorPicker by remember { mutableStateOf(false) }
     var showAwayColorPicker by remember { mutableStateOf(false) }
-    // var showKickOffPicker by remember { mutableStateOf(false) } // Removed if not used
 
     Scaffold(
         topBar = {
@@ -90,7 +115,7 @@ fun AddEditGameScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onSaveGame) { // Call the passed-in onSaveGame
+            FloatingActionButton(onClick = onSaveGame) { 
                 Icon(Icons.Filled.Save, contentDescription = "Save Game")
             }
         }
@@ -116,6 +141,14 @@ fun AddEditGameScreen(
                 label = { Text("Away Team Name") },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = uiState.fieldNumber, // Added fieldNumber
+                onValueChange = onFieldNumberChange, // Added callback
+                label = { Text("Field Number (Optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true
             )
             OutlinedTextField(
@@ -162,10 +195,9 @@ fun AddEditGameScreen(
                                 val cal = Calendar.getInstance()
                                 uiState.gameDateTimeEpochMillis?.let { cal.timeInMillis = it }
                                 cal.timeInMillis = selectedDate // Set only date part, preserve time
-                                // Update timePickerState to reflect new date's existing time (or default)
                                 timePickerState.hour = cal.get(Calendar.HOUR_OF_DAY)
                                 timePickerState.minute = cal.get(Calendar.MINUTE)
-                                showTimePicker = true // Show time picker immediately after date
+                                showTimePicker = true 
                             }
                         }) { Text("OK") }
                     },
@@ -176,19 +208,18 @@ fun AddEditGameScreen(
             }
 
             if (showTimePicker) {
-                TimePickerDialog( // Ensure you have this custom dialog or use a Material 3 alternative
+                TimePickerDialog( 
                     onDismissRequest = { showTimePicker = false },
                     confirmButton = {
                         TextButton(onClick = {
                             showTimePicker = false
                             val cal = Calendar.getInstance()
-                            // Start with date from datePickerState
                             datePickerState.selectedDateMillis?.let { cal.timeInMillis = it }
                             cal.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
                             cal.set(Calendar.MINUTE, timePickerState.minute)
                             cal.set(Calendar.SECOND, 0)
                             cal.set(Calendar.MILLISECOND, 0)
-                            onGameDateTimeChange(cal.timeInMillis) // Update ViewModel
+                            onGameDateTimeChange(cal.timeInMillis) 
                         }) { Text("OK") }
                     },
                     dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text("Cancel") } }
@@ -237,7 +268,7 @@ fun AddEditGameScreen(
                     availableColors = predefinedColors,
                     selectedColor = Color(uiState.homeTeamColorArgb),
                     onColorSelected = { color:Color ->
-                        onHomeColorSelected(color) // Call ViewModel update
+                        onHomeColorSelected(color) 
                         showHomeColorPicker = false
                     },
                     onDismiss = { showHomeColorPicker = false }
@@ -249,7 +280,7 @@ fun AddEditGameScreen(
                     availableColors = predefinedColors,
                     selectedColor = Color(uiState.awayTeamColorArgb),
                     onColorSelected = { color:Color ->
-                        onAwayColorSelected(color) // Call ViewModel update
+                        onAwayColorSelected(color) 
                         showAwayColorPicker = false
                     },
                     onDismiss = { showAwayColorPicker = false }
@@ -277,19 +308,16 @@ fun AddEditGameScreen(
 // --- ViewModel-Driven Route Composable ---
 @Composable
 fun AddEditGameRoute(
-    navController: NavController, // For navigation
+    navController: NavController, 
     addEditViewModel: AddEditGameViewModel = hiltViewModel(),
-    mobileGameViewModel: MobileGameViewModel = hiltViewModel() // For fetching existing game if needed for edit, and for saving
+    mobileGameViewModel: MobileGameViewModel = hiltViewModel() 
 ) {
     val uiState by addEditViewModel.uiState.collectAsStateWithLifecycle()
 
-    // Extract gameId from NavController's arguments if you're navigating with gameId
-    // This part depends on how you set up your navigation route for editing
-    val gameId = navController.currentBackStackEntry?.arguments?.getString("gameId") // Example
+    val gameId = navController.currentBackStackEntry?.arguments?.getString("gameId") 
 
-    LaunchedEffect(gameId) { // Load game data if gameId is present (for editing)
-        if (gameId != null && !uiState.isEditing) { // Only load if not already editing this game
-            // Fetch the game from MobileGameViewModel's list or a repository
+    LaunchedEffect(gameId) { 
+        if (gameId != null && !uiState.isEditing) { 
             val gameToEdit = mobileGameViewModel.gamesList.value.find { it.id == gameId }
             addEditViewModel.initializeForm(gameToEdit)
         } else if (gameId == null) {
@@ -302,17 +330,17 @@ fun AddEditGameRoute(
         onNavigateBack = { navController.popBackStack() },
         onHomeTeamNameChange = addEditViewModel::onHomeTeamNameChange,
         onAwayTeamNameChange = addEditViewModel::onAwayTeamNameChange,
+        onFieldNumberChange = addEditViewModel::onFieldNumberChange, // Added callback
         onVenueChange = addEditViewModel::onVenueChange,
         onCompetitionChange = addEditViewModel::onCompetitionChange,
         onGameDateTimeChange = addEditViewModel::onGameDateTimeChange,
         onHalfDurationChange = addEditViewModel::onHalfDurationChange,
         onHalftimeDurationChange = addEditViewModel::onHalftimeDurationChange,
-        onHomeColorSelected = addEditViewModel::onHomeColorSelected, // Assuming ViewModel takes Color
-        onAwayColorSelected = addEditViewModel::onAwayColorSelected, // Assuming ViewModel takes Color
+        onHomeColorSelected = addEditViewModel::onHomeColorSelected, 
+        onAwayColorSelected = addEditViewModel::onAwayColorSelected, 
         onNotesChanged = addEditViewModel::onNotesChanged,
         onSaveGame = {
             addEditViewModel.onSaveGame { gameWithUpdates ->
-                // gameWithUpdates is the Game object constructed by AddEditGameViewModel
                 mobileGameViewModel.addOrUpdateGame(gameWithUpdates)
                 navController.popBackStack()
             }
@@ -327,12 +355,13 @@ fun AddEditGameRoute(
 @Preview(name = "Add New Game (Dark)", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun AddEditGameScreen_AddNewPreview() {
-    RefWatchMobileTheme { // Use your app's theme
+    RefWatchMobileTheme { 
         AddEditGameScreen(
-            uiState = AddEditGameUiState(isEditing = false),
+            uiState = AddEditGameUiState(isEditing = false, fieldNumber = ""), // Added fieldNumber
             onNavigateBack = {},
             onHomeTeamNameChange = {},
             onAwayTeamNameChange = {},
+            onFieldNumberChange = {}, // Added callback
             onVenueChange = {},
             onCompetitionChange = {},
             onGameDateTimeChange = {},
@@ -357,9 +386,10 @@ fun AddEditGameScreen_EditPreview() {
                 gameId = "previewGame123",
                 homeTeamName = "Preview Home Team",
                 awayTeamName = "Preview Away Team",
+                fieldNumber = "7", // Added fieldNumber
                 venue = "Preview Venue",
                 competition = "Preview League",
-                gameDateTimeEpochMillis = System.currentTimeMillis() + (3 * 24 * 60 * 60 * 1000), // 3 days from now
+                gameDateTimeEpochMillis = System.currentTimeMillis() + (3 * 24 * 60 * 60 * 1000), 
                 halfDurationMinutes = 40,
                 halftimeDurationMinutes = 10,
                 homeTeamColorArgb = Color.Blue.toArgb(),
@@ -371,6 +401,7 @@ fun AddEditGameScreen_EditPreview() {
             onNavigateBack = {},
             onHomeTeamNameChange = {},
             onAwayTeamNameChange = {},
+            onFieldNumberChange = {}, // Added callback
             onVenueChange = {},
             onCompetitionChange = {},
             onGameDateTimeChange = {},
@@ -385,7 +416,6 @@ fun AddEditGameScreen_EditPreview() {
 }
 
 // Dummy composable for previewing TimePickerDialog if Material 3 doesn't have a direct one yet
-// Or implement a more complete one based on AlertDialog
 @Composable
 fun TimePickerDialog(
     onDismissRequest: () -> Unit,

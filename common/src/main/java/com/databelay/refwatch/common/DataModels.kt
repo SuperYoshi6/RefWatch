@@ -81,7 +81,7 @@ fun GamePhase.shouldTimerAutostart(): Boolean {
 fun Long.formatTime(): String {
     val minutes = TimeUnit.MILLISECONDS.toMinutes(this)
     val seconds = TimeUnit.MILLISECONDS.toSeconds(this) % 60
-    return String.format("%02d:%02d", minutes, seconds)
+    return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
 }
 
 fun String.capitalizeWords(): String = split(" ").joinToString(" ") { word ->

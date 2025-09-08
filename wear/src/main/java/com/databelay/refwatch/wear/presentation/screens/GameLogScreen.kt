@@ -1,102 +1,100 @@
 package com.databelay.refwatch.wear.presentation.screens // << MAKE SURE THIS MATCHES YOUR PACKAGE
 
 import android.util.Log
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.foundation.ExperimentalWearFoundationApi
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material.Button
-import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.PositionIndicator
-import androidx.wear.compose.material.Scaffold
-import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
-import androidx.wear.compose.material.Vignette
-import androidx.wear.compose.material.VignettePosition
-import androidx.wear.compose.material.scrollAway
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.Card
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.Text
+import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameEvent
+import com.databelay.refwatch.common.PreviewTools.createFirstHalfSampleGame
+import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalWearFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GameLogScreen(
-    game: Game?, // <-- Change parameter to be nullable
-    onDismiss: () -> Unit
+    game: Game,
+    onDismiss: () -> Unit,
+    onUndoEvent: (event: GameEvent) -> Unit
 ) {
     val tag = "GameLogScreen"
 
-    LaunchedEffect(game) { // Or directly in the Composable body if game is not null
-        game?.let {
+    LaunchedEffect(game) {
+        game.let {
             Log.d(tag, "Displaying Game ID: ${it.id}, Status: ${it.status}")
             Log.d(tag, "Scores: ${it.homeScore}-${it.awayScore}")
             Log.d(tag, "Events Count: ${it.events.size}")
-            Log.d(tag, "Events Data: ${it.events.joinToString { event -> event.toString() }}")
         } ?: Log.d(tag, "Game object is null.")
     }
     val listState = rememberScalingLazyListState()
-    Scaffold(
-        timeText = { TimeText(modifier = Modifier.scrollAway(listState)) },
-        positionIndicator = { PositionIndicator(scalingLazyListState = listState) },
-        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
-    ) {
-        // --- ADD THIS NULL CHECK ---
-        if (game == null) {
-            // If the game was not found, show a helpful message.
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Game Log Not Found", textAlign = TextAlign.Center)
-            }
-            // Stop executing the rest of the composable.
-            return@Scaffold
-        }
+    ScreenScaffold {
         ScalingLazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 4.dp), // Adjusted padding slightly for cards
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp) // Adjusted spacing for cards
         ) {
             item {
                 Text(
                     "Game Log",
-                    style = MaterialTheme.typography.title3,
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(vertical = 8.dp), // Added vertical padding
                     textAlign = TextAlign.Center
                 )
             }
 
-            if (game.events.isEmpty()) {
-                item { Text("No events yet.", style = MaterialTheme.typography.body2, textAlign = TextAlign.Center) }
-            }
-            items(game.events.asReversed()) { event -> // Show newest events first
-                EventLogItem(event)
-                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colors.onSurface.copy(alpha = 0.3f))
+             if (game.events.isEmpty()) {
+                item {
+                    Text(
+                        "No events yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            } else {
+                items(game.events.asReversed(), key = { event -> event.timestamp }) { event -> // Show newest events first
+                    EventLogItem(
+                        event = event,
+                        onLongClick = {
+                            Log.d(tag, "Long press on event: ${event.displayString}. Triggering undo.")
+                            onUndoEvent(event)
+                        }
+                    )
+                    // HorizontalDivider removed as Cards provide separation
+                }
             }
             item {
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier
-                        .padding(top = 10.dp)
+                        .padding(top = 10.dp, bottom = 10.dp) // Added bottom padding
                         .fillMaxWidth(0.7f)
                 ) {
                     Text("Back")
@@ -106,32 +104,58 @@ fun GameLogScreen(
     }
 }
 
-
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun EventLogItem(event: GameEvent) {
-    // You might still want the wall clock for extra detail, or remove if displayString is enough
+fun EventLogItem(
+    event: GameEvent,
+    onLongClick: () -> Unit
+) {
     val wallTimestampStr = remember(event.timestamp) {
         val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
         sdf.format(Date(event.timestamp.toLong()))
     }
 
-    // The 'when' statement is no longer needed to build the description
-    // if each event has a 'displayString'.
+    Card(
+        onClick = { /* No action on short click for now, but card is clickable */ },
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = { /* No action on short click via combinedClickable */ },
+                onLongClick = onLongClick
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(all = 8.dp)
+        ) {
+            Text(
+                text = event.displayString,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface // Ensure text is visible on Card
+            )
+            Text(
+                text = "Logged: $wallTimestampStr",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
 
-    Column(modifier = Modifier
-        .fillMaxWidth()
-        .padding(vertical = 4.dp)) {
-        Text(
-            text = event.displayString, // <<<< SIMPLY USE THIS!
-            style = MaterialTheme.typography.body2
-        )
-        // Optional: Keep wall clock time for more detailed logging if desired
-        Text(
-            text = "Logged: $wallTimestampStr",
-            style = MaterialTheme.typography.caption1,
-            color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
+// --------------------------------------- Previews ----------------------------------------
+@Preview(device = "id:wearos_small_round", showBackground = true)
+@Preview(device = "id:wearos_square", showBackground = true)
+@Preview(device = "id:wearos_large_round", showBackground = true)
+@WearPreviewFontScales
+@Composable
+fun GameLogScreenPreview() {
+    val sampleGame = createFirstHalfSampleGame()
+    RefWatchWearTheme {
+        GameLogScreen(
+            game = sampleGame,
+            onDismiss = { Log.d("Preview", "Dismiss clicked") },
+            onUndoEvent = { Log.d("Preview", "Undo event clicked") }
         )
     }
 }
-// Helper extension function if you placed it here or in a common utility file
-// fun String.capitalizeWords(): String = split(" ").joinToString(" ") { it.lowercase().replaceFirstChar(Char::titlecase) }

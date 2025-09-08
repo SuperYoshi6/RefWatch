@@ -1,8 +1,11 @@
 package com.databelay.refwatch.common
 
 import android.graphics.Color
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
+import kotlin.collections.plus
 
 interface IMobileGameViewModel {
     val gamesList: StateFlow<List<Game>>
@@ -14,38 +17,9 @@ interface IWearGameViewModel {
     val activeGame: StateFlow<Game?> // <<<< CHANGE TO NULLABLE HERE
 }
 
-class PreviewMobileGameViewModel (
-    initialGames: List<Game> = emptyList(),
-) : IMobileGameViewModel {
-    override val gamesList: StateFlow<List<Game>> = MutableStateFlow(initialGames)
-
-    // Helper to update the list for preview variations
-    fun setGames(games: List<Game>) {
-        (this.gamesList as MutableStateFlow).value = games
-    }
-}
-
-class PreviewWearGameViewModel (
-    initialGames: List<Game> = emptyList(),
-    initialActiveGame: Game? = null
-) : IWearGameViewModel {
-    override val gamesList: StateFlow<List<Game>> = MutableStateFlow(initialGames)
-    override val isOnline: StateFlow<Boolean> = MutableStateFlow(true)
-    override val activeGame: StateFlow<Game> = MutableStateFlow(initialActiveGame) as StateFlow<Game>
-
-    // Helper to update the list for preview variations
-    fun setGames(games: List<Game>) {
-        (this.gamesList as MutableStateFlow).value = games
-    }
-
-    fun setActiveGame(game: Game) {
-        (this.activeGame as MutableStateFlow).value = game
-    }
-}
-
 object PreviewTools {
     fun createFirstHalfSampleGame(): Game {
-        return Game.defaults().copy(
+        var game = Game.defaults().copy(
             id = "scheduledGame1",
             homeTeamName = "Alpha FC",
             awayTeamName = "Beta United",
@@ -53,6 +27,24 @@ object PreviewTools {
             gameDateTimeEpochMillis = System.currentTimeMillis() + (2 * 60 * 60 * 1000L), // 2 hours from now
             venue = "Stadium One",
         )
+
+        game = game.addEvent(
+            GoalScoredEvent(
+                team = Team.HOME,
+                gameTimeMillis = ((2 * 60  + 25) * 1000).toDouble(),
+                homeScoreAtTime = 0,
+                awayScoreAtTime = 0
+            )
+        )
+        game = game.addEvent(
+            GoalScoredEvent(
+                team = Team.HOME,
+                gameTimeMillis = ((6 * 60  + 45) * 1000).toDouble(),
+                homeScoreAtTime = 1,
+                awayScoreAtTime = 0
+            )
+        )
+        return game
     }
 
     fun createExtraFirstHalfSampleGame(): Game {

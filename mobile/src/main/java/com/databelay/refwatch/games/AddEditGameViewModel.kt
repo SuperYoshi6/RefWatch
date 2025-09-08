@@ -21,7 +21,7 @@ import javax.inject.Inject
 data class AddEditGameUiState(
     val gameId: String? = null, // To know if editing or adding
     val gameNumber: String = "XXXX",
-    val fieldNumber: String? = null,
+    val fieldNumber: String = "", // Changed to non-nullable String
     val homeTeamName: String = "Home",
     val awayTeamName: String = "Away",
     val venue: String = "",
@@ -56,8 +56,10 @@ class AddEditGameViewModel @Inject constructor(
         if (gameToEdit != null) {
             editingGameId = gameToEdit.id
             _uiState.value = AddEditGameUiState(
+                gameId = gameToEdit.id, // Keep track of the gameId for editing
                 homeTeamName = gameToEdit.homeTeamName,
                 awayTeamName = gameToEdit.awayTeamName,
+                fieldNumber = gameToEdit.fieldNumber ?: "", // Initialize fieldNumber
                 venue = gameToEdit.venue ?: "",
                 competition = gameToEdit.competition ?: "",
                 gameDateTimeEpochMillis = gameToEdit.gameDateTimeEpochMillis,
@@ -71,9 +73,8 @@ class AddEditGameViewModel @Inject constructor(
                 isEditing = true
             )
         } else {
-            // New game, initialize with defaults
+            // New game, initialize with defaults (fieldNumber will be "" by default from data class)
             _uiState.value = AddEditGameUiState(
-                // Set a default start time for new games, e.g., current time
                 gameDateTimeEpochMillis = System.currentTimeMillis()
             )
         }
@@ -82,6 +83,7 @@ class AddEditGameViewModel @Inject constructor(
     // --- Event Handlers for UI Inputs ---
     fun onHomeTeamNameChange(name: String) { _uiState.value = _uiState.value.copy(homeTeamName = name) }
     fun onAwayTeamNameChange(name: String) { _uiState.value = _uiState.value.copy(awayTeamName = name) }
+    fun onFieldNumberChange(newFieldNumber: String) { _uiState.value = _uiState.value.copy(fieldNumber = newFieldNumber) } // Added this function
     fun onVenueChange(venue: String) { _uiState.value = _uiState.value.copy(venue = venue) }
     fun onCompetitionChange(newCompetition: String) { _uiState.value = _uiState.value.copy(competition = newCompetition) }
     fun onGameDateTimeChange(epochMillis: Long?) { _uiState.value = _uiState.value.copy(gameDateTimeEpochMillis = epochMillis) }
@@ -107,8 +109,8 @@ class AddEditGameViewModel @Inject constructor(
         // Construct the final Game object from the form's state
         val game = Game(
             id = editingGameId ?: UUID.randomUUID().toString(),
-            gameNumber = currentState.gameNumber,
-            fieldNumber = currentState.fieldNumber,
+            gameNumber = currentState.gameNumber, // Assuming gameNumber is handled or generated elsewhere if not editable
+            fieldNumber = currentState.fieldNumber.takeIf { it.isNotBlank() }, // Save as null if blank
             homeTeamName = currentState.homeTeamName,
             awayTeamName = currentState.awayTeamName,
             venue = currentState.venue.takeIf { it.isNotBlank() },

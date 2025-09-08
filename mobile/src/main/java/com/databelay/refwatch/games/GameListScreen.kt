@@ -374,7 +374,6 @@ fun GameListScreenPreview_Loading() {
         )
     }
 }
-/*
 
 @Preview(
     device = "id:pixel_9",
@@ -508,4 +507,3 @@ fun GameListScreenPreview_WithResumableGame() {
     // }
 }
 
-*/

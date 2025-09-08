@@ -1,6 +1,6 @@
 [versions]
 activityComposeVersion = "1.8.2"
-agp = "8.12.2"
+agp = "8.13.0"
 androidxComposeFoundation = "1.4.1"
 androidxComposeMaterial = "1.4.1"
 androidxJunit = "1.1.5"
@@ -64,6 +64,7 @@ horologistVersion = "0.7.15"
 composeMaterial3 = "1.5.0"
 composeUiTooling = "1.5.0"
 media3CommonKtx = "1.8.0"
+foundationLayout = "1.9.0"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityComposeVersion" }
@@ -145,6 +146,7 @@ horologist-compose-material = { group = "com.google.android.horologist", name = 
 androidx-compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "composeMaterial3" }
 androidx-compose-ui-tooling = { group = "androidx.wear.compose", name = "compose-ui-tooling", version.ref = "composeUiTooling" }
 androidx-media3-common-ktx = { group = "androidx.media3", name = "media3-common-ktx", version.ref = "media3CommonKtx" }
+androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayout" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

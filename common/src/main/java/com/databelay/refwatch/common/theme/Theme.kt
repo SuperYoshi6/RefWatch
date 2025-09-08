@@ -81,7 +81,7 @@ val AppDarkColorScheme: ColorScheme = darkColorScheme(
 )
 
 // Create a Wear OS Colors object based on your common M3 colors
-private val WearAppColorScheme: androidx.wear.compose.material3.ColorScheme =
+private val WearAppDarkColorScheme: androidx.wear.compose.material3.ColorScheme =
     androidx.wear.compose.material3.ColorScheme(
         primary = md_theme_dark_primary,              // From Color.kt (Vibrant Green)
         primaryDim = md_theme_dark_primaryDim, // From Color.kt (Darker Green)
@@ -95,7 +95,7 @@ private val WearAppColorScheme: androidx.wear.compose.material3.ColorScheme =
         onPrimary = md_theme_dark_onPrimary,            // From Color.kt (Pure Black)
         onPrimaryContainer = md_theme_dark_onPrimaryContainer,
         onSecondary = md_theme_dark_onSecondary,          // From Color.kt (Pure Black)
-        onSecondaryContainer = md_theme_light_onSecondaryContainer,
+        onSecondaryContainer = md_theme_dark_onSecondaryContainer,
         onError = md_theme_dark_onError,                // From Color.kt (Pure Black)
         onErrorContainer = md_theme_dark_onErrorContainer,
         background = md_theme_dark_background,          // From Color.kt (Pure Black)
@@ -106,13 +106,42 @@ private val WearAppColorScheme: androidx.wear.compose.material3.ColorScheme =
         onSurface = md_theme_dark_onSurface,              // From Color.kt (Pure White)
         onSurfaceVariant = md_theme_dark_onSurfaceVariant // From Color.kt (Very light gray / off-white)
     )
+// Define WearAppLightColorScheme using your M3 light theme color tokens
+val WearAppLightColorScheme: androidx.wear.compose.material3.ColorScheme =
+    androidx.wear.compose.material3.ColorScheme(
+        primary = md_theme_light_primary,
+        primaryDim = md_theme_light_primaryDim, // Ensure md_theme_light_primaryDim is in Color.kt
+        primaryContainer = md_theme_light_primaryContainer,
+        secondary = md_theme_light_secondary,
+        secondaryDim = md_theme_light_secondaryDim, // Ensure md_theme_light_secondaryDim is in Color.kt
+        secondaryContainer = md_theme_light_secondaryContainer,
+        error = md_theme_light_error,
+        errorDim = md_theme_light_errorDim,         // Ensure md_theme_light_errorDim is in Color.kt
+        errorContainer = md_theme_light_errorContainer,
+        onPrimary = md_theme_light_onPrimary,
+        onPrimaryContainer = md_theme_light_onPrimaryContainer,
+        onSecondary = md_theme_light_onSecondary,
+        onSecondaryContainer = md_theme_light_onSecondaryContainer,
+        onError = md_theme_light_onError,
+        onErrorContainer = md_theme_light_onErrorContainer,
+        background = md_theme_light_background,
+        onBackground = md_theme_light_onBackground,
+        surfaceContainer = md_theme_light_surfaceContainer,    // Ensure md_theme_light_surfaceContainer is in Color.kt
+        surfaceContainerLow = md_theme_light_surfaceContainerLow, // Ensure md_theme_light_surfaceContainerLow is in Color.kt
+        surfaceContainerHigh = md_theme_light_surfaceContainerHigh, // Ensure md_theme_light_surfaceContainerHigh is in Color.kt
+        onSurface = md_theme_light_onSurface,
+        onSurfaceVariant = md_theme_light_onSurfaceVariant
+    )
 
 @Composable
 fun RefWatchWearTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
     MaterialTheme( // androidx.wear.compose.material.MaterialTheme
-        colorScheme = WearAppColorScheme, // Your WearAppColorPalette
+        colorScheme = WearAppDarkColorScheme,
+//            else -> {WearAppLightColorScheme}
+//        }, // Your WearAppColorPalette
         typography = WearTypography,  // Use WearTypography defined in this module
         content = content
     )

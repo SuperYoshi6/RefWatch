@@ -9,7 +9,6 @@ package com.databelay.refwatch.wear.presentation.screens
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -19,22 +18,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
-import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
-import androidx.wear.compose.material3.*
-import androidx.wear.compose.material3.lazy.rememberTransformationSpec
-import androidx.wear.compose.ui.tooling.preview.WearPreviewDevices
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.Text
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.databelay.refwatch.common.CardType
 import com.databelay.refwatch.common.Game
@@ -44,8 +42,6 @@ import com.databelay.refwatch.common.isDark
 import com.databelay.refwatch.common.isPlayablePhase
 import com.databelay.refwatch.common.shortName
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
-import com.google.android.horologist.compose.layout.ColumnItemType
-import com.google.android.horologist.compose.layout.rememberResponsiveColumnPadding
 
 @Composable
 fun TeamActionsPage(
@@ -90,12 +86,18 @@ fun TeamActionsPage(
             if (game.currentPhase.isPlayablePhase()) {
                 Button(
                     onClick = { onAddGoal(team) },
+                    shape = CircleShape,
                     modifier = Modifier
-                        .wrapContentWidth()
-                        .padding(horizontal = 32.dp),
-//                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        .size(72.dp)
+//                        .wrapContentWidth()
+//                        .padding(horizontal = 32.dp),
                 ) {
-                    Text("Add Goal")
+                    Text(
+                        "+1",
+                        style = MaterialTheme.typography.displayLarge,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                    )
                 }
             } else {
                 // Optional: Show a placeholder or disabled button if not in a playable phase
@@ -156,7 +158,7 @@ fun CardShapedButton(
             contentColor = contentColor
         ),
         modifier = modifier
-            .aspectRatio(.80f)
+            .aspectRatio(.90f)
             .border(
                 1.dp,
                 contentColor.copy(alpha = 0.5f),

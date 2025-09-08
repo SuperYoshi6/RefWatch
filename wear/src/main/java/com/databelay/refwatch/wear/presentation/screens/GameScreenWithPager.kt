@@ -174,7 +174,6 @@ fun GameScreenWithPager(
         }
     }
     ScreenScaffold(
-        timeText = { TimeText() },
         modifier = modifier
             .fillMaxSize()
             .padding(2.dp)

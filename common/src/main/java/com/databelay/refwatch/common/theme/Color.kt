@@ -1,5 +1,7 @@
 package com.databelay.refwatch.common.theme // Your package
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.wear.compose.material3.lazy.lerp
 
 // Define your M3 color palette.
 // You can generate these using the Material Theme Builder: https://m3.material.io/theme-builder
@@ -34,6 +36,37 @@ val md_theme_light_inversePrimary = Color(0xFF82D3E0)
 val md_theme_light_surfaceTint = Color(0xFF006874)
 val md_theme_light_outlineVariant = Color(0xFFBFC8CA)
 val md_theme_light_scrim = Color(0xFF000000)
+
+
+// PrimaryDim: Slightly darker/desaturated version of primary.
+// We can achieve this by lerping (linear interpolation) towards black or a darker neutral.
+// Let's make it 10-15% darker.
+val md_theme_light_primaryDim =
+    lerp(md_theme_light_primary, Color.Black, 0.1f) // Mix 10% black
+
+// SecondaryDim: Slightly darker/desaturated version of secondary.
+val md_theme_light_secondaryDim =
+    lerp(md_theme_light_secondary, Color.Black, 0.1f) // Mix 10% black
+
+// ErrorDim: Slightly darker/desaturated version of error.
+val md_theme_light_errorDim =
+    lerp(md_theme_light_error, Color.Black, 0.1f) // Mix 10% black
+
+// SurfaceContainer Variants for Light Theme:
+// These are typically nuances of light grays or off-whites.
+// surfaceContainerLow: Lowest emphasis surface, often very close to background/surface.
+val md_theme_light_surfaceContainerLow = Color(0xFFF5F6F6) // Slightly darker than FBFCTC background
+
+// surfaceContainer: Default surface container.
+// Can be the same as surface, or a step darker than Low.
+val md_theme_light_surfaceContainer = Color(0xFFEFF0F0)    // A step darker than Low
+
+// surfaceContainerHigh: Higher emphasis surface container.
+// A step darker than surfaceContainer.
+val md_theme_light_surfaceContainerHigh = Color(0xFFE9EAEA) // A step darker than Container
+
+
+
 
 // Example Dark Scheme Colors
 // --- Primary (Buttons will use this) ---

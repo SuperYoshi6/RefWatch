@@ -118,6 +118,27 @@ data class Game(
         id = java.util.UUID.randomUUID().toString(), // Ensure id is always initialized
         // other fields with defaults
     )
+
+    // --- Methods to modify events ---
+    fun addEvent(event: GameEvent): Game {
+        val updatedEvents = events + event
+        return this.copy(events = updatedEvents, lastUpdated = System.currentTimeMillis())
+    }
+
+    fun removeEvent(eventToRemove: GameEvent): Game {
+        if (!events.contains(eventToRemove)) {
+            // Event not found, return the current state or log a warning
+            // For robustness, ensure GameEvent has a proper equals/hashCode implementation
+            return this
+        }
+        // Create a new list excluding the event to remove.
+        // If there could be multiple identical events and you only want to remove the first,
+        // you might need a more specific approach (e.g., removing by index if identifiable).
+        // However, removing all matching instances is often the desired behavior for an "undo" type action.
+        val updatedEvents = events.filterNot { it == eventToRemove }
+        return this.copy(events = updatedEvents, lastUpdated = System.currentTimeMillis())
+    }
+
     // --- Computed Properties for UI ---
     // Example: If GameSettings was embedded or properties are direct
     // For this to work, ensure halfDurationMinutes, extraTimeHalfDurationMinutes are properties of Game
