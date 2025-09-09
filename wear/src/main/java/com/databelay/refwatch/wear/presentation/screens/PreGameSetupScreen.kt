@@ -281,8 +281,8 @@ fun TeamNameEditDialogContent(
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                AlertDialogDefaults.ConfirmButton(onClick = { onSave(text) })
                 AlertDialogDefaults.DismissButton(onClick = onDismiss)
+                AlertDialogDefaults.ConfirmButton(onClick = { onSave(text) })
             }
         }
     }

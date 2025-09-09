@@ -15,11 +15,13 @@ import kotlinx.serialization.modules.SerializersModule
 val gameEventModule = SerializersModule {
     polymorphic(GameEvent::class) {
         subclass(GoalScoredEvent::class)
+        subclass(PenaltyEvent::class)
         subclass(CardIssuedEvent::class)
         subclass(PhaseChangedEvent::class)
         subclass(GenericLogEvent::class)
     }
 }
+
 // --- Game Event data Class and its Subclasses ---
 @Serializable
 sealed class GameEvent : Parcelable {
@@ -43,8 +45,28 @@ data class GoalScoredEvent( // ENSURE NO 'protected', 'private', or 'internal' M
 ) : GameEvent() {
     @get:Exclude // Exclude from Firebase automatic mapping
     override val displayString: String
-        get() = "Goal: ${team.name} ($homeScoreAtTime-$awayScoreAtTime) at ${gameTimeMillis.toLong().formatTime()}"
+        get() = "Goal: ${team.name} ($homeScoreAtTime-$awayScoreAtTime) at ${
+            gameTimeMillis.toLong().formatTime()
+        }"
 }
+
+@Serializable
+@SerialName("PENALTY") // Value for the class discriminator "eventType"
+@Parcelize
+data class PenaltyEvent( // ENSURE NO 'protected', 'private', or 'internal' MODIFIER HERE
+    override val id: String = UUID.randomUUID().toString(),
+    val team: Team,
+    override val timestamp: Double = System.currentTimeMillis().toDouble(),
+    override val gameTimeMillis: Double,
+    val homeScoreAtTime: Int,
+    val awayScoreAtTime: Int,
+    val scored: Boolean
+) : GameEvent() {
+    @get:Exclude // Exclude from Firebase automatic mapping
+    override val displayString: String
+        get() = "Penalty: ${team.name} ${if (scored) "SCORED" else "MISSED/SAVED"}"
+}
+
 
 @Serializable
 @SerialName("CARD") // Value for the class discriminator "eventType"
@@ -59,7 +81,9 @@ data class CardIssuedEvent( // ENSURE NO 'protected', 'private', or 'internal' M
 ) : GameEvent() {
     @get:Exclude
     override val displayString: String
-        get() = "${cardType.name.replaceFirstChar { it.uppercase() }} Card: ${team.name}, Player #$playerNumber at ${gameTimeMillis.toLong().formatTime()}"
+        get() = "${cardType.name.replaceFirstChar { it.uppercase() }} Card: ${team.name}, Player #$playerNumber at ${
+            gameTimeMillis.toLong().formatTime()
+        }"
 }
 
 @Serializable

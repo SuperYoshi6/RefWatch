@@ -30,6 +30,7 @@ import androidx.wear.compose.material3.TimeText
 import androidx.wear.compose.material3.VerticalPageIndicator
 import androidx.wear.compose.material3.VerticalPagerScaffold
 import androidx.wear.compose.material3.Text
+import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.databelay.refwatch.common.CardType
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
@@ -333,6 +334,38 @@ fun GameScreenWithPagerPreviewSettingsOpen() {
     val sampleGame = Game.defaults().copy(currentPhase = GamePhase.FIRST_HALF)
     val horizontalPagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
     val verticalPagerState = rememberPagerState(initialPage = 1, pageCount = { 2 }) // Start on settings page
+
+    RefWatchWearTheme {
+        GameScreenWithPager(
+            game = sampleGame,
+            horizontalPagerState = horizontalPagerState,
+            verticalPagerState = verticalPagerState,
+            onKickOff = {},
+            onResetGame = {},
+            onSetToHaveExtraTime = {},
+            onSetToHavePenalties = {},
+            onToggleTimer = {},
+            onAddGoal = {},
+            onNavigateToLogCard = { _: Team, _: CardType -> },
+            onNavigateToGameLog = {},
+            onEndPhase = {},
+            onResetPeriodTimer = {},
+            onConfirmEndMatch = {},
+            onPenaltyAttemptRecorded = {}
+        )
+    }
+}
+
+
+@Preview(device = "id:wearos_small_round",name = "AddedTime SmRnd",showBackground = true)
+@Preview(device = "id:wearos_large_round",name = "AddedTime LrgRnd",showBackground = true)
+@Preview(device = "id:wearos_square",name = "AddedTime Sqr",showBackground = true)
+@WearPreviewFontScales
+@Composable
+fun Preview_MainGameDisplay_Penalties() {
+    val sampleGame = Game.defaults().copy(currentPhase = GamePhase.PENALTIES)
+    val horizontalPagerState = rememberPagerState(initialPage = 1, pageCount = { 1 })
+    val verticalPagerState = rememberPagerState(initialPage = 0, pageCount = { 2 }) // Start on settings page
 
     RefWatchWearTheme {
         GameScreenWithPager(

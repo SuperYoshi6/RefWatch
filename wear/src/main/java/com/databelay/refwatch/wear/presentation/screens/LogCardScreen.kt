@@ -15,6 +15,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.rounded.Check
+import androidx.wear.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TextFieldDefaults
@@ -49,7 +54,7 @@ fun LogCardScreen(
     onLogCard: (team: Team, playerNumber: Int, cardType: CardType) -> Unit,
     onCancel: () -> Unit
 ) {
-     var selectedTeam by remember { mutableStateOf(preselectedTeam) }
+    var selectedTeam by remember { mutableStateOf(preselectedTeam) }
 //    var selectedCardType by remember { mutableStateOf<CardType?>(CardType.YELLOW) }
     var playerNumberString by remember { mutableStateOf("") }
     val context = LocalContext.current
@@ -63,7 +68,7 @@ fun LogCardScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceAround
         ) {
-            Spacer(modifier = Modifier.height(1.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text("Log Card", style = MaterialTheme.typography.titleSmall)
             preselectedTeam?.let {
@@ -85,7 +90,9 @@ fun LogCardScreen(
                 label = { Text("") }, // M3 Text
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
-                modifier = Modifier.focusRequester(focusRequester).padding(horizontal = 32.dp),
+                modifier = Modifier
+                    .focusRequester(focusRequester)
+                    .padding(horizontal = 32.dp),
                 colors = TextFieldDefaults.colors(
                     // Focused colors
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -110,14 +117,12 @@ fun LogCardScreen(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(
+/*                IconButton(
                     onClick = onCancel,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    ),
-                ) { Text("Cancel") }
-                Button(
+                ) {
+                    Icon(imageVector = Icons.Filled.Close, contentDescription = "Cancel")
+                }
+                IconButton (
                     onClick = {
                         val playerNum = playerNumberString.toIntOrNull()
                         // Read selectedTeam into a local immutable variable
@@ -140,9 +145,49 @@ fun LogCardScreen(
                         }
                     },
                     enabled = selectedTeam != null && playerNumberString.isNotBlank(),
-                ) { Text("Log") }
+                ) {
+//                    AlertDialogDefaults.ConfirmIcon
+                    Icon(imageVector = Icons.Filled.Check, contentDescription = "Log card")
+
+                }*/
+                AlertDialogDefaults.DismissButton(
+                    onClick = onCancel,
+                )
+                if (selectedTeam != null && playerNumberString.isNotBlank())
+                    AlertDialogDefaults.ConfirmButton(
+                        onClick = {
+                            val playerNum = playerNumberString.toIntOrNull()
+                            // Read selectedTeam into a local immutable variable
+                            val currentSelectedTeam =
+                                selectedTeam // selectedTeam is MutableState<Team?>
+                            if (currentSelectedTeam != null && playerNum != null && playerNum > 0) {
+                                // Now currentSelectedTeam can be smart-cast to Team
+                                onLogCard(currentSelectedTeam, playerNum, cardType)
+                            } else {
+                                if (currentSelectedTeam == null) {
+                                    Toast.makeText(context, "No team selected", Toast.LENGTH_SHORT)
+                                        .show()
+                                } else { // playerNum is null or not > 0
+                                    Toast.makeText(
+                                        context,
+                                        "Enter a valid player number",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        },
+                    )
+                else
+                    AlertDialogDefaults.ConfirmButton(
+                        onClick = {},
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                        )
+                    )
+
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
         }
     }
@@ -150,9 +195,9 @@ fun LogCardScreen(
 
 // --------------------------------------- Previews ----------------------------------------
 // -----------------------------------------------------------------------------------------
-@Preview(device = "id:wearos_small_round",name = "LogCard SmRnd",showBackground = true)
-@Preview(device = "id:wearos_large_round",name = "LogCard LrgRnd",showBackground = true)
-@Preview(device = "id:wearos_square",name = "LogCard Sqr",showBackground = true)
+@Preview(device = "id:wearos_small_round", name = "LogCard SmRnd", showBackground = true)
+@Preview(device = "id:wearos_large_round", name = "LogCard LrgRnd", showBackground = true)
+@Preview(device = "id:wearos_square", name = "LogCard Sqr", showBackground = true)
 @WearPreviewFontScales
 @Composable
 fun LogCardScreenPreview_Yellow_Home() {

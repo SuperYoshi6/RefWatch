@@ -116,7 +116,7 @@ fun MainGameDisplayScreen(
             verticalArrangement = Arrangement.SpaceAround
         ) {
             Spacer(modifier = Modifier.height(1.dp))
-            // Optional: Your SimpleDateFormat time display if TimeText isn't sufficient or for specific styling
+            // Time display if TimeText isn't sufficient or for specific styling
             Text(
                 text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(java.util.Date()),
                 style = MaterialTheme.typography.labelSmall,
@@ -124,7 +124,6 @@ fun MainGameDisplayScreen(
                 textAlign = TextAlign.Center,
             )
             // Score and Team Colors
-
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceEvenly,

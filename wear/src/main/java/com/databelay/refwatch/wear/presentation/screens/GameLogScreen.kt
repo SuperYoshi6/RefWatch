@@ -2,6 +2,7 @@ package com.databelay.refwatch.wear.presentation.screens // << MAKE SURE THIS MA
 
 import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,14 +15,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material.Chip
+import androidx.wear.compose.material.ChipDefaults.chipColors
+import androidx.wear.compose.material.ListHeader
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.Card
+import androidx.wear.compose.material3.CardDefaults
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
@@ -39,7 +46,8 @@ import java.util.Locale
 fun GameLogScreen(
     game: Game,
     onDismiss: () -> Unit,
-    onUndoEvent: (event: GameEvent) -> Unit
+    onUndoEvent: (event: GameEvent) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val tag = "GameLogScreen"
 
@@ -51,25 +59,31 @@ fun GameLogScreen(
         } ?: Log.d(tag, "Game object is null.")
     }
     val listState = rememberScalingLazyListState()
-    ScreenScaffold {
+    ScreenScaffold(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(2.dp)
+    ) { _ ->
         ScalingLazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 4.dp), // Adjusted padding slightly for cards
+                .padding(horizontal = 2.dp), // Adjusted padding slightly for cards
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp) // Adjusted spacing for cards
         ) {
             item {
-                Text(
-                    "Game Log",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(vertical = 8.dp), // Added vertical padding
-                    textAlign = TextAlign.Center
-                )
+                ListHeader {
+                    Text(
+                        "Game Log",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(vertical = 8.dp), // Added vertical padding
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
 
-             if (game.events.isEmpty()) {
+            if (game.events.isEmpty()) {
                 item {
                     Text(
                         "No events yet.",
@@ -79,11 +93,13 @@ fun GameLogScreen(
                     )
                 }
             } else {
-                items(game.events.asReversed(), key = { event -> event.timestamp }) { event -> // Show newest events first
+                items(
+                    game.events.asReversed(),
+                    key = { event -> event.timestamp }) { event -> // Show newest events first
                     EventLogItem(
                         event = event,
                         onLongClick = {
-                            Log.d(tag, "Long press on event: ${event.displayString}. Triggering undo.")
+                            Log.d("EventLogItem", "Long click on event: ${event.displayString}")
                             onUndoEvent(event)
                         }
                     )
@@ -97,7 +113,9 @@ fun GameLogScreen(
                         .padding(top = 10.dp, bottom = 10.dp) // Added bottom padding
                         .fillMaxWidth(0.7f)
                 ) {
-                    Text("Back")
+                    Text("Back",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth())
                 }
             }
         }
@@ -114,15 +132,18 @@ fun EventLogItem(
         val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
         sdf.format(Date(event.timestamp.toLong()))
     }
-
-    Card(
-        onClick = { /* No action on short click for now, but card is clickable */ },
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.primary,
+                MaterialTheme.shapes.medium
+            ) // Style like a button
+            .clip(MaterialTheme.shapes.medium) // For ripple effect if combinedClickable provides one
             .combinedClickable(
-                onClick = { /* No action on short click via combinedClickable */ },
-                onLongClick = onLongClick
-            )
+                onClick = { Log.d("EventLogItem", "Short click on event: ${event.displayString}") },
+                onLongClick = onLongClick,
+            ),
     ) {
         Column(
             modifier = Modifier
@@ -132,12 +153,12 @@ fun EventLogItem(
             Text(
                 text = event.displayString,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface // Ensure text is visible on Card
+                color = MaterialTheme.colorScheme.onPrimary // Ensure text is visible on Card
             )
             Text(
                 text = "Logged: $wallTimestampStr",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
             )
         }
     }

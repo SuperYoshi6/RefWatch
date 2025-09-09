@@ -13,7 +13,6 @@ import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.unit.size
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -28,6 +27,7 @@ import com.databelay.refwatch.common.GameStatus
 import com.databelay.refwatch.common.GenericLogEvent
 import com.databelay.refwatch.common.GoalScoredEvent
 import com.databelay.refwatch.common.IWearGameViewModel
+import com.databelay.refwatch.common.PenaltyEvent
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.formatTime
 import com.databelay.refwatch.common.hasTimer
@@ -36,7 +36,6 @@ import com.databelay.refwatch.common.isPlayablePhase
 import com.databelay.refwatch.common.opposite
 import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.toSnapshotForStorage
-import com.databelay.refwatch.wear.data.DataFetchStatus
 import com.databelay.refwatch.wear.data.GameStorageWear
 import com.databelay.refwatch.wear.data.GameTimerService
 import com.databelay.refwatch.wear.util.ConnectivityObserver // For network status
@@ -59,6 +58,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
+import java.lang.Math.max
 import javax.inject.Inject
 
 
@@ -369,10 +369,44 @@ class WearGameViewModel @Inject constructor(
      * This will update the activeGame StateFlow with a new Game instance.
      * Typically used for an "undo" operation.
      */
-    fun removeEvent(eventToRemove: GameEvent) {
+    fun undoEvent(eventToRemove: GameEvent) {
         _activeGame.update { currentGame ->
             currentGame?.removeEvent(eventToRemove) // Calls Game.removeEvent which returns a new Game instance
         }
+        if (eventToRemove is GoalScoredEvent) {
+            // Decrease team score
+            if (eventToRemove.team == Team.HOME) {
+                _activeGame.update {
+                    it?.copy(homeScore = it.homeScore - 1)
+                }
+            }
+            if (eventToRemove.team == Team.AWAY) {
+                _activeGame.update {
+                    it?.copy(awayScore = it.awayScore - 1)}
+            }
+        }
+        if (eventToRemove is PenaltyEvent) {
+            // Decrease team score and penalties taken if scored
+                if (eventToRemove.team == Team.HOME) {
+                    _activeGame.update {
+                        it?.copy(
+                            homeScore = if (eventToRemove.scored) it.homeScore - 1 else it.homeScore,
+                            penaltiesTakenAway = (it.penaltiesTakenHome - 1).coerceAtLeast(0)
+                        )
+                    }
+                }
+                if (eventToRemove.team == Team.AWAY) {
+                    _activeGame.update {
+                        it?.copy(
+                            awayScore = if (eventToRemove.scored) it.awayScore - 1 else it.awayScore,
+                            penaltiesTakenAway = (it.penaltiesTakenAway - 1).coerceAtLeast(0)
+                        )
+
+                    }
+                }
+
+        }
+
         Log.d(tag, "Event removed: ${eventToRemove.displayString}. Current events count: ${_activeGame.value?.events?.size}")
         // As with addEvent, existing persistence logic for _activeGame should handle this.
     }
@@ -881,7 +915,14 @@ class WearGameViewModel @Inject constructor(
                     eventMessage =
                         "Penalty by ${it.awayTeamName} (${taker.name}): ${if (scored) "SCORED" else "MISSED/SAVED"}"
                 }
-                val penaltyEvent = GenericLogEvent(message = eventMessage)
+                val penaltyEvent = PenaltyEvent(
+                    team = taker,
+                    gameTimeMillis = game.actualTimeElapsedInPeriodMillis.toDouble(),
+                    homeScoreAtTime = newScoreHome,
+                    awayScoreAtTime = newScoreAway,
+                    scored = scored,
+                )
+
                 var newPhase = it.currentPhase
                 if (checkShootoutEndCondition(
                         newScoreHome,

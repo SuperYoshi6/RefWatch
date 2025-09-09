@@ -330,12 +330,11 @@ fun GameListItem(
 
 
 
-// ---------------------- PREVIEWS ---------------------------
-// -----------------------------------------------------------
+// -------------------------------- PREVIEWS ----------------------------------------------------
+// ----------------------------------------------------------------------------------------------
 // Helper to create sample games for previews
-@Preview(device = "id:Nexus 7 2013", showSystemUi = true, showBackground = true, name = "GameList - Unauthenticated",  uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Preview(device = "id:pixel_c", showSystemUi = true, showBackground = true, name = "GameList - Unauthenticated",  uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Preview(device = "id:pixel_9", showSystemUi = true, showBackground = true, name = "GameList - Unauthenticated",  uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(device = "id:medium_phone", showSystemUi = true, showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(device = "id:small_phone", showSystemUi = true, showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun GameListScreenPreview_Unauthenticated() {
     RefWatchMobileTheme {
@@ -375,135 +374,5 @@ fun GameListScreenPreview_Loading() {
     }
 }
 
-@Preview(
-    device = "id:pixel_9",
-    showSystemUi = true,
-    backgroundColor = 0xff000000,
-    showBackground = true,
-    name = "GameList - Loading State"
-)
-@Composable
-fun GameListScreenPreview_Loading() {
-    val mockViewModel = PreviewMobileGameViewModel(
-        initialGames = emptyList(),
-    )
-    // RefWatchTheme {
-    GameListScreen(
-        viewModel = mockViewModel,
-        onAddGame = {},
-        onEditGame = {},
-        onViewLog = {},
-        onDeleteGame = {},
-        onImportGames = {},
-        onNavigateToSettings = {}
-    )
-    // }
-}
 
-@Preview(
-    device = "id:pixel_9",
-    showSystemUi = true,
-    backgroundColor = 0xff000000,
-    showBackground = true,
-    name = "GameList - Error State"
-)
-@Composable
-fun GameListScreenPreview_Error() {
-    val mockViewModel = PreviewMobileGameViewModel(
-        initialGames = emptyList(),
-    )
-    // RefWatchTheme {
-    GameListScreen(
-        viewModel = mockViewModel,
-        onAddGame = {},
-        onEditGame = {},
-        onViewLog = {},
-        onDeleteGame = {},
-        onImportGames = {},
-        onNavigateToSettings = {}
-    )
-    // }
-}
-
-@Preview(
-    device = "id:pixel_9",
-    showSystemUi = true,
-    backgroundColor = 0xff000000,
-    showBackground = true,
-    name = "GameList - With Scheduled Games"
-)
-@Composable
-fun GameListScreenPreview_WithScheduledGames() {
-    val mockViewModel =
-        PreviewMobileGameViewModel(initialGames = createSampleGames().filter { it.status == GameStatus.SCHEDULED })
-    // RefWatchTheme {
-    GameListScreen(
-        viewModel = mockViewModel,
-        onAddGame = {},
-        onEditGame = {},
-        onViewLog = {},
-        onDeleteGame = {},
-        onImportGames = {},
-        onNavigateToSettings = {}
-    )
-    // }
-}
-
-@Preview(
-    device = "id:pixel_9",
-    showSystemUi = true,
-    backgroundColor = 0xff000000,
-    showBackground = true,
-    name = "GameList - With Past Games Tab"
-)
-@Composable
-fun GameListScreenPreview_WithPastGames() {
-    // To see the "Past" tab selected, we'd ideally need a way to control
-    // the internal 'selectedTab' state of GameListScreen from the preview,
-    // or the FakeWearGameViewModel could expose a way to hint the initial tab.
-    // For simplicity, this preview will show the games, but the "Scheduled" tab will be selected by default.
-    // To preview the "Past" tab selected, you'd need to modify GameListScreen or its state handling for previews.
-    val mockViewModel = PreviewMobileGameViewModel(initialGames = createSampleGames())
-    // RefWatchTheme {
-    GameListScreen(
-        viewModel = mockViewModel,
-        onAddGame = {},
-        onEditGame = {},
-        onViewLog = {},
-        onDeleteGame = {},
-        onImportGames = {},
-        onNavigateToSettings = {}
-    )
-    // }
-}
-
-@Preview(
-    device = "id:pixel_9",
-    showSystemUi = true,
-    backgroundColor = 0xff000000,
-    showBackground = true,
-    name = "GameList - With Resumable Game"
-)
-@Composable
-fun GameListScreenPreview_WithResumableGame() {
-    val resumableGame = Game(
-        id = "active123",
-        homeTeamName = "Active Team A",
-        awayTeamName = "Active Team B",
-        isTimerRunning = true,
-        displayedTimeMillis = 120000 // 2 minutes in
-    )
-    val mockViewModel = PreviewMobileGameViewModel(initialGames = createSampleGames(),)
-    // RefWatchTheme {
-    GameListScreen(
-        viewModel = mockViewModel,
-        onAddGame = {},
-        onEditGame = {},
-        onViewLog = {},
-        onDeleteGame = {},
-        onImportGames = {},
-        onNavigateToSettings = {}
-    )
-    // }
-}
 

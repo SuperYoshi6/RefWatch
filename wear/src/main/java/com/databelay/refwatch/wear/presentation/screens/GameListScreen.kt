@@ -150,7 +150,7 @@ fun GameListScreen(
                         label = {
                             Text(
                                 "New Game",
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                             )
                         },
                         icon = {
@@ -162,7 +162,7 @@ fun GameListScreen(
                         modifier = Modifier
                             .fillMaxWidth(0.9f),
                         colors = chipColors(
-                            backgroundColor = MaterialTheme.colorScheme.secondaryContainer
+                            backgroundColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
                         )
                     )
                 }
@@ -233,20 +233,20 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(0.95f),
         colors = chipColors(
-            backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+            backgroundColor = MaterialTheme.colorScheme.primary,
         ),
         label = {
             Column(horizontalAlignment = Alignment.Start) {
                 Text(
                     text = "${game.homeTeamName} vs ${game.awayTeamName}",
                     maxLines = 2,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     style = MaterialTheme.typography.labelMedium
                 )
                 if (game.status == GameStatus.COMPLETED) {
                     Text(
                         text = "Final: ${game.homeScore} - ${game.awayScore}",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         style = MaterialTheme.typography.labelMedium,
 //                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                     )
@@ -271,7 +271,7 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
 
                 Text(
                     text = dateTimeString,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = MaterialTheme.colorScheme.onPrimary,
                 )
 
                 val locationDetails = mutableListOf<String>()
@@ -282,7 +282,7 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
                     Text(
                         text = locationDetails.joinToString(" - "),
                         maxLines = 1,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
@@ -293,7 +293,7 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
                 Icon(
                     imageVector = Icons.Filled.LocationOn,
                     contentDescription = "Field Number available",
-                    modifier = Modifier.size(ChipDefaults.IconSize)
+                    modifier = Modifier.size(ChipDefaults.IconSize),
                 )
             }
         }

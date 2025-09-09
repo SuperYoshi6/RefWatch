@@ -24,7 +24,6 @@ import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.isPlayablePhase
-import com.databelay.refwatch.presentation.screens.pager.PenaltyShootoutScreen
 import kotlinx.coroutines.launch
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.wear.compose.foundation.pager.rememberPagerState
