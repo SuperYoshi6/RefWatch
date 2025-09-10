@@ -58,7 +58,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
-import java.lang.Math.max
 import javax.inject.Inject
 
 
@@ -356,59 +355,82 @@ class WearGameViewModel @Inject constructor(
      * This will update the activeGame StateFlow with a new Game instance.
      */
     fun addEvent(event: GameEvent) {
+        var updatedGameInstance: Game? = null
         _activeGame.update { currentGame ->
-            currentGame?.addEvent(event) // Calls Game.addEvent which returns a new Game instance
+            val gameAfterEventAdded = currentGame?.addEvent(event)
+            updatedGameInstance = gameAfterEventAdded
+            gameAfterEventAdded
         }
-        // No explicit save needed here if your existing snapshot/debounce logic handles
-        // changes to _activeGame.value.events
+
+        updatedGameInstance?.let { gameToSave ->
+            viewModelScope.launch {
+                gameStorage.addOrUpdateGame(gameToSave) // Update in storage
+                Log.d(tag, "Event added to active game ${gameToSave.id} and saved to storage.")
+            }
+        }
         Log.d(tag, "Event added: ${event.displayString}. Current events count: ${_activeGame.value?.events?.size}")
     }
-
     /**
-     * Removes a game event from the active game.
-     * This will update the activeGame StateFlow with a new Game instance.
-     * Typically used for an "undo" operation.
+     * Removes a game event.
+     * If gameId is null (default), it removes the event from the currently active game.
+     * If gameId is provided, it removes the event from the game with that specific ID.
+     * The updated game is saved to storage, which should refresh gamesList and _activeGame if affected.
+     * Assumes Game.removeEvent handles internal consistency (e.g., score adjustments).
+     *
+     * @param eventToRemove The event object to remove.
+     * @param gameId The ID of the game to remove the event from. Defaults to null, targeting the active game.
      */
-    fun undoEvent(eventToRemove: GameEvent) {
-        _activeGame.update { currentGame ->
-            currentGame?.removeEvent(eventToRemove) // Calls Game.removeEvent which returns a new Game instance
-        }
-        if (eventToRemove is GoalScoredEvent) {
-            // Decrease team score
-            if (eventToRemove.team == Team.HOME) {
-                _activeGame.update {
-                    it?.copy(homeScore = it.homeScore - 1)
+    fun removeEvent(eventToRemove: GameEvent, gameId: String? = null) { // Combined function
+        viewModelScope.launch {
+            val gameToModify: Game?
+            val modifyingActiveGame: Boolean
+
+            if (gameId == null) {
+                // Target the active game
+                gameToModify = _activeGame.value
+                modifyingActiveGame = true
+                if (gameToModify == null) {
+                    Log.w(tag, "removeEvent called for active game, but activeGame is null.")
+                    return@launch
+                }
+            } else {
+                // Target a specific game by ID
+                gameToModify = gamesList.value.firstOrNull { it.id == gameId }
+                modifyingActiveGame = _activeGame.value?.id == gameId
+                if (gameToModify == null) {
+                    Log.w(tag, "removeEvent: Game with ID $gameId not found in gamesList.")
+                    return@launch
                 }
             }
-            if (eventToRemove.team == Team.AWAY) {
-                _activeGame.update {
-                    it?.copy(awayScore = it.awayScore - 1)}
+
+            // Remove the event from this specific game instance
+            val updatedGame = gameToModify.removeEvent(eventToRemove) // Assumes Game.removeEvent handles score/stats
+
+            if (updatedGame == gameToModify) {
+                // This means the event wasn't found in targetGame.removeEvent or no change was made
+                Log.w(tag, "removeEvent: Event ${eventToRemove.id} (or equivalent) not found in game ${gameToModify.id}, or no change made.")
+                return@launch
+            }
+
+            // Save the updated game back to storage
+            gameStorage.addOrUpdateGame(updatedGame)
+            Log.d(tag, "Game ${updatedGame.id} updated in storage after removing event: ${eventToRemove.displayString}.")
+
+            // If the active game was modified (either directly or because its ID matched the provided gameId),
+            // update _activeGame StateFlow directly for immediate UI consistency.
+            if (modifyingActiveGame || (gameId == null && _activeGame.value?.id == updatedGame.id) ) {
+                _activeGame.value = updatedGame
+                Log.d(tag, "Active game ${updatedGame.id} was updated after event removal.")
+            } else if (_activeGame.value?.id == updatedGame.id) {
+                // This case handles if a non-active game was targeted by ID, but it *is* the active game.
+                // The 'modifyingActiveGame' variable should ideally catch this if gameId was provided.
+                // This is a bit redundant if modifyingActiveGame logic is perfect, but safe.
+                _activeGame.value = updatedGame
+                Log.d(tag, "Game ${updatedGame.id} (which is active) was updated by ID after event removal.")
             }
         }
-        if (eventToRemove is PenaltyEvent) {
-            // Decrease team score and penalties taken if scored
-                if (eventToRemove.team == Team.HOME) {
-                    _activeGame.update {
-                        it?.copy(
-                            homeScore = if (eventToRemove.scored) it.homeScore - 1 else it.homeScore,
-                            penaltiesTakenAway = (it.penaltiesTakenHome - 1).coerceAtLeast(0)
-                        )
-                    }
-                }
-                if (eventToRemove.team == Team.AWAY) {
-                    _activeGame.update {
-                        it?.copy(
-                            awayScore = if (eventToRemove.scored) it.awayScore - 1 else it.awayScore,
-                            penaltiesTakenAway = (it.penaltiesTakenAway - 1).coerceAtLeast(0)
-                        )
-
-                    }
-                }
-
-        }
-
-        Log.d(tag, "Event removed: ${eventToRemove.displayString}. Current events count: ${_activeGame.value?.events?.size}")
-        // As with addEvent, existing persistence logic for _activeGame should handle this.
+        // Log outside the coroutine for immediate feedback, though the actual update is async
+        Log.d(tag, "removeEvent called for event: ${eventToRemove.displayString}, gameId: $gameId. Events in active game: ${_activeGame.value?.events?.size}")
     }
 
 

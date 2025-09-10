@@ -125,18 +125,38 @@ data class Game(
         return this.copy(events = updatedEvents, lastUpdated = System.currentTimeMillis())
     }
 
+    // In Game.kt
     fun removeEvent(eventToRemove: GameEvent): Game {
         if (!events.contains(eventToRemove)) {
-            // Event not found, return the current state or log a warning
-            // For robustness, ensure GameEvent has a proper equals/hashCode implementation
-            return this
+            return this // Event not found
         }
-        // Create a new list excluding the event to remove.
-        // If there could be multiple identical events and you only want to remove the first,
-        // you might need a more specific approach (e.g., removing by index if identifiable).
-        // However, removing all matching instances is often the desired behavior for an "undo" type action.
         val updatedEvents = events.filterNot { it == eventToRemove }
-        return this.copy(events = updatedEvents, lastUpdated = System.currentTimeMillis())
+        var gameWithEventRemoved = this.copy(events = updatedEvents, lastUpdated = System.currentTimeMillis())
+
+        // Adjust scores/stats based on the type of event removed
+        when (eventToRemove) {
+            is GoalScoredEvent -> {
+                gameWithEventRemoved = gameWithEventRemoved.copy(
+                    homeScore = if (eventToRemove.team == Team.HOME) gameWithEventRemoved.homeScore - 1 else gameWithEventRemoved.homeScore,
+                    awayScore = if (eventToRemove.team == Team.AWAY) gameWithEventRemoved.awayScore - 1 else gameWithEventRemoved.awayScore
+                )
+            }
+            is PenaltyEvent -> {
+                gameWithEventRemoved = gameWithEventRemoved.copy(
+                    homeScore = if (eventToRemove.team == Team.HOME && eventToRemove.scored) gameWithEventRemoved.homeScore - 1 else gameWithEventRemoved.homeScore,
+                    awayScore = if (eventToRemove.team == Team.AWAY && eventToRemove.scored) gameWithEventRemoved.awayScore - 1 else gameWithEventRemoved.awayScore,
+                    penaltiesTakenHome = if (eventToRemove.team == Team.HOME) (gameWithEventRemoved.penaltiesTakenHome - 1).coerceAtLeast(0) else gameWithEventRemoved.penaltiesTakenHome,
+                    penaltiesTakenAway = if (eventToRemove.team == Team.AWAY) (gameWithEventRemoved.penaltiesTakenAway - 1).coerceAtLeast(0) else gameWithEventRemoved.penaltiesTakenAway
+                )
+            }
+            else -> {
+
+            }
+            // Add cases for other events that affect Game's summary stats, like CardIssuedEvent if it impacts a displayed card count on Game.
+            // For example:
+            // is CardIssuedEvent -> { /* adjust card counts if Game stores them directly */ }
+        }
+        return gameWithEventRemoved
     }
 
     // --- Computed Properties for UI ---

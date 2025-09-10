@@ -35,6 +35,7 @@ import com.databelay.refwatch.wear.presentation.screens.LogCardScreen
 import com.databelay.refwatch.wear.presentation.screens.PreGameSetupRoute
 import kotlinx.coroutines.delay
 import androidx.wear.compose.foundation.pager.rememberPagerState
+import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.isPlayablePhase
 import kotlin.let
 
@@ -89,7 +90,7 @@ fun NavigationRoutes() {
                             TAG,
                             "onNavigateToNewGame: Cannot proceed, active game is null after creating new game."
                         )
-                         navController.navigate(WearNavRoutes.PRE_GAME_SETUP_SCREEN)
+                        navController.navigate(WearNavRoutes.PRE_GAME_SETUP_SCREEN)
                     }
                 )
             }
@@ -206,7 +207,11 @@ fun NavigationRoutes() {
                         preselectedTeam = team,
                         cardType = cardType,
                         onLogCard = { loggedTeam, playerNum, loggedCardType ->
-                            gameViewModel.addCard(team, playerNum, cardType) // Use arguments from closure
+                            gameViewModel.addCard(
+                                team,
+                                playerNum,
+                                cardType
+                            ) // Use arguments from closure
                             navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
                                 popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
                                 launchSingleTop = true
@@ -236,15 +241,18 @@ fun NavigationRoutes() {
                 )
             ) { backStackEntry ->
                 val gameIdString = backStackEntry.arguments?.getString(WearNavRoutes.GAME_ID_ARG)
-                val gameForLog = gameIdString?.let { idToFind ->
+                val gameForLogNullable: Game? = gameIdString?.let { idToFind ->
                     allGames.find { game -> game.id == idToFind } // Assuming Game has a String id property
                 }
-                GameLogScreen(
-                    game = gameForLog!!,
-                    onDismiss = { navController.popBackStack() },
-                    onUndoEvent = { event ->
-                        gameViewModel.undoEvent(event) },
-                )
+                gameForLogNullable?.let { gameForLog ->
+                    GameLogScreen(
+                        game = gameForLog,
+                        onDismiss = { navController.popBackStack() },
+                        onUndoEvent = { event ->
+                            gameViewModel.removeEvent(event, gameIdString)
+                        },
+                    )
+                }
             }
         }
     }
