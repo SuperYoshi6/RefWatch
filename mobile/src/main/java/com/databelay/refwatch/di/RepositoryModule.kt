@@ -1,5 +1,6 @@
 package com.databelay.refwatch.di
 import com.databelay.refwatch.auth.AuthRepository
+import com.databelay.refwatch.auth.FirebaseAuthRepository
 import com.databelay.refwatch.games.GameStorageMobile
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -20,8 +21,8 @@ object RepositoryModule {
         return GameStorageMobile(firestore)
     }
 
-    @Provides
+/*    @Provides
     @Singleton
     fun provideAuthRepository(firebaseAuth: FirebaseAuth): AuthRepository = // Provide AuthRepository
-        AuthRepository(firebaseAuth)
+        FirebaseAuthRepository(firebaseAuth)*/
 }

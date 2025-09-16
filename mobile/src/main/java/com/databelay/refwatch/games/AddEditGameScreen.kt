@@ -1,6 +1,7 @@
 package com.databelay.refwatch.games
 
 import android.content.res.Configuration
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -62,6 +63,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+
 // --- Stateless Composable ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,36 +72,36 @@ fun AddEditGameScreen(
     onNavigateBack: () -> Unit,
     onHomeTeamNameChange: (String) -> Unit,
     onAwayTeamNameChange: (String) -> Unit,
-    onFieldNumberChange: (String) -> Unit, // Added for Field Number
+    onFieldNumberChange: (String) -> Unit,
+    onRefereeAssignmentChange: (String) -> Unit,
     onVenueChange: (String) -> Unit,
     onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit, // Pass epoch millis
-    onHalfDurationChange: (String) -> Unit, // Pass string for TextField
-    onHalftimeDurationChange: (String) -> Unit, // Pass string for TextField
-    onHomeColorSelected: (Color) -> Unit, // Pass compose Color
+    onGameDateTimeChange: (Long) -> Unit,
+    onHalfDurationChange: (String) -> Unit,
+    onHalftimeDurationChange: (String) -> Unit,
+    onHomeColorSelected: (Color) -> Unit,
     onAwayColorSelected: (Color) -> Unit,
     onNotesChanged: (String) -> Unit,
-    onSaveGame: () -> Unit, // ViewModel handles constructing Game object
+    onHomeScoreChange: (String) -> Unit, // New callback
+    onAwayScoreChange: (String) -> Unit, // New callback
+    onSaveGame: () -> Unit,
 ) {
     val scrollState = rememberScrollState()
 
-    // Date Picker State (derived from uiState or managed via callbacks)
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = uiState.gameDateTimeEpochMillis ?: System.currentTimeMillis()
     )
     var showDatePicker by remember { mutableStateOf(false) }
 
-    // Time Picker State
     val calendar = Calendar.getInstance()
     uiState.gameDateTimeEpochMillis?.let { calendar.timeInMillis = it }
     val timePickerState = rememberTimePickerState(
         initialHour = calendar.get(Calendar.HOUR_OF_DAY),
         initialMinute = calendar.get(Calendar.MINUTE),
-        is24Hour = true // Or based on locale
+        is24Hour = true
     )
     var showTimePicker by remember { mutableStateOf(false) }
 
-    // Color Picker States
     var showHomeColorPicker by remember { mutableStateOf(false) }
     var showAwayColorPicker by remember { mutableStateOf(false) }
 
@@ -115,7 +117,7 @@ fun AddEditGameScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onSaveGame) { 
+            FloatingActionButton(onClick = onSaveGame) {
                 Icon(Icons.Filled.Save, contentDescription = "Save Game")
             }
         }
@@ -143,22 +145,53 @@ fun AddEditGameScreen(
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 singleLine = true
             )
+
+            // Scores Row
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = uiState.homeScore,
+                    onValueChange = onHomeScoreChange,
+                    label = { Text("Home Score") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = uiState.awayScore,
+                    onValueChange = onAwayScoreChange,
+                    label = { Text("Away Score") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
             OutlinedTextField(
-                value = uiState.fieldNumber, // Added fieldNumber
-                onValueChange = onFieldNumberChange, // Added callback
-                label = { Text("Field Number (Optional)") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true
-            )
-            OutlinedTextField(
-                value = uiState.venue,
-                onValueChange = onVenueChange,
-                label = { Text("Venue / Location (Optional)") },
+                value = uiState.refereeAssignment,
+                onValueChange = onRefereeAssignmentChange,
+                label = { Text("Assignment") },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 singleLine = true
             )
+            // Location Row
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = uiState.venue,
+                    onValueChange = onVenueChange,
+                    label = { Text("Venue / Location (Optional)") },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = uiState.fieldNumber,
+                    onValueChange = onFieldNumberChange,
+                    label = { Text("Field Number (Optional)") },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true
+                )
+            }
             OutlinedTextField(
                 value = uiState.competition,
                 onValueChange = onCompetitionChange,
@@ -168,6 +201,7 @@ fun AddEditGameScreen(
                 singleLine = true
             )
 
+
             val sdfDate = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()) }
             val sdfTime = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
             val selectedDateTimeString = uiState.gameDateTimeEpochMillis?.let {
@@ -176,7 +210,7 @@ fun AddEditGameScreen(
 
             OutlinedTextField(
                 value = selectedDateTimeString,
-                onValueChange = {}, // Not directly editable
+                onValueChange = {},
                 label = { Text("Game Date & Time") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -194,21 +228,25 @@ fun AddEditGameScreen(
                             datePickerState.selectedDateMillis?.let { selectedDate ->
                                 val cal = Calendar.getInstance()
                                 uiState.gameDateTimeEpochMillis?.let { cal.timeInMillis = it }
-                                cal.timeInMillis = selectedDate // Set only date part, preserve time
+                                cal.timeInMillis = selectedDate
                                 timePickerState.hour = cal.get(Calendar.HOUR_OF_DAY)
                                 timePickerState.minute = cal.get(Calendar.MINUTE)
-                                showTimePicker = true 
+                                showTimePicker = true
                             }
                         }) { Text("OK") }
                     },
-                    dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
+                    dismissButton = {
+                        TextButton(onClick = {
+                            showDatePicker = false
+                        }) { Text("Cancel") }
+                    }
                 ) {
                     DatePicker(state = datePickerState)
                 }
             }
 
             if (showTimePicker) {
-                TimePickerDialog( 
+                TimePickerDialog(
                     onDismissRequest = { showTimePicker = false },
                     confirmButton = {
                         TextButton(onClick = {
@@ -219,10 +257,14 @@ fun AddEditGameScreen(
                             cal.set(Calendar.MINUTE, timePickerState.minute)
                             cal.set(Calendar.SECOND, 0)
                             cal.set(Calendar.MILLISECOND, 0)
-                            onGameDateTimeChange(cal.timeInMillis) 
+                            onGameDateTimeChange(cal.timeInMillis)
                         }) { Text("OK") }
                     },
-                    dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text("Cancel") } }
+                    dismissButton = {
+                        TextButton(onClick = {
+                            showTimePicker = false
+                        }) { Text("Cancel") }
+                    }
                 ) {
                     TimePicker(state = timePickerState, modifier = Modifier.padding(16.dp))
                 }
@@ -245,17 +287,29 @@ fun AddEditGameScreen(
                 )
             }
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Button(onClick = { showHomeColorPicker = true }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(20.dp).background(Color(uiState.homeTeamColorArgb)))
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .background(Color(uiState.homeTeamColorArgb))
+                        )
                         Spacer(Modifier.width(4.dp))
                         Text("Home Color")
                     }
                 }
                 Button(onClick = { showAwayColorPicker = true }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(20.dp).background(Color(uiState.awayTeamColorArgb)))
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .background(Color(uiState.awayTeamColorArgb))
+                        )
                         Spacer(Modifier.width(4.dp))
                         Text("Away Color")
                     }
@@ -267,8 +321,8 @@ fun AddEditGameScreen(
                     title = "Select Home Color",
                     availableColors = predefinedColors,
                     selectedColor = Color(uiState.homeTeamColorArgb),
-                    onColorSelected = { color:Color ->
-                        onHomeColorSelected(color) 
+                    onColorSelected = { color: Color ->
+                        onHomeColorSelected(color)
                         showHomeColorPicker = false
                     },
                     onDismiss = { showHomeColorPicker = false }
@@ -279,8 +333,8 @@ fun AddEditGameScreen(
                     title = "Select Away Color",
                     availableColors = predefinedColors,
                     selectedColor = Color(uiState.awayTeamColorArgb),
-                    onColorSelected = { color:Color ->
-                        onAwayColorSelected(color) 
+                    onColorSelected = { color: Color ->
+                        onAwayColorSelected(color)
                         showAwayColorPicker = false
                     },
                     onDismiss = { showAwayColorPicker = false }
@@ -291,12 +345,18 @@ fun AddEditGameScreen(
                 value = uiState.notes,
                 onValueChange = onNotesChanged,
                 label = { Text("Notes (Optional)") },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 80.dp),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
             )
 
             uiState.errorMessage?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             Spacer(Modifier.height(60.dp)) // Space for FAB
@@ -308,18 +368,22 @@ fun AddEditGameScreen(
 // --- ViewModel-Driven Route Composable ---
 @Composable
 fun AddEditGameRoute(
-    navController: NavController, 
+    navController: NavController,
     addEditViewModel: AddEditGameViewModel = hiltViewModel(),
-    mobileGameViewModel: MobileGameViewModel = hiltViewModel() 
+    mobileGameViewModel: MobileGameViewModel = hiltViewModel()
 ) {
+    val tag = "AddEditGameRoute"
     val uiState by addEditViewModel.uiState.collectAsStateWithLifecycle()
 
-    val gameId = navController.currentBackStackEntry?.arguments?.getString("gameId") 
+    val gameId = navController.currentBackStackEntry?.arguments?.getString("gameId")
 
-    LaunchedEffect(gameId) { 
-        if (gameId != null && !uiState.isEditing) { 
-            val gameToEdit = mobileGameViewModel.gamesList.value.find { it.id == gameId }
-            addEditViewModel.initializeForm(gameToEdit)
+    LaunchedEffect(gameId) {
+        Log.d(
+            tag,
+            "LaunchedEffect triggered. gameIdFromNav: $gameId, Current uiState.gameId: ${uiState.gameId}, isEditing: ${uiState.isEditing}"
+        )
+        if (gameId != null && !uiState.isEditing) {
+            addEditViewModel.initializeForm(gameId)
         } else if (gameId == null) {
             addEditViewModel.initializeForm(null) // New game
         }
@@ -330,38 +394,60 @@ fun AddEditGameRoute(
         onNavigateBack = { navController.popBackStack() },
         onHomeTeamNameChange = addEditViewModel::onHomeTeamNameChange,
         onAwayTeamNameChange = addEditViewModel::onAwayTeamNameChange,
-        onFieldNumberChange = addEditViewModel::onFieldNumberChange, // Added callback
+        onFieldNumberChange = addEditViewModel::onFieldNumberChange,
+        onRefereeAssignmentChange = addEditViewModel::onRefereeAssignmentChange,
         onVenueChange = addEditViewModel::onVenueChange,
         onCompetitionChange = addEditViewModel::onCompetitionChange,
         onGameDateTimeChange = addEditViewModel::onGameDateTimeChange,
         onHalfDurationChange = addEditViewModel::onHalfDurationChange,
         onHalftimeDurationChange = addEditViewModel::onHalftimeDurationChange,
-        onHomeColorSelected = addEditViewModel::onHomeColorSelected, 
-        onAwayColorSelected = addEditViewModel::onAwayColorSelected, 
+        onHomeColorSelected = addEditViewModel::onHomeColorSelected,
+        onAwayColorSelected = addEditViewModel::onAwayColorSelected,
         onNotesChanged = addEditViewModel::onNotesChanged,
+        onHomeScoreChange = addEditViewModel::onHomeScoreChange, // Pass new handler
+        onAwayScoreChange = addEditViewModel::onAwayScoreChange, // Pass new handler
         onSaveGame = {
-            addEditViewModel.onSaveGame { gameWithUpdates ->
-                mobileGameViewModel.addOrUpdateGame(gameWithUpdates)
-                navController.popBackStack()
-            }
+            addEditViewModel.onSaveGame()
+            navController.popBackStack()
+
         }
     )
 }
 
 // --- Previews ---
 
-@Preview(name = "Add New Game (Dark)", device = "id:7in WSVGA (Tablet)", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Preview(name = "Add New Game (Dark)", device = "id:10.1in WXGA (Tablet)", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Preview(name = "Add New Game (Dark)", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(
+    name = "Add New Game (Dark)",
+    device = "id:7in WSVGA (Tablet)",
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES
+)
+@Preview(
+    name = "Add New Game (Dark)",
+    device = "id:10.1in WXGA (Tablet)",
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES
+)
+@Preview(
+    name = "Add New Game (Dark)",
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES
+)
 @Composable
 fun AddEditGameScreen_AddNewPreview() {
-    RefWatchMobileTheme { 
+    RefWatchMobileTheme {
         AddEditGameScreen(
-            uiState = AddEditGameUiState(isEditing = false, fieldNumber = ""), // Added fieldNumber
+            uiState = AddEditGameUiState(
+                isEditing = false,
+                fieldNumber = "",
+                homeScore = "0",
+                awayScore = "0",
+                refereeAssignment = ""
+            ),
             onNavigateBack = {},
             onHomeTeamNameChange = {},
             onAwayTeamNameChange = {},
-            onFieldNumberChange = {}, // Added callback
+            onFieldNumberChange = {},
             onVenueChange = {},
             onCompetitionChange = {},
             onGameDateTimeChange = {},
@@ -370,11 +456,13 @@ fun AddEditGameScreen_AddNewPreview() {
             onHomeColorSelected = {},
             onAwayColorSelected = {},
             onNotesChanged = {},
+            onHomeScoreChange = {}, // Add dummy handler
+            onAwayScoreChange = {}, // Add dummy handler
+            onRefereeAssignmentChange = {}, // Add dummy handler
             onSaveGame = {}
         )
     }
 }
-
 
 
 @Preview(name = "Edit Game (Dark)", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
@@ -386,22 +474,26 @@ fun AddEditGameScreen_EditPreview() {
                 gameId = "previewGame123",
                 homeTeamName = "Preview Home Team",
                 awayTeamName = "Preview Away Team",
-                fieldNumber = "7", // Added fieldNumber
+                fieldNumber = "7",
+                refereeAssignment = "AR 1",
                 venue = "Preview Venue",
                 competition = "Preview League",
-                gameDateTimeEpochMillis = System.currentTimeMillis() + (3 * 24 * 60 * 60 * 1000), 
+                gameDateTimeEpochMillis = System.currentTimeMillis() + (3 * 24 * 60 * 60 * 1000),
                 halfDurationMinutes = 40,
                 halftimeDurationMinutes = 10,
                 homeTeamColorArgb = Color.Blue.toArgb(),
                 awayTeamColorArgb = Color.Red.toArgb(),
                 notes = "This is a note for the preview of an edited game.",
+                homeScore = "1", // Example score
+                awayScore = "2", // Example score
                 isEditing = true,
                 errorMessage = null
             ),
             onNavigateBack = {},
             onHomeTeamNameChange = {},
             onAwayTeamNameChange = {},
-            onFieldNumberChange = {}, // Added callback
+            onFieldNumberChange = {},
+            onRefereeAssignmentChange = {}, // Add dummy handler
             onVenueChange = {},
             onCompetitionChange = {},
             onGameDateTimeChange = {},
@@ -410,6 +502,8 @@ fun AddEditGameScreen_EditPreview() {
             onHomeColorSelected = {},
             onAwayColorSelected = {},
             onNotesChanged = {},
+            onHomeScoreChange = {}, // Add dummy handler
+            onAwayScoreChange = {}, // Add dummy handler
             onSaveGame = {}
         )
     }

@@ -29,8 +29,8 @@ android {
 //        Reserve the last two digits for a multi-APK variant, such as 00.
 //
 //        For example, the sample values here—28, 152, 01, and 00—result in a version code of 281520100.
-        versionCode = 361030000
-        versionName = "1.0.3"
+        versionCode = 361040000
+        versionName = "1.0.4"
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"") // BUILD_TIME becomes accessible in code
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

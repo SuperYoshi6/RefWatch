@@ -27,7 +27,7 @@ object UserStateModule {
     @UserIdFlow // Use the qualifier
     fun provideUserIdFlow(authRepository: AuthRepository): Flow<String?> { // Now depends on AuthRepository
         // Hilt provides authRepository from RepositoryModule
-        return authRepository.currentUserFlow.map { firebaseUser ->
+        return authRepository.observeCurrentUser().map { firebaseUser ->
             firebaseUser?.uid
         }
     }

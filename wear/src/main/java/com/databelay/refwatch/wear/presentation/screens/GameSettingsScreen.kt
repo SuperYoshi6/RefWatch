@@ -139,9 +139,8 @@ fun GameSettingsScreen(
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    Text("Reset Game")
                     Icon(imageVector = Icons.Filled.PriorityHigh, contentDescription = "Warning")
-                    Spacer(Modifier.size(ButtonDefaults.SmallIconSize))
-                    Text("Reset Full Game")
                 }
             }
         }

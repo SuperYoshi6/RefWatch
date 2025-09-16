@@ -40,7 +40,7 @@ import com.databelay.refwatch.common.isPlayablePhase
 import kotlin.let
 
 const val TAG = "NavigationRoutes"
-
+// FIXME: seems to be resolved (after swipe left in halftime the game doesn't restore to it's state)
 @Composable
 fun NavigationRoutes() {
     val navController = rememberSwipeDismissableNavController()
@@ -51,6 +51,7 @@ fun NavigationRoutes() {
 
     val startDestination = remember(activeGame) {
         activeGame?.let {
+            Log.d(TAG, "Determined start destination based on active game phase: ${activeGame?.currentPhase}")
             mapGamePhaseToRoute(it.currentPhase)
         } ?: WearNavRoutes.GAME_LIST_SCREEN
     }
@@ -258,46 +259,13 @@ fun NavigationRoutes() {
     }
 }
 
-@SuppressLint("RestrictedApi")
-fun logBackStack(navController: NavController, contextMessage: String = "") {
-    val stack = navController.currentBackStack.value
-    val currentNavControllerDestination = navController.currentDestination
-    val currentNavControllerRoute = currentNavControllerDestination?.route
-    val currentNavControllerId = currentNavControllerDestination?.id
-    val currentNavControllerClass =
-        currentNavControllerDestination?.displayName
-
-    Log.d("${TAG}:stack", "---- NavController Back Stack ($contextMessage) ----")
-    Log.d(
-        "${TAG}:stack",
-        "NavController Current Destination: Route='${currentNavControllerRoute ?: "null"}', ID='${currentNavControllerId ?: "null"}', Class='${currentNavControllerClass ?: "null"}'"
-    )
-
-    if (stack.isEmpty()) {
-        Log.d("${TAG}:stack", "Back stack is empty.")
-    } else {
-        stack.forEachIndexed { index, navBackStackEntry ->
-            val entryDestination = navBackStackEntry.destination
-            val route = entryDestination.route
-            val arguments = navBackStackEntry.arguments?.toString() ?: "null"
-            val destDisplayName = entryDestination.displayName
-
-            Log.d(
-                "${TAG}:stack",
-                "$index: Route='${route ?: "null"}', Args=[$arguments], ID='${navBackStackEntry.id}', NavDestId='${entryDestination.id}', NavDestClass='${destDisplayName}'"
-            )
-        }
-    }
-    Log.d("${TAG}:stack", "------------------------------------------")
-}
 
 fun mapGamePhaseToRoute(phase: GamePhase): String {
     return when (phase) {
         GamePhase.FIRST_HALF, GamePhase.HALF_TIME, GamePhase.SECOND_HALF,
         GamePhase.EXTRA_TIME_FIRST_HALF, GamePhase.EXTRA_TIME_HALF_TIME, GamePhase.EXTRA_TIME_SECOND_HALF,
         GamePhase.PENALTIES, GamePhase.GAME_ENDED -> WearNavRoutes.GAME_IN_PROGRESS_SCREEN
-
-        GamePhase.ABANDONED, GamePhase.NOT_STARTED -> WearNavRoutes.GAME_LIST_SCREEN
+        GamePhase.NOT_STARTED -> WearNavRoutes.GAME_LIST_SCREEN
         GamePhase.PRE_GAME -> WearNavRoutes.PRE_GAME_SETUP_SCREEN
         GamePhase.KICK_OFF_SELECTION_FIRST_HALF,
         GamePhase.KICK_OFF_SELECTION_EXTRA_TIME,

@@ -19,10 +19,12 @@ import androidx.wear.ongoing.Status
 import com.databelay.refwatch.R
 import com.databelay.refwatch.common.Game // Assuming you need parts of Game state
 import com.databelay.refwatch.common.GamePhase
+import com.databelay.refwatch.common.GameStatus
 import com.databelay.refwatch.common.formatTime
 import com.databelay.refwatch.common.hasTimer
 import com.databelay.refwatch.common.isPlayablePhase
 import com.databelay.refwatch.common.readable
+import com.databelay.refwatch.common.status
 import com.databelay.refwatch.wear.MainActivity
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +39,7 @@ const val ONGOING_NOTIFICATION_CHANNEL_NAME = "RefWatch Timer"
 
 const val ONGOING_NOTIFICATION_ID_VM = 123 // ID for the notification that drives OngoingActivity
 const val COUNTDOWN_INTERVAL_MS = 1000L
+const val MAX_ADDED_TIME_COUNTUP_DURATION = 1000L*60*60 // one hour in milliseconds
 // Data class for timer updates
 data class TimerState(
     val actualTimeElapsedInPeriodMillis: Long = 0L,
@@ -66,6 +69,8 @@ class GameTimerService : Service() {
 
     // To hold the full game state or relevant parts passed from ViewModel
     private var currentInternalGame: Game? = null
+    private var timeTickerStartedSystemTime = 0L // SystemClock.elapsedRealtime() when a ticker starts
+    private var initialMillisForCurrentTicker = 0L // The millisInFuture the current ticker was started with
 
     inner class LocalBinder : Binder() {
         fun getService(): GameTimerService = this@GameTimerService
@@ -151,7 +156,7 @@ class GameTimerService : Service() {
                     Log.w(TAG, "Cannot start foreground for PRE_GAME, notifications disabled.")
                 }
             } else if (startImmediately && game.currentPhase.hasTimer()) {
-                ongoingActivityText = _timerStateFlow.value.displayedMillis.formatTime()
+                ongoingActivityText = _timerStateFlow.value.displayedMillis.formatTime(_timerStateFlow.value.inAddedTime)
                 makeOngoing = true
             } else {
                 ongoingActivityText = "Ready: ${game.currentPhase.readable()}"
@@ -178,6 +183,117 @@ class GameTimerService : Service() {
         return true 
     }
 
+    fun startGameTimer(
+        game: Game,
+        elapsedMillisAtActivation: Long = 0L, // How much time had ALREADY elapsed in this period (or reg duration if starting added time)
+        isInAddedTimeInitially: Boolean = false
+
+    ) {
+        Log.d(TAG, "SERVICE startGameTimer: Phase: ${game.currentPhase}, " +
+                "elapsedMillisAtActivation: $elapsedMillisAtActivation, " + // <<< THIS IS THE CRITICAL VALUE
+                "isInAddedTimeInitially: $isInAddedTimeInitially")
+        serviceScope.launch {
+            // ... (acquireWakeLock, startForeground) ...
+
+            val currentStateBeforeStart = _timerStateFlow.value
+            val currentRegulationDuration = game.regulationPeriodDurationMillis(currentStateBeforeStart.currentPhase) // Use phase from viewmodel if more current
+
+            _timerStateFlow.update {
+                it.copy(
+                    isTimerRunning = true,
+                    currentPhase = game.currentPhase, // Ensure phase is updated
+                    regulationPeriodDurationMillis = currentRegulationDuration,
+                    // actualTimeElapsedInPeriodMillis will be updated in onTick.
+                    // displayedMillis will be updated in onTick.
+                    inAddedTime = isInAddedTimeInitially
+                )
+            }
+
+            // Cancel any existing timer defensively
+            gameCountDownTimer?.cancel()
+
+            initialMillisForCurrentTicker = if (isInAddedTimeInitially) {
+                MAX_ADDED_TIME_COUNTUP_DURATION // Ticker counts "up" by counting down from a large number
+            } else {
+                // Time remaining in the regulation period
+                val remainingInRegulation = currentRegulationDuration - elapsedMillisAtActivation
+                if (remainingInRegulation <= 0) { // Should not happen if logic is correct, but handle
+                    Log.w(TAG, "Attempting to start timer with 0 or negative time remaining in regulation. Finishing period.")
+                    // For now, just don't start the timer and update state.
+                    _timerStateFlow.update { it.copy(isTimerRunning = false, actualTimeElapsedInPeriodMillis = currentRegulationDuration, displayedMillis = 0) }
+                    onTimerFinishActions(game.currentPhase) // Call a method that handles transitions
+                    return@launch
+                }
+                remainingInRegulation
+            }
+
+            if (initialMillisForCurrentTicker <= 0 && !isInAddedTimeInitially) {
+                Log.e(TAG, "Error: initialMillisForCurrentTicker is zero or negative for regulation time. Cannot start timer.")
+                _timerStateFlow.update { it.copy(isTimerRunning = false) }
+                releaseWakeLock()
+                stopForegroundSafely("Timer Error")
+                return@launch
+            }
+
+
+            Log.d(TAG, "Starting CountdownTimer. For Phase: ${game.currentPhase}, Initial Ticker ms: $initialMillisForCurrentTicker, ElapsedAtActivation: $elapsedMillisAtActivation, IsInAddedTime: $isInAddedTimeInitially, RegDuration: $currentRegulationDuration")
+
+            timeTickerStartedSystemTime = SystemClock.elapsedRealtime()
+
+            gameCountDownTimer = object : CountDownTimer(initialMillisForCurrentTicker, COUNTDOWN_INTERVAL_MS) {
+                override fun onTick(millisUntilFinished: Long) {
+                    val currentTimerState = _timerStateFlow.value // Get latest state
+                    val timeThisTickerHasRun = initialMillisForCurrentTicker - millisUntilFinished
+
+                    val newActualElapsed: Long
+                    val newDisplayedMillis: Long
+
+                    if (currentTimerState.inAddedTime) {
+                        // elapsedMillisAtActivation should be currentRegulationDuration when added time starts
+                        newActualElapsed = elapsedMillisAtActivation + timeThisTickerHasRun
+                        newDisplayedMillis = timeThisTickerHasRun // Display shows time *into* added time
+                    } else {
+                        // In regulation time
+                        newActualElapsed = elapsedMillisAtActivation + timeThisTickerHasRun
+                        newDisplayedMillis = currentRegulationDuration - newActualElapsed // Display shows time remaining in regulation
+                    }
+
+                    _timerStateFlow.update {
+                        it.copy(
+                            actualTimeElapsedInPeriodMillis = newActualElapsed,
+                            displayedMillis = newDisplayedMillis
+                            // inAddedTime is managed by phase transitions or explicit setting
+                        )
+                    }
+                    updateNotificationAndOngoingActivity(_timerStateFlow.value.displayedMillis.formatTime(currentTimerState.inAddedTime), isOngoing = true)
+                }
+
+                override fun onFinish() {
+                    Log.d(TAG, "CountDownTimer finished. Phase was: ${_timerStateFlow.value.currentPhase}")
+                    val finishedState = _timerStateFlow.value
+                    // Ensure actualTimeElapsed is set to the full duration if it was regulation time finishing
+                    if (!finishedState.inAddedTime) {
+                        _timerStateFlow.update {
+                            it.copy(
+                                actualTimeElapsedInPeriodMillis = finishedState.regulationPeriodDurationMillis,
+                                displayedMillis = 0L, // Show 0 when regulation period finishes
+                                isTimerRunning = false // Will be set true if next phase has timer
+                            )
+                        }
+                    } else {
+                        // If added time ticker finishes (e.g. if MAX_ADDED_TIME_COUNTUP_DURATION wasn't Long.MAX_VALUE)
+                        // The actualTimeElapsed and displayedMillis would be based on the last tick.
+                        // This scenario (added time ticker actually finishing) needs careful thought
+                        // if you don't use Long.MAX_VALUE. For now, assume it runs "forever".
+                        _timerStateFlow.update { it.copy(isTimerRunning = false) }
+                    }
+                    // Call a method to handle phase transitions, etc.
+                    onTimerFinishActions(finishedState.currentPhase)
+                }
+            }.start()
+        }
+    }
+/*
     fun startGameTimer(game: Game, initialElapsedMillis: Long = 0L, isAddedTimeInitially: Boolean = false) {
         serviceScope.launch {
             if (_timerStateFlow.value.isTimerRunning && gameCountDownTimer != null) {
@@ -191,7 +307,7 @@ class GameTimerService : Service() {
                  gameCountDownTimer?.cancel() // Cancel if running without a timer object reference (should not happen)
             }
 
-            currentInternalGame = game 
+            currentInternalGame = game
             acquireWakeLock()
             val regulationDuration = game.regulationPeriodDurationMillis()
 
@@ -210,16 +326,16 @@ class GameTimerService : Service() {
             updateNotificationAndOngoingActivity(notificationText, isOngoing = true)
             Log.d(TAG, "GameTimerService brought to foreground explicitly for timer start.")
 
-            val timeToCountFrom = Long.MAX_VALUE 
+            val timeToCountFrom = Long.MAX_VALUE
             gameCountDownTimer = object : CountDownTimer(timeToCountFrom, COUNTDOWN_INTERVAL_MS) {
                 override fun onTick(millisUntilFinished_unused: Long) {
-                    if (!(_timerStateFlow.value.isTimerRunning)) { 
-                        this.cancel() 
+                    if (!(_timerStateFlow.value.isTimerRunning)) {
+                        this.cancel()
                         return
                     }
                     _timerStateFlow.update { currentState ->
                         val newElapsed = currentState.actualTimeElapsedInPeriodMillis + COUNTDOWN_INTERVAL_MS
-                        val currentRegulationDuration = currentState.regulationPeriodDurationMillis 
+                        val currentRegulationDuration = currentState.regulationPeriodDurationMillis
                         val isInAddedTimeNow = newElapsed >= currentRegulationDuration
                         val displayValue = if (isInAddedTimeNow) {
                             newElapsed - currentRegulationDuration
@@ -244,12 +360,86 @@ class GameTimerService : Service() {
             }.start()
         }
     }
+*/
+
+
+
+    private fun onTimerFinishActions(finishedPhase: GamePhase) {
+        serviceScope.launch {
+            Log.d(TAG, "onTimerFinishActions for phase: ${finishedPhase.readable()}")
+
+            val gameBeforeTransition = currentInternalGame // Get the game state before any changes
+            if (gameBeforeTransition == null) {
+                Log.e(TAG, "onTimerFinishActions: currentInternalGame is null. Cannot proceed.")
+                _timerStateFlow.update { it.copy(isTimerRunning = false) } // Ensure timer is marked as stopped
+                updateNotificationAndOngoingActivity("Error", isOngoing = false)
+                releaseWakeLock()
+                stopForegroundSafely("Error: No game state")
+                return@launch
+            }
+
+            val regulationDurationOfFinishedPhase = gameBeforeTransition.regulationPeriodDurationMillis(finishedPhase)
+
+            // Determine if we should transition to added time for this phase
+            val shouldTransitionToAddedTime = finishedPhase.hasTimer()
+            if (shouldTransitionToAddedTime) {
+                Log.i(TAG, "Regulation time for ${finishedPhase.readable()} ended. Transitioning to ADDED TIME.")
+                // No explicit phase change needed in 'Game' object for 'inAddedTime' state.
+                // The 'inAddedTime' flag in TimerState and Game object will handle this.
+                // currentInternalGame is already up-to-date.
+
+                // Ensure the state reflects that regulation is fully elapsed.
+                _timerStateFlow.update {
+                    it.copy(
+                        isTimerRunning = true, // Will be set by startGameTimer
+                        // currentPhase remains the same (e.g. FIRST_HALF), but inAddedTime becomes true
+                        actualTimeElapsedInPeriodMillis = regulationDurationOfFinishedPhase,
+                        inAddedTime = true,
+                        // displayedMillis will be 0 for start of added time, handled by startGameTimer's onTick
+                        regulationPeriodDurationMillis = regulationDurationOfFinishedPhase // Keep this consistent
+                    )
+                }
+                // Now start the timer for added time.
+                // For added time, elapsedMillisAtActivation should be the full duration of the regulation period that just ended.
+                startGameTimer(
+                    gameBeforeTransition,
+                    regulationDurationOfFinishedPhase,
+                    true // isInAddedTimeInitially = true
+                )
+            } else {
+                // This phase does not transition to added time (e.g., a half-time countdown finished, or added time itself finished)
+                // Or it's a phase that doesn't have a timer that leads to added time.
+                Log.i(TAG, "${finishedPhase.readable()} timer finished. No transition to added time for this phase. Determining next logical phase.")
+
+                // For now, just stop the timer and update UI as "finished" or "paused" for the current phase.
+                // The _timerStateFlow was already updated in onFinish to set isTimerRunning = false.
+                val finalState = _timerStateFlow.value
+                updateNotificationAndOngoingActivity(
+                    finalState.displayedMillis.formatTime(finalState.inAddedTime),
+                    // isOngoing should be true if the game session is still active (e.g. waiting for user to start next half)
+                    // or if it's a break phase like HALF_TIME that has its own ongoing presence.
+                    isOngoing = gameBeforeTransition.status == GameStatus.IN_PROGRESS // A simple check
+                )
+
+                // If no timer auto-starts for a next phase, and current phase doesn't keep service alive on its own when timer is off
+                if (!finalState.isTimerRunning && gameBeforeTransition.status != GameStatus.IN_PROGRESS) {
+                    Log.d(TAG, "onTimerFinishActions: Releasing wakelock and stopping foreground as phase ${finalState.currentPhase} is not keeping service alive without a timer.")
+                    releaseWakeLock()
+                    stopForegroundSafely("Timer Finished for ${finalState.currentPhase.readable()}")
+                } else {
+                    Log.d(TAG, "onTimerFinishActions: Timer finished for ${finalState.currentPhase}. State: isRunning=${finalState.isTimerRunning}, isOngoing set based on game status.")
+                }
+            }
+        }
+    }
 
     private fun pauseGameTimerInternally(notificationText: String) {
+        Log.i(TAG, "Pausing timer. Current elapsed before pause: ${_timerStateFlow.value.actualTimeElapsedInPeriodMillis}") // <<< ADD THIS LOG
         _timerStateFlow.update { it.copy(isTimerRunning = false) }
         gameCountDownTimer?.cancel() 
         updateNotificationAndOngoingActivity(notificationText, isOngoing = false) 
         Log.d(TAG, "Timer paused internally. Notification: $notificationText")
+        Log.i(TAG, "Timer paused. State after update: isRunning=${_timerStateFlow.value.isTimerRunning}, Elapsed=${_timerStateFlow.value.actualTimeElapsedInPeriodMillis}") // <<< ADD THIS LOG
     }
 
     fun pauseGameTimer(updateNotificationText: String? = null) {
@@ -258,7 +448,7 @@ class GameTimerService : Service() {
                 Log.d(TAG, "pauseGameTimer called, but timer was not running.")
                 return@launch
             }
-            val textForNotification = updateNotificationText ?: "Paused: ${_timerStateFlow.value.displayedMillis.formatTime()}"
+            val textForNotification = updateNotificationText ?: "Paused: ${_timerStateFlow.value.displayedMillis.formatTime(_timerStateFlow.value.inAddedTime)}"
             pauseGameTimerInternally(textForNotification)
         }
     }
@@ -266,6 +456,9 @@ class GameTimerService : Service() {
     fun resumeGameTimer(game: Game) {
         Log.d(TAG, "resumeGameTimer called.")
         serviceScope.launch {
+            Log.i(TAG, "SERVICE resumeGameTimer: Received Game from VM. Phase: ${game.currentPhase}, " +
+                    "VM's Elapsed: ${game.actualTimeElapsedInPeriodMillis}, VM's InAddedTime: ${game.inAddedTime}")
+
             val currentState = _timerStateFlow.value
             if (currentState.isTimerRunning) {
                 Log.w(TAG, "resumeGameTimer called, but timer is already running.")
@@ -273,8 +466,8 @@ class GameTimerService : Service() {
             }
             if (!game.currentPhase.hasTimer()) {
                 Log.w(TAG, "Attempted to resume timer in non-timed phase: ${game.currentPhase}. Not resuming.")
-                _timerStateFlow.update { it.copy(isTimerRunning = false) }
-                // Potentially update ongoing activity to reflect non-timed phase if it was PRE_GAME
+                _timerStateFlow.update { it.copy(isTimerRunning = false, currentPhase = game.currentPhase,
+                    actualTimeElapsedInPeriodMillis = game.actualTimeElapsedInPeriodMillis) } // Keep elapsed consistent with VM
                 if (currentState.currentPhase == GamePhase.PRE_GAME) {
                      updateNotificationAndOngoingActivity("${game.currentPhase.readable()}: Ready", isOngoing = true)
                 } else {
@@ -282,8 +475,40 @@ class GameTimerService : Service() {
                 }
                 return@launch
             }
-            startGameTimer(game, currentState.actualTimeElapsedInPeriodMillis, currentState.inAddedTime)
-            Log.d(TAG, "Timer resumed for ${game.currentPhase}.")
+            // --- Critical Decision Point ---
+            // The ViewModel is explicitly asking to resume. It provides the 'gameFromViewModel'
+            // which includes the elapsed time it believes is correct for resuming.
+            // We should trust the elapsed time from gameFromViewModel for the resume operation.
+
+            currentInternalGame = game // Update the service's idea of the game
+
+            // Before calling startGameTimer, ensure the service's _timerStateFlow
+            // reflects the state we are about to resume from, especially if startGameTimer
+            // or its onTick reads from _timerStateFlow.value for things like regulationDuration.
+            // This is a "pre-synchronization" step.
+            val regulationDuration = game.regulationPeriodDurationMillis(game.currentPhase)
+            val isInAddedTime = game.actualTimeElapsedInPeriodMillis >= regulationDuration && game.currentPhase.hasTimer() // Re-evaluate based on VM data
+
+            _timerStateFlow.update {
+                it.copy(
+                    currentPhase = game.currentPhase,
+                    isTimerRunning = false, // Will be set to true by startGameTimer
+                    actualTimeElapsedInPeriodMillis = game.actualTimeElapsedInPeriodMillis,
+                    inAddedTime = isInAddedTime,
+                    regulationPeriodDurationMillis = regulationDuration,
+                    // displayedMillis will be recalculated by startGameTimer or its first tick
+                    displayedMillis = if (isInAddedTime) game.actualTimeElapsedInPeriodMillis - regulationDuration else regulationDuration - game.actualTimeElapsedInPeriodMillis
+                )
+            }
+            Log.i(TAG, "SERVICE resumeGameTimer: Pre-synchronized _timerStateFlow with VM data. Effective elapsed for timer: ${game.actualTimeElapsedInPeriodMillis}")
+
+            startGameTimer(
+                game, // Pass the authoritative game object from VM
+                game.actualTimeElapsedInPeriodMillis, // <<< USE THE CORRECT VALUE FROM THE VM
+                isInAddedTime // Use the re-evaluated inAddedTime based on VM data
+            )
+            Log.d(TAG, "Timer instructed to resume for ${game.currentPhase} from VM's elapsed time.")
+
         }
     }
 
@@ -371,7 +596,7 @@ class GameTimerService : Service() {
         // This notification (ID_SERVICE) is primarily for keeping the service alive.
         // Its content can be simpler than the OngoingActivity's notification.
         val serviceNotificationText = if (_timerStateFlow.value.isTimerRunning) {
-            _timerStateFlow.value.displayedMillis.formatTime()
+            _timerStateFlow.value.displayedMillis.formatTime(_timerStateFlow.value.inAddedTime)
         } else {
             currentInternalGame?.currentPhase?.readable() ?: statusText
         }
@@ -409,10 +634,11 @@ class GameTimerService : Service() {
             ongoingActivity.apply(applicationContext) 
 
             notificationManager.notify(ONGOING_NOTIFICATION_ID_VM, oaNotificationBuilder.build())
-            Log.d(TAG, "Ongoing Activity notification posted/updated: ID $ONGOING_NOTIFICATION_ID_VM, Text: $statusText")
+//            Log.d(TAG, "Ongoing Activity notification posted/updated: ID $ONGOING_NOTIFICATION_ID_VM, Text: $statusText")
 
         } else {
-            notificationManager.cancel(ONGOING_NOTIFICATION_ID_VM)
+            // Keeps game in FG even if timer isn't running
+//            notificationManager.cancel(ONGOING_NOTIFICATION_ID_VM)
             Log.d(TAG, "Ongoing Activity notification cancelled (ID: $ONGOING_NOTIFICATION_ID_VM) as isOngoing=false or no current game.")
         }
     }

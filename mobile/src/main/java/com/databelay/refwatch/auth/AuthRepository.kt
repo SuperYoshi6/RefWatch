@@ -14,23 +14,74 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// --- Define the Interface ---
+interface AuthRepository {
+    fun observeUserId(): StateFlow<String?>
+    fun getCurrentUserId(): String?
+    fun observeCurrentUser(): StateFlow<FirebaseUser?> // Keep your existing currentUserFlow logic
+    suspend fun fetchCustomTokenFromServer(): Result<String>
+    suspend fun signInWithEmailPassword(email: String, pass: String): Result<FirebaseUser>
+    suspend fun signUpWithEmailPassword(email: String, pass: String, displayName: String? = null): Result<FirebaseUser>
+    fun signOut()
+    suspend fun deleteUserAccount(): Result<Unit> // <<< ADDED METHOD
+}
+
+// --- Hilt-Injectable Implementation ---
 @Singleton // This repository can be a singleton
-class AuthRepository @Inject constructor(private val firebaseAuth: FirebaseAuth) {
+class FirebaseAuthRepository @Inject constructor(
+    private val firebaseAuth: FirebaseAuth
+    // If you need a specific CoroutineScope for stateIn, you can inject one:
+    // @ApplicationScope private val externalScope: CoroutineScope // Requires defining @ApplicationScope
+) : AuthRepository {
 
     companion object {
-        private const val TAG = "AuthRepository"
+        private const val TAG = "FirebaseAuthRepo" // Changed tag slightly for clarity
     }
 
-    suspend fun fetchCustomTokenFromServer(): Result<String> {
-        // Allow public access on google cloud console
-        // https://console.cloud.google.com/run/detail/us-central1/generatecustomtoken/security
+    // You need a CoroutineScope for stateIn.
+    // If this is a @Singleton, an application-level scope is appropriate.
+    // For simplicity here, creating one. In a larger app, inject a shared scope.
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    override fun observeCurrentUser(): StateFlow<FirebaseUser?> = callbackFlow {
+        val listener = FirebaseAuth.AuthStateListener { auth ->
+            Log.d(TAG, "AuthStateListener in Repository: User: ${auth.currentUser?.uid}")
+            trySend(auth.currentUser).isSuccess
+        }
+        firebaseAuth.addAuthStateListener(listener)
+        awaitClose {
+            Log.d(TAG, "AuthStateListener in Repository: Removing listener.")
+            firebaseAuth.removeAuthStateListener(listener)
+        }
+    }.stateIn(
+        scope = repositoryScope, // Provide a CoroutineScope
+        started = SharingStarted.WhileSubscribed(5000L),
+        initialValue = firebaseAuth.currentUser
+    )
 
+    override fun observeUserId(): StateFlow<String?> = callbackFlow<String?> {
+        val listener = FirebaseAuth.AuthStateListener { auth ->
+            trySend(auth.currentUser?.uid)
+        }
+        firebaseAuth.addAuthStateListener(listener)
+        awaitClose { firebaseAuth.removeAuthStateListener(listener) }
+    }.stateIn(
+        scope = repositoryScope, // Use the same scope
+        started = SharingStarted.WhileSubscribed(5000L),
+        initialValue = firebaseAuth.currentUser?.uid
+    )
+
+    override fun getCurrentUserId(): String? {
+        return firebaseAuth.currentUser?.uid
+    }
+
+    override suspend fun fetchCustomTokenFromServer(): Result<String> {
         val currentUser = firebaseAuth.currentUser
         Log.d(TAG, "Attempting to call generateCustomToken. Current user: ${currentUser?.uid}, Email: ${currentUser?.email}")
 
@@ -39,7 +90,6 @@ class AuthRepository @Inject constructor(private val firebaseAuth: FirebaseAuth)
             return Result.failure(Exception("User not authenticated for Cloud Function call"))
         }
 
-        // *** ADD THIS BLOCK TO FORCE REFRESH THE TOKEN ***
         try {
             Log.d(TAG, "Attempting to refresh ID token...")
             val tokenResult = currentUser.getIdToken(true).await() // true forces refresh
@@ -52,13 +102,9 @@ class AuthRepository @Inject constructor(private val firebaseAuth: FirebaseAuth)
             Log.e(TAG, "Failed to refresh ID token", e)
             return Result.failure(Exception("Failed to refresh ID token before Cloud Function call", e))
         }
-        // *** END OF ADDED BLOCK ***
 
         return try {
-            // If you injected FirebaseFunctions as 'functions', use it:
-            // val result = functions
-            // If not, use the Firebase.functions singleton:
-            val result = Firebase.functions // Ensure Firebase.functions is correctly set up if not using emulator.
+            val result = Firebase.functions
                 .getHttpsCallable("generateCustomToken")
                 .call()
                 .await()
@@ -78,50 +124,26 @@ class AuthRepository @Inject constructor(private val firebaseAuth: FirebaseAuth)
             Result.failure(e)
         }
     }
-    // Create a scope for the repository if you don't have a global one
-    // Or inject one if you use Hilt and define a global scope module
-    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    // Exposes a Flow of the current FirebaseUser
-    val currentUserFlow: StateFlow<FirebaseUser?> = callbackFlow {
-        val listener = FirebaseAuth.AuthStateListener { auth ->
-            Log.d(TAG, "AuthStateListener in Repository: User: ${auth.currentUser?.uid}")
-            trySend(auth.currentUser).isSuccess
-        }
-        firebaseAuth.addAuthStateListener(listener)
-        awaitClose {
-            Log.d(TAG, "AuthStateListener in Repository: Removing listener.")
-            firebaseAuth.removeAuthStateListener(listener)
-        }
-    }.stateIn( // Convert the callbackFlow to a StateFlow
-        scope = repositoryScope, // Provide a CoroutineScope
-        started = SharingStarted.WhileSubscribed(5000L), // Or Lazily, Eagerly
-        initialValue = firebaseAuth.currentUser // Provide an initial value
-    )
-
-    // You can also add suspend functions for signIn, signOut, signUp here
-    suspend fun signInWithEmailPassword(email: String, pass: String): Result<FirebaseUser> {
+    override suspend fun signInWithEmailPassword(email: String, pass: String): Result<FirebaseUser> {
         return try {
             val authResult = firebaseAuth.signInWithEmailAndPassword(email, pass).await()
-            Result.success(authResult.user!!) // Assuming user is not null on success
+            // FirebaseUser will be non-null on success from signInWithEmailAndPassword
+            Result.success(authResult.user!!)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun signUpWithEmailPassword(email: String, pass: String, displayName: String? = null): Result<FirebaseUser> {
+    override suspend fun signUpWithEmailPassword(email: String, pass: String, displayName: String?): Result<FirebaseUser> {
         return try {
             Log.d(TAG, "Attempting sign-up for email: $email")
             val authResult = firebaseAuth.createUserWithEmailAndPassword(email, pass).await()
             val firebaseUser = authResult.user
-            if (firebaseUser == null) {
-                Log.e(TAG, "Sign-up failed for email: $email - FirebaseUser is null after creation.")
-                return Result.failure(Exception("Sign-up failed: User not created."))
-            }
+                ?: return Result.failure(Exception("Sign-up failed: FirebaseUser is null after creation."))
 
             Log.i(TAG, "Sign-up successful for email: $email, UID: ${firebaseUser.uid}")
 
-            // Optionally, update the user's display name if provided
             if (displayName != null && displayName.isNotBlank()) {
                 try {
                     val profileUpdates = UserProfileChangeRequest.Builder()
@@ -134,7 +156,6 @@ class AuthRepository @Inject constructor(private val firebaseAuth: FirebaseAuth)
                     // Continue, as sign-up itself was successful
                 }
             }
-            // The AuthStateListener in currentUserFlow will eventually emit this new user.
             Result.success(firebaseUser)
         } catch (e: Exception) {
             Log.e(TAG, "Sign-up failed for email: $email", e)
@@ -142,11 +163,30 @@ class AuthRepository @Inject constructor(private val firebaseAuth: FirebaseAuth)
         }
     }
 
-    fun signOut() {
+    override fun signOut() {
+        Log.d(TAG, "Signing out user.")
         firebaseAuth.signOut()
+        // The observers of observeUserId() and observeCurrentUser() will get the null emission.
     }
-    // You might want to add other methods like:
-    // suspend fun sendPasswordResetEmail(email: String): Result<Unit>
-    // suspend fun reauthenticateUser(credential: AuthCredential): Result<Unit>
-    // suspend fun deleteUser(): Result<Unit>
+
+    override suspend fun deleteUserAccount(): Result<Unit> {
+        val currentUser = observeCurrentUser().first() // Get the most recent user from the flow
+
+        if (currentUser == null) {
+            Log.w(TAG, "deleteUserAccount: No user currently authenticated to delete.")
+            return Result.failure(Exception("No user authenticated to delete."))
+        }
+
+        return try {
+            Log.d(TAG, "Attempting to delete account for user: ${currentUser.uid}")
+            currentUser.delete().await() // Use await() for suspend function
+            Log.i(TAG, "User account ${currentUser.uid} deleted successfully from Firebase Authentication.")
+            // Note: After successful deletion, observeCurrentUser() will eventually emit null
+            // due to the AuthStateListener.
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete user account ${currentUser.uid}", e)
+            Result.failure(e)
+        }
+    }
 }

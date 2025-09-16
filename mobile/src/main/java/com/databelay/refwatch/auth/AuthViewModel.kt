@@ -12,8 +12,12 @@ import com.google.firebase.auth.FirebaseUser
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -29,14 +33,34 @@ sealed class AuthState {
 class AuthViewModel @Inject constructor(
     private val application: Application, // Hilt provides this
     private val authRepository: AuthRepository,
-    private val firebaseAuth: FirebaseAuth // Inject FirebaseAuth
 ) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "AuthViewModel"
     }
 
-    private val _currentUser = MutableStateFlow<FirebaseUser?>(null)
+
+    // --- StateFlows derived from AuthRepository ---
+    val currentUser: StateFlow<FirebaseUser?> = authRepository.observeCurrentUser()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = authRepository.getCurrentUserId()?.let { userId ->
+                // Attempt to construct a minimal FirebaseUser if only ID is known initially,
+                // or rely on observeCurrentUser to eventually emit the full object.
+                // For simplicity, we can start with null and let observeCurrentUser populate it.
+                // This initialValue here is for the currentUser StateFlow, not currentUserId.
+                null // Or try to get current user directly if authRepository had such a method.
+                // The authRepository.observeCurrentUser() will provide the initial value from its own stateIn.
+            }
+        )
+
+    val currentUserId: StateFlow<String?> = authRepository.observeUserId()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = authRepository.getCurrentUserId() // Get initial directly from repo
+        )
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     private val _isLoading = MutableStateFlow(true)
     private val _authError = MutableStateFlow<String?>(null)
@@ -45,50 +69,21 @@ class AuthViewModel @Inject constructor(
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val authError: StateFlow<String?> = _authError.asStateFlow()
 
-
-    private val firebaseAuthListener = FirebaseAuth.AuthStateListener { auth ->
-        val firebaseUser = auth.currentUser
-        Log.d(TAG, "AuthStateListener triggered. User from auth: ${firebaseUser?.uid}")
-
-        if (firebaseUser != null) {
-            _currentUser.value = firebaseUser
-            _authState.value = AuthState.Authenticated(firebaseUser)
-            // Call function to handle token fetching and sending
-            fetchCustomTokenAndSendDataToWatch(firebaseUser)
-        } else {
-            _currentUser.value = null
-            _authState.value = AuthState.Unauthenticated
-            // Send nulls to indicate logout
-            sendAuthDataToWatch(null, null)
-        }
-        _isLoading.value = false
-    }
-
     init {
-        firebaseAuth.addAuthStateListener(firebaseAuthListener)
         Log.d(TAG, "AuthViewModel initialized.")
         viewModelScope.launch {
-            // Observe the repository's currentUserFlow to update internal AuthState
-            authRepository.currentUserFlow.collect { user ->
-                Log.d(TAG, "Collected user from repository: ${user?.uid}")
-                 // The AuthStateListener will primarily handle _authState updates based on firebaseAuth.currentUser
-                // This collector mainly ensures _isLoading is managed if the repository emits first.
-                if (_authState.value is AuthState.Loading && user == null) {
-                     _authState.value = AuthState.Unauthenticated // Set explicitly if still loading and repo says no user
+            // Observe the currentUser from the repository to update AuthState
+            // and trigger actions like sending data to the watch.
+            authRepository.observeCurrentUser().collect { firebaseUser ->
+                Log.d(TAG, "User from AuthRepository: ${firebaseUser?.uid}")
+                if (firebaseUser != null) {
+                    _authState.value = AuthState.Authenticated(firebaseUser)
+                    fetchCustomTokenAndSendDataToWatch(firebaseUser)
+                } else {
+                    _authState.value = AuthState.Unauthenticated
+                    sendAuthDataToWatch(null, null) // Send logout signal
                 }
-                // Only set isLoading to false here if the auth state hasn't already been resolved by the listener
-                if (_isLoading.value && (_authState.value !is AuthState.Authenticated && _authState.value !is AuthState.Unauthenticated)) {
-                    _isLoading.value = false
-                }
-            }
-        }
-        // Initial loading state will be set to false once the first emission from currentUserFlow arrives
-        // or the AuthStateListener fires.
-        viewModelScope.launch {
-            val initialRepoUser = authRepository.currentUserFlow.value // Check initial value from repo
-            val initialAuthUser = firebaseAuth.currentUser
-            if (initialRepoUser == null && initialAuthUser == null) {
-                _isLoading.value = false // if no user from either source, and we are still loading, stop.
+                _isLoading.value = false // Set loading to false once we have a user state
             }
         }
     }
@@ -198,48 +193,47 @@ class AuthViewModel @Inject constructor(
         // Listener will set _isLoading to false.
     }
 
+
     fun clearAuthError() {
         _authError.value = null
+        // If the current state is Error, revert to Authenticated or Unauthenticated based on current user
         if (_authState.value is AuthState.Error) {
-            if (_currentUser.value != null) {
-                _authState.value = AuthState.Authenticated(_currentUser.value!!)
+            if (currentUser.value != null) { // Use the currentUser StateFlow
+                _authState.value = AuthState.Authenticated(currentUser.value!!)
             } else {
                 _authState.value = AuthState.Unauthenticated
             }
         }
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        firebaseAuth.removeAuthStateListener(firebaseAuthListener) // Clean up listener
-        Log.d(TAG, "ViewModel cleared, AuthStateListener removed.")
-    }
+    // `deleteUserAccount` function will use `authRepository`
     fun deleteUserAccount() {
         viewModelScope.launch {
-            _isLoading.value = true // Show loading state
-            val user = firebaseAuth.currentUser
-            user?.delete()?.addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    Log.d(TAG, "User account deleted successfully from Firebase Auth.")
-                    // Now delete associated data from Firestore/backend
-                    // This might involve another suspend function call
-                    // clearUserAppData(user.uid) // Example
+            _isLoading.value = true
+            _authError.value = null // Clear previous errors
 
-                    // AuthStateListener will eventually pick up the null user
-                    // and set _authState to Unauthenticated.
-                    // Or you can explicitly set it if needed, though listener is better.
-                    _isLoading.value = false
-                    // _deleteSuccessEvent.value = true // Or use a SingleLiveEvent / SharedFlow for navigation trigger
-                } else {
-                    Log.e(TAG, "Failed to delete user account from Firebase Auth.", task.exception)
-                    _authError.value = "Failed to delete account: ${task.exception?.message}"
-                    _isLoading.value = false
-                }
-            } ?: run {
-                _authError.value = "No user found to delete."
-                _isLoading.value = false
+            Log.d(TAG, "Attempting to delete user account via repository.")
+            val deleteResult = authRepository.deleteUserAccount()
+
+            deleteResult.onSuccess {
+                Log.i(TAG, "User account deletion process successful via repository.")
+                // The observeCurrentUser() collector in the init block will automatically
+                // update _authState to Unauthenticated and _isLoading to false
+                // when the user state changes in Firebase.
+                // No need to directly set _authState or _isLoading here upon success of this call.
+            }.onFailure { exception ->
+                Log.e(TAG, "Failed to delete user account via repository.", exception)
+                _authError.value = "Failed to delete account: ${exception.localizedMessage ?: "Unknown error"}"
+                _isLoading.value = false // Explicitly stop loading on failure
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // No need to remove listener here if AuthRepository manages its own lifecycle
+        // or if using callbackFlows that clean up on scope cancellation.
+        Log.d(TAG, "AuthViewModel cleared.")
     }
 
 }

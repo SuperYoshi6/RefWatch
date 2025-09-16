@@ -42,6 +42,8 @@ import com.databelay.refwatch.wear.util.ConnectivityObserver // For network stat
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -56,9 +58,11 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import javax.inject.Inject
+
 
 
 @OptIn(FlowPreview::class)
@@ -118,10 +122,10 @@ class WearGameViewModel @Inject constructor(
                             oldState.inAddedTime == newState.inAddedTime
                 }
                 ?.onEach { serviceState ->
-                    Log.d(
-                        tag,
-                        "ServiceState received: inAddedTime=${serviceState.inAddedTime}, isTimerRunning=${serviceState.isTimerRunning}. Current reminder vibrating: $isAddedTimeReminderVibrating"
-                    )
+//                    Log.d(
+//                        tag,
+//                        "ServiceState received: inAddedTime=${serviceState.inAddedTime}, isTimerRunning=${serviceState.isTimerRunning}. Current reminder vibrating: $isAddedTimeReminderVibrating"
+//                    )
 
                     val currentActiveGame = _activeGame.value // Get current game state
 
@@ -288,8 +292,44 @@ class WearGameViewModel @Inject constructor(
             Log.d(tag, "Unbound from GameTimerService.")
         }
     }
+    private var addedTimeReminderJob: Job? = null
 
     @RequiresPermission(Manifest.permission.VIBRATE)
+    private fun startAddedTimeReminderVibration() {
+        if (vibrator?.hasVibrator() != true) {
+            Log.w(tag, "No vibrator available to start reminder.")
+            return
+        }
+        stopAddedTimeReminderVibration() // Cancel any previous job
+
+        isAddedTimeReminderVibrating = true
+        addedTimeReminderJob = viewModelScope.launch {
+            while (isAddedTimeReminderVibrating && isActive) { // Check isActive for coroutine cancellation
+                Log.d(tag, "ADDED_TIME_REMINDER: Triggering one-shot vibration.")
+                // Use a version of your pattern that doesn't repeat indefinitely
+                val oneShotPattern = VibrationEffect.createWaveform(
+                    longArrayOf(0, 150, 50, 150), // Shorter, or your full pattern once
+                    intArrayOf(0, VibrationEffect.DEFAULT_AMPLITUDE, 0, VibrationEffect.DEFAULT_AMPLITUDE),
+                    -1 // No repeat
+                )
+                vibrator.vibrate(oneShotPattern)
+                delay(5000) // Vibrate every 5 seconds (adjust interval as needed)
+            }
+            Log.d(tag, "Added time reminder job loop finished. isAddedTimeReminderVibrating: $isAddedTimeReminderVibrating")
+        }
+        Log.d(tag, "ADDED_TIME_REMINDER one-shot mechanism started with repeating job.")
+    }
+
+    private fun stopAddedTimeReminderVibration() {
+        addedTimeReminderJob?.cancel()
+        addedTimeReminderJob = null
+        // It's still good to call vibrator.cancel() here to stop any immediate vibration
+        // if the job is cancelled mid-vibration.
+        vibrator?.cancel()
+        isAddedTimeReminderVibrating = false
+        Log.d(tag, "ADDED_TIME_REMINDER vibration mechanism stopped (job cancelled, vibrator cancelled).")
+    }
+/*    @RequiresPermission(Manifest.permission.VIBRATE)
     private fun startAddedTimeReminderVibration() {
         if (vibrator?.hasVibrator() != true) {
             Log.w(tag, "No vibrator available to start reminder.")
@@ -304,7 +344,7 @@ class WearGameViewModel @Inject constructor(
         vibrator?.cancel()
         isAddedTimeReminderVibrating = false
         Log.d(tag, "ADDED_TIME_REMINDER vibration stopped (cancelled).")
-    }
+    }*/
 
     override fun onCleared() {
         super.onCleared()
@@ -439,7 +479,6 @@ class WearGameViewModel @Inject constructor(
         val newDefaultGame = Game(gameDateTimeEpochMillis = System.currentTimeMillis())
         _activeGame.value = newDefaultGame.copy(
             displayedTimeMillis = newDefaultGame.regulationPeriodDurationMillis(GamePhase.FIRST_HALF),
-            status = GameStatus.IN_PROGRESS
         )
         Log.d(tag, "New default game created with ID: ${newDefaultGame.id}. Setting as active.")
     }
@@ -455,7 +494,6 @@ class WearGameViewModel @Inject constructor(
             actualTimeElapsedInPeriodMillis = 0L,
             isTimerRunning = false,
             events = emptyList(),
-            status = GameStatus.IN_PROGRESS,
             lastUpdated = System.currentTimeMillis()
         )
         _activeGame.value = cleanGameForStart
@@ -483,8 +521,7 @@ class WearGameViewModel @Inject constructor(
             }
 
             val finishedGame = gameToFinish.copy(
-                status = GameStatus.COMPLETED,
-                isTimerRunning = false, 
+                isTimerRunning = false,
                 displayedTimeMillis = 0L, 
                 actualTimeElapsedInPeriodMillis = gameToFinish.actualTimeElapsedInPeriodMillis
             )
@@ -513,38 +550,6 @@ class WearGameViewModel @Inject constructor(
             "attemptSyncPendingGames called, but this is now primarily handled by GameStorageWear."
         )
     }
-
-    fun resetActiveGameToDefaultOrNextScheduled() {
-        cancelTimer()
-        val activeGameIdBeforeReset = _activeGame.value?.id
-
-        val nextScheduledGame = gamesList.value
-            .filter {
-                it.status == GameStatus.SCHEDULED && it.id != (activeGameIdBeforeReset ?: "")
-            }
-            .minByOrNull { it.gameDateTimeEpochMillis ?: Long.MAX_VALUE }
-
-        val newActiveState: Game?
-
-        if (nextScheduledGame != null) {
-            newActiveState = nextScheduledGame.copy(
-                currentPhase = GamePhase.NOT_STARTED, 
-                homeScore = 0,
-                awayScore = 0,
-                events = emptyList(),
-                status = GameStatus.SCHEDULED, 
-                isTimerRunning = false,
-                actualTimeElapsedInPeriodMillis = 0L,
-                displayedTimeMillis = nextScheduledGame.regulationPeriodDurationMillis(GamePhase.FIRST_HALF)
-            )
-            Log.d(tag, "Resetting active game to next scheduled: ${newActiveState.id}")
-        } else {
-            newActiveState = null
-            Log.d(tag, "No next scheduled game. Resetting active game to null.")
-        }
-        _activeGame.value = newActiveState
-    }
-
 
     fun toggleTimer() {
         val currentGame = _activeGame.value ?: return
@@ -579,15 +584,13 @@ class WearGameViewModel @Inject constructor(
                 )
                 return
             }
+            Log.d(tag, "ViewModel about to call service.resumeGameTimer. Game details: ID=${currentGame.id}, Phase=${currentGame.currentPhase}, Elapsed=${currentGame.actualTimeElapsedInPeriodMillis}, IsTimerRunning=${currentGame.isTimerRunning}, InAddedTime=${currentGame.inAddedTime}")
             gameTimerService?.resumeGameTimer(currentGame)
             Log.d(tag, "Timer RESUMED for ${currentPhase.readable()}.")
             if (!isCurrentGameSessionActive) { 
                 gameTimerService?.commandStartGameSessionAndTimer(currentGame)
                 isCurrentGameSessionActive = true
             }
-        }
-        if (currentGame.status == GameStatus.SCHEDULED && !currentGame.isTimerRunning) {
-            _activeGame.update { it?.copy(status = GameStatus.IN_PROGRESS) }
         }
     }
 
@@ -644,7 +647,6 @@ class WearGameViewModel @Inject constructor(
             currentPhase = nextPhase,
             actualTimeElapsedInPeriodMillis = 0L,
             displayedTimeMillis = gameAtPeriodEnd.regulationPeriodDurationMillis(nextPhase),
-            status = if (nextPhase == GamePhase.GAME_ENDED) GameStatus.COMPLETED else GameStatus.IN_PROGRESS,
             kickOffTeam = newKickOffTeam,
             lastUpdated = System.currentTimeMillis()
         )
@@ -678,6 +680,7 @@ class WearGameViewModel @Inject constructor(
                 lastUpdated = System.currentTimeMillis()
             )
         }
+        vibrate(VibrationPattern.GENERIC_EVENT)
         Log.d(tag, "Kick-off team for current context set to $team")
     }
 
@@ -694,7 +697,8 @@ class WearGameViewModel @Inject constructor(
             Log.i(tag, kickOffMessage)
             // Use the new addGameEventToList method
             addEvent(kickOffEvent)
-            gameTimerService?.startGameTimer(currentGame) 
+            gameTimerService?.startGameTimer(currentGame)
+            vibrate(VibrationPattern.GENERIC_EVENT)
         } else {
             Log.w(tag, "KickOff action attempted in inappropriate phase: $currentPhase")
         }
@@ -878,7 +882,6 @@ class WearGameViewModel @Inject constructor(
                 hasPenalties = originalGame.hasPenalties,
                 kickOffTeam = originalGame.kickOffTeam,
                 displayedTimeMillis = Game().regulationPeriodDurationMillis(GamePhase.FIRST_HALF),
-                status = GameStatus.SCHEDULED,
                 currentPhase = GamePhase.NOT_STARTED,
             )
         _activeGame.value = resetGame
@@ -998,13 +1001,9 @@ class WearGameViewModel @Inject constructor(
         if (vibrator?.hasVibrator() == true) {
             val effect = when (pattern) {
                 VibrationPattern.ADDED_TIME_REMINDER -> VibrationEffect.createWaveform(
-                    longArrayOf(
-                        0,
-                        300,
-                        100,
-                        300,
-                        10000
-                    ), 0
+                    longArrayOf(0, 150, 50, 150, 450, 150, 50, 150), // pattern: buzz-buzz --- buzz-buzz
+                    intArrayOf(0, VibrationEffect.DEFAULT_AMPLITUDE, 0, VibrationEffect.DEFAULT_AMPLITUDE, 0, VibrationEffect.DEFAULT_AMPLITUDE, 0, VibrationEffect.DEFAULT_AMPLITUDE),
+                    0 // Repeat from the start of the pattern (index 0)
                 )
 
                 VibrationPattern.GOAL_SCORED -> VibrationEffect.createWaveform(

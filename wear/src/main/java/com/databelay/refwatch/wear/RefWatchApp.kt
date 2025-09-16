@@ -2,6 +2,8 @@ package com.databelay.refwatch.wear // Or your app's main package
 
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
+// TODO: Update play store screenshots
+// TODO: update release notes https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
 
 @HiltAndroidApp
 class RefWatchApp : Application() {

@@ -22,6 +22,7 @@ data class SimpleIcsEvent(
     var uid: String? = null,
     var summary: String? = null,
     var description: String? = null,
+    var refereeAssignment: String? = null,
     var location: String? = null,
     var dtStart: LocalDateTime? = null,
     var dtEnd: LocalDateTime? = null,
@@ -146,6 +147,11 @@ object SimpleIcsEventFactory {
         "\\b(\\d{4})(?:[A-Z]|(?:[/\\-]\\d{2,4}))?\\b", // The year itself is group 1
         Pattern.CASE_INSENSITIVE
     )
+    private val ASSIGNMENT_ROLE_PATTERN: Pattern = Pattern.compile(
+        """Referee Assignment:\s*([\w\s\d.-]+?)\s*(?:-\s*\d+|-\s*[\w\s]+? vs\.?)""",
+        Pattern.CASE_INSENSITIVE
+    )
+
     private val TEAM_VS_PATTERN: Pattern = Pattern.compile(
         """Referee Assignment:\s*(?:Referee|Asst Referee \d)\s*-\s*(\d+)(?:\s+(.*?))?\s*vs\.?\s*(.*?)\s*-\s*(.*)""",
         Pattern.CASE_INSENSITIVE
@@ -236,7 +242,7 @@ object SimpleIcsEventFactory {
         if (matcher.find()) {
             val yearStr = matcher.group(1)
             try {
-                val year = yearStr.toInt()
+                val year = yearStr!!.toInt()
                 if (year in 1950..(LocalDate.now().year - 3)) {
                     Log.d("IcsFactory", "Extracted birth year: $year from team: $teamName")
                     return year
@@ -265,7 +271,7 @@ object SimpleIcsEventFactory {
             val tzid = dateTimePropertyMatcher.group(2)
             val dateTimeValue = dateTimePropertyMatcher.group(3)
             val isUtc = dateTimePropertyMatcher.group(4) != null
-            val parsedDateTime = parseIcsDateTime(dateTimeValue, tzid, isUtc)
+            val parsedDateTime = parseIcsDateTime(dateTimeValue!!, tzid, isUtc)
 
             if (propertyName == "DTSTART") {
                 event.dtStart = parsedDateTime
@@ -281,24 +287,28 @@ object SimpleIcsEventFactory {
      * Parses team names, game number from summary and derives age group.
      * Modifies the passed-in event directly.
      */
-    private fun populateGameAndTeamDetails(eventBlockContent: String, event: SimpleIcsEvent) {
+    private fun populateGameAndTeamDetails(event: SimpleIcsEvent) {
         var gameNumber: String? = null
         var home: String? = null
         var away: String? = null
-        var ageGroup: AgeGroup = AgeGroup.UNKNOWN
+        var refereeAssignment: String? = null
         var birthYear: Int? = null
         var fieldNumber: String? = null
         val currentYear: Int = LocalDate.now().year
         if (event.summary != null) {
             val summaryText = event.summary!! // Safe due to null check
+            val assignmentMatcher = ASSIGNMENT_ROLE_PATTERN.matcher(summaryText)
+            if (assignmentMatcher.find()) {
+                refereeAssignment  = assignmentMatcher.group(1)?.trim()
+            }
             val teamMatcher = TEAM_VS_PATTERN.matcher(summaryText)
             if (teamMatcher.find()) {
                 gameNumber = teamMatcher.group(1)?.trim()
                 home = teamMatcher.group(2)?.trim()
                 away = teamMatcher.group(3)?.trim()
-                gameNumber = if (gameNumber.isNullOrEmpty()) "EMPTY" else gameNumber
-                home = if (home.isNullOrEmpty()) "EMPTY" else home
-                away = if (away.isNullOrEmpty()) "EMPTY" else away
+                gameNumber = if (gameNumber.isNullOrEmpty()) "000" else gameNumber
+                home = if (home.isNullOrEmpty()) "Home" else home
+                away = if (away.isNullOrEmpty()) "Away" else away
                 birthYear = home.let { extractBirthYearFromTeamName(it) } ?: away?.let { extractBirthYearFromTeamName(it) }
             }
             val fieldMatcher = FIELD_NUMBER_PATTERN.matcher(summaryText)
@@ -311,6 +321,7 @@ object SimpleIcsEventFactory {
         event.fieldNumber = fieldNumber
         event.homeTeam = home
         event.awayTeam = away
+        event.refereeAssignment = refereeAssignment
 
         if (birthYear != null) {
             val calculatedAge = currentYear - birthYear
@@ -342,7 +353,7 @@ object SimpleIcsEventFactory {
         // Populate other details
         populateBasicDetails(eventBlockContent, event) // Fills summary, description, location
 
-        populateGameAndTeamDetails(eventBlockContent, event)
+        populateGameAndTeamDetails(event)
 
         return event
 

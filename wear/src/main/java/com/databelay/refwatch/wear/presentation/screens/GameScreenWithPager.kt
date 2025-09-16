@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +37,7 @@ import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.hasTimer
+import com.databelay.refwatch.common.logBackStack
 import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import kotlinx.coroutines.launch
@@ -159,7 +161,14 @@ fun GameScreenWithPager(
             if (shouldAnimate) animateToMainPage() 
         }
     }
-    
+
+/*// Example: Call this from within your GameScreenWithPager when phase is HALF_TIME
+    LaunchedEffect(game?.currentPhase) {
+        if (game?.currentPhase == GamePhase.HALF_TIME) {
+            logBackStack(navController, "Half-Time UI in GameScreenWithPager")
+        }
+    }*/
+
     val pageIndicatorState: PageIndicatorState = remember(
         horizontalPagerState.currentPage,
         horizontalPagerState.pageCount,

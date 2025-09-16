@@ -32,7 +32,7 @@ class WearDataListenerService : WearableListenerService() {
 
         var newReceivedPhoneUserId: String? = null
         var phoneUserIdChanged = false
-
+// FIXME: are my app permissions good on watch? weardatalistener conflicts with timerservice if enabled in manifest (check notification permission warning)
         dataEvents.forEach { event ->
             Log.d(tag, "Event: type=${event.type}, path=${event.dataItem.uri.path}")
             val dataItem = event.dataItem

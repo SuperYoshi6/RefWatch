@@ -4,6 +4,8 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.util.Log
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -42,6 +44,13 @@ import com.google.firebase.auth.FirebaseUser
 import java.text.SimpleDateFormat
 import java.util.*
 
+
+// Data class to define the structure and behavior of context menu items
+data class ContextMenuItemAction(
+    val label: String,
+    val action: (game: Game) -> Unit // The action lambda now takes the specific Game as a parameter
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameListScreen(
@@ -57,19 +66,11 @@ fun GameListScreen(
     onImportGames: () -> Unit, // Callback for importing
     onNavigateToSettings: () -> Unit
 ) {
-    var appVersionName by remember { mutableStateOf("Loading...") } // State for version name
-    var appVersionNumber by remember { mutableLongStateOf(0L) } // State for version name
-    val buildDateString = BuildConfig.BUILD_TIME
-    val context = LocalContext.current // Get context
 
-    // LaunchedEffect to get version name (it's a synchronous call but good practice
-    // if it were asynchronous, and keeps UI responsive during initial composition)
-    LaunchedEffect(Unit) {
-        appVersionName = getAppVersionName(context)
-        appVersionNumber = getAppVersionCode(context)
-    }
-
-    Log.d("GameListScreen", "Received games: ${games.map { it.id + " -> " + it.status }}") // Log input games
+    Log.d(
+        "GameListScreen",
+        "Received games: ${games.map { it.id + " -> " + it.status }}"
+    ) // Log input games
 
     // Filter and sort the lists, just like on the watch
     val (upcomingGames, pastGames) = remember(games) {
@@ -139,202 +140,257 @@ fun GameListScreen(
                 }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(gamesToDisplay , key = { it.id }) { game ->
+                    items(gamesToDisplay, key = { it.id }) { game ->
                         GameListItem(
                             game = game,
-                            onEditGame = onEditGame,
+                            onEditGame = { onEditGame(game) },
                             onViewLog = onViewLog, // <-- Pass it down to the item
-                            onDelete = { onDeleteGame(game) }
+                            onDeleteGame = { onDeleteGame(game) }
                         )
                     }
                 }
             }
-            // --- ADD BUILD INFO TEXT HERE ---
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Version: $appVersionName $buildDateString", // Display version name
-                color = androidx.wear.compose.material.MaterialTheme.colors.primary,
-                style = androidx.wear.compose.material.MaterialTheme.typography.caption1.copy(fontSize = 14.sp),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            // --- END BUILD INFO TEXT ---
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun GameListItem(
     game: Game,
     onEditGame: (Game) -> Unit,
-    onViewLog: (Game) -> Unit, // The callback to view the log
-    onDelete: () -> Unit) {
-    val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy 'at' HH:mm", Locale.getDefault()) }
+    onViewLog: (Game) -> Unit,
+    onDeleteGame: (Game) -> Unit
+) {
+    val dateFormat =
+        remember { SimpleDateFormat("EEE, MMM d, yyyy 'at' HH:mm", Locale.getDefault()) }
     val context = LocalContext.current // Get context for launching Intent
-    Card(
-        // Add conditional logic to the onClick lambda
-        onClick = {
-            if (game.status == GameStatus.SCHEDULED) {
-                // Otherwise (if it's upcoming or in-progress), call the function to edit
-                onEditGame(game)
-            } else {
-                // If the game is finished, call the function to view the log
-                onViewLog(game)
-            }
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        Row(
+    var showContextMenu by remember { mutableStateOf(false) }
+
+    Box {
+        Card(
             modifier = Modifier
-                .padding(12.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column( modifier = Modifier
-                .weight(1f) // <<<< KEY CHANGE: Makes this column flexible
-                .padding(end = 8.dp) // Optional: Add some padding between text and button
-            ) {
-                Text("${game.homeTeamName} vs ${game.awayTeamName}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color =  MaterialTheme.colorScheme.error)
-                Text("#${game.gameNumber}", style = MaterialTheme.typography.bodySmall,
-                    color =  MaterialTheme.colorScheme.surfaceTint)
-                game.ageGroup?.let {
-                    Text("Age Group: ${it.displayName}", style = MaterialTheme.typography.bodySmall,
-                        color =  MaterialTheme.colorScheme.tertiary)
-                }
-                game.formattedGameDateTime?.let {
-                    Text("Time: $it", style = MaterialTheme.typography.bodyMedium)
-                }
-                // --- Display Venue and/or Field Number ---
-                val locationDetails = mutableListOf<String>()
-                game.venue?.takeIf { it.isNotBlank() }?.let { venueText ->
-                    locationDetails.add(venueText) // Add venue if it exists
-                }
-                game.fieldNumber?.takeIf { it.isNotBlank() }?.let { fieldNum ->
-                    locationDetails.add("Field: $fieldNum") // Add field number if it exists
-                }
-
-                if (locationDetails.isNotEmpty()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = locationDetails.joinToString(" - "), // e.g., "City Park - Field: 3" or just "Field: 3" or just "City Park"
-                            style = MaterialTheme.typography.bodyMedium,
-                            color =  MaterialTheme.colorScheme.tertiary,
-                            maxLines = 2
-                        )
-
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .combinedClickable(
+                    onClick = {
+                        showContextMenu = false // Dismiss context menu on click
+                        if (game.status == GameStatus.SCHEDULED) {
+                            onEditGame(game)
+                        } else {
+                            onViewLog(game)
+                        }
+                    },
+                    onLongClick = {
+                        showContextMenu = true
                     }
-                }
-                // --- End Display Venue and/or Field Number ---
-                Text(
-                    "H: ${game.homeScore} - A: ${game.awayScore}",
-                    /*(${game.currentPhase.readable()})*/
-                    style = MaterialTheme.typography.bodySmall
                 )
-                // You can add more details from GameSettings here
-                // Row(verticalAlignment = Alignment.CenterVertically) {
-                //     Box(modifier = Modifier.size(16.dp).background(game.homeTeamColor))
-                //     Spacer(Modifier.width(4.dp))
-                //     Text("Home", style = MaterialTheme.typography.bodySmall)
-                //     Spacer(Modifier.width(8.dp))
-                //     Box(modifier = Modifier.size(16.dp).background(game.awayTeamColor))
-                //     Spacer(Modifier.width(4.dp))
-                //     Text("Away", style = MaterialTheme.typography.bodySmall)
-                // }
-            }
-            // Right side: Location IconButton (if location exists) and Delete IconButton
-            Column(horizontalAlignment = Alignment.End) { // Aligns buttons to the right
-                val fullLocationQuery = remember(game.venue, game.fieldNumber) {
-                    // Construct a query string. Prioritize venue if available.
-                    // If only field number, it might not be enough for a good map search.
-                    // You might want to combine with city/state if you have that info elsewhere.
-                    val venuePart = game.venue?.takeIf { it.isNotBlank() } ?: ""
-                    val fieldPart = game.fieldNumber?.takeIf { it.isNotBlank() }?.let { "Field $it" } ?: ""
-
-                    if (venuePart.isNotBlank() && fieldPart.isNotBlank() && venuePart.contains(fieldPart, ignoreCase = true)) {
-                        venuePart // If venue already contains field info, just use venue
-                    } else if (venuePart.isNotBlank() && fieldPart.isNotBlank()) {
-                        "$venuePart, $fieldPart" // Combine them
-                    } else {
-                        venuePart.ifBlank { fieldPart } // Use whichever is not blank
+        ) {
+            Row(
+                modifier = Modifier
+                    .padding(12.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f) // <<<< KEY CHANGE: Makes this column flexible
+                        .padding(end = 8.dp) // Optional: Add some padding between text and button
+                ) {
+                    Text(
+                        "${game.homeTeamName} vs ${game.awayTeamName}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        "#${game.gameNumber}", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.surfaceTint
+                    )
+                    game.ageGroup?.let {
+                        Text(
+                            "Age Group: ${it.displayName}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
                     }
+                    game.formattedGameDateTime?.let {
+                        Text("Time: $it", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    // --- Display Venue and/or Field Number ---
+                    val locationDetails = mutableListOf<String>()
+                    game.venue?.takeIf { it.isNotBlank() }?.let { venueText ->
+                        locationDetails.add(venueText) // Add venue if it exists
+                    }
+                    game.fieldNumber?.takeIf { it.isNotBlank() }?.let { fieldNum ->
+                        locationDetails.add("Field: $fieldNum") // Add field number if it exists
+                    }
+
+                    if (locationDetails.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = locationDetails.joinToString(" - "), // e.g., "City Park - Field: 3" or just "Field: 3" or just "City Park"
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                maxLines = 2
+                            )
+
+                        }
+                    }
+                    // --- End Display Venue and/or Field Number ---
+                    Text(
+                        "H: ${game.homeScore} - A: ${game.awayScore}",
+                        /*(${game.currentPhase.readable()})*/
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
-                // Define a consistent height for the icon button area
-                val iconButtonHeight = 40.dp // Or 48.dp if you prefer standard touch target directly
+                // Right side: Location IconButton (if location exists) and Delete IconButton
+                Column(horizontalAlignment = Alignment.End) { // Aligns buttons to the right
+                    val fullLocationQuery = remember(game.venue, game.fieldNumber) {
+                        val venuePart = game.venue?.takeIf { it.isNotBlank() } ?: ""
+                        val fieldPart =
+                            game.fieldNumber?.takeIf { it.isNotBlank() }?.let { "Field $it" } ?: ""
 
-                if (fullLocationQuery.isNotBlank()) {
-                    IconButton(
-                        onClick = {
-                            // Create an Intent to open Google Maps
-                            // Use geo:0,0?q=lat,lng(label) or geo:0,0?q=address
-                            val mapQuery = Uri.encode(fullLocationQuery)
-                            val gmmIntentUri = Uri.parse("geo:0,0?q=$mapQuery")
-                            val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
-                            mapIntent.setPackage("com.google.android.apps.maps") // Specific to Google Maps app
+                        if (venuePart.isNotBlank() && fieldPart.isNotBlank() && venuePart.contains(
+                                fieldPart,
+                                ignoreCase = true
+                            )
+                        ) {
+                            venuePart
+                        } else if (venuePart.isNotBlank() && fieldPart.isNotBlank()) {
+                            "$venuePart, $fieldPart"
+                        } else {
+                            venuePart.ifBlank { fieldPart }
+                        }
+                    }
+                    val iconButtonHeight = 40.dp
 
-                            // Verify that the intent will resolve to an activity
-                            if (mapIntent.resolveActivity(context.packageManager) != null) {
-                                context.startActivity(mapIntent)
-                            } else {
-                                // Optionally, handle the case where Google Maps is not installed
-                                // You could try a generic geo intent without setPackage,
-                                // or show a toast message.
-                                val genericMapIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$mapQuery"))
-                                try {
-                                    context.startActivity(genericMapIntent)
-                                } catch (e: Exception) {
-                                    Log.e("MapLink", "No map app found to handle: $fullLocationQuery", e)
-                                    // Toast.makeText(context, "No map application found.", Toast.LENGTH_SHORT).show()
+                    if (fullLocationQuery.isNotBlank()) {
+                        IconButton(
+                            onClick = {
+                                val mapQuery = Uri.encode(fullLocationQuery)
+                                val gmmIntentUri = Uri.parse("geo:0,0?q=$mapQuery")
+                                val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+                                mapIntent.setPackage("com.google.android.apps.maps")
+                                if (mapIntent.resolveActivity(context.packageManager) != null) {
+                                    context.startActivity(mapIntent)
+                                } else {
+                                    val genericMapIntent =
+                                        Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$mapQuery"))
+                                    try {
+                                        context.startActivity(genericMapIntent)
+                                    } catch (e: Exception) {
+                                        Log.e(
+                                            "MapLink",
+                                            "No map app found to handle: $fullLocationQuery",
+                                            e
+                                        )
+                                    }
                                 }
-                            }
-                        },
+                            },
+                            modifier = Modifier
+                                .height(iconButtonHeight)
+                                .size(iconButtonHeight)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.LocationOn,
+                                contentDescription = "Open in Maps",
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    } else {
+                        Box(modifier = Modifier.height(iconButtonHeight))
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    IconButton(
+                        onClick = { onDeleteGame(game) }, // This IconButton is now outside the context menu logic
                         modifier = Modifier
-                            .height(iconButtonHeight) // Ensure it takes up consistent height
-                            .size(iconButtonHeight) // You can also use .size()
+                            .height(iconButtonHeight)
+                            .size(iconButtonHeight)
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.LocationOn, // Or Icons.Filled.Navigation or other map-related icon
-                            contentDescription = "Open in Maps",
-                            tint = MaterialTheme.colorScheme.secondary
+                            Icons.Filled.Delete,
+                            "Delete Game",
+                            tint = MaterialTheme.colorScheme.error
                         )
                     }
-                } else {
-                    // Placeholder to maintain vertical alignment when location icon is absent
-                    Box(modifier = Modifier.height(iconButtonHeight)) {
-                        // You can leave this Box empty, or put a transparent Spacer if you prefer
-                        // Spacer(Modifier.size(iconButtonHeight)) // Alternative if Box feels wrong
+                }
+            }
+        }
+
+        // 1. Define the list of actions for the context menu.
+        //    This list is remembered. The `action` lambdas here just define WHAT to do.
+        val contextMenuActions =
+            remember(game.status) { // Re-calculate if available actions change based on game status
+                Log.d(
+                    "GameListItem",
+                    "Defining context menu actions for game: ${game.id}, status: ${game.status}"
+                )
+                listOfNotNull(
+                    ContextMenuItemAction("Edit Game") { gameParam ->
+                        Log.d(
+                            "GameListItem",
+                            "Action 'Edit Game' invoked for game: ${gameParam.id}"
+                        )
+                        onEditGame(gameParam)
+                    },
+                    // Conditionally add "View Log" if applicable
+                    ContextMenuItemAction("View Log") { gameParam ->
+                        Log.d("GameListItem", "Action 'View Log' invoked for game: ${gameParam.id}")
+                        onViewLog(gameParam)
+                    },
+                    ContextMenuItemAction("Delete Game") { gameParam -> //
+                        Log.d("GameListItem", "Action 'Delete Game' invoked")
+                        onDeleteGame(gameParam)
                     }
-                }
+                )
+            }
 
-                Spacer(modifier = Modifier.height(8.dp)) // Adjust 8.dp to your desired spacing
-
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier
-                        .height(iconButtonHeight) // Ensure it takes up consistent height
-                        .size(iconButtonHeight) // Match the size/height
-                ) {
-                    Icon(Icons.Filled.Delete, "Delete Game", tint = MaterialTheme.colorScheme.error)
-                }
+        // 2. Build the DropdownMenu using these actions.
+        DropdownMenu(
+            expanded = showContextMenu,
+            onDismissRequest = { showContextMenu = false }
+        ) {
+            contextMenuActions.forEach { itemDefinition ->
+                DropdownMenuItem(
+                    text = { Text(itemDefinition.label) },
+                    // 3. The onClick for the DropdownMenuItem itself.
+                    //    This lambda captures the CURRENT 'game' from GameListItem's scope.
+                    onClick = {
+                        Log.d(
+                            "GameListItem",
+                            "Context Menu Item '${itemDefinition.label}' CLICKED. Game to use: ${game.id} (${game.homeTeamName})"
+                        )
+                        itemDefinition.action(game) // Pass the CURRENT 'game' to the defined action
+                        showContextMenu = false
+                    }
+                    // You could add leadingIcon here if ContextMenuItemAction had an icon property
+                )
             }
         }
     }
 }
-
-
 
 
 // -------------------------------- PREVIEWS ----------------------------------------------------
 // ----------------------------------------------------------------------------------------------
 // Helper to create sample games for previews
-@Preview(device = "id:medium_phone", showSystemUi = true, showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Preview(device = "id:small_phone", showSystemUi = true, showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(
+    device = "id:medium_phone",
+    showSystemUi = true,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES
+)
+@Preview(
+    device = "id:small_phone",
+    showSystemUi = true,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES
+)
 @Composable
 fun GameListScreenPreview_Unauthenticated() {
     RefWatchMobileTheme {
@@ -354,7 +410,13 @@ fun GameListScreenPreview_Unauthenticated() {
     }
 }
 
-@Preview(device = "id:pixel_9", showSystemUi = true, showBackground = true, name = "GameList - Loading",  uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(
+    device = "id:pixel_9",
+    showSystemUi = true,
+    showBackground = true,
+    name = "GameList - Loading",
+    uiMode = Configuration.UI_MODE_NIGHT_YES
+)
 @Composable
 fun GameListScreenPreview_Loading() {
     RefWatchMobileTheme {

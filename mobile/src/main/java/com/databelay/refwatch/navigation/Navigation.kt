@@ -38,7 +38,6 @@ import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.SimpleIcsEvent
 import com.databelay.refwatch.common.SimpleIcsParser
 import com.databelay.refwatch.games.AddEditGameRoute
-import com.databelay.refwatch.games.AddEditGameScreen
 import com.databelay.refwatch.games.AddEditGameViewModel
 import com.databelay.refwatch.games.GameListScreen
 import com.databelay.refwatch.games.GameLogScreen
@@ -269,15 +268,7 @@ fun RefWatchNavHost() {
             val gameId = backStackEntry.arguments?.getString("gameId")
 
             LaunchedEffect(gameId) {
-                if (gameId != null) {
-                    // Fetch the game from the main list for editing
-                    // This assumes MobileGameViewModel.gamesList is up-to-date
-                    val gameToEdit =
-                        mobileGameViewModel.gamesList.value.find { it.id == gameId }
-                    addEditViewModel.initializeForm(gameToEdit) // Initialize with game data
-                } else {
-                    addEditViewModel.initializeForm(null) // New game
-                }
+                addEditViewModel.initializeForm(gameId) // Initialize with game data
             }
 
             AddEditGameRoute(navController = navController)

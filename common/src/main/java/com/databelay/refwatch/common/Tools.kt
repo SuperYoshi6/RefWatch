@@ -1,9 +1,12 @@
 package com.databelay.refwatch.common
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
+import androidx.navigation.NavController
 
 object LegalLinks { // Using an object to group them
     const val PRIVACY_POLICY_URL = "https://doc-hosting.flycricket.io/refwatch-privacy-policy/3571da7e-481d-4199-adfb-921382bad8be/privacy"
@@ -41,4 +44,40 @@ fun getAppVersionCode(context: Context): Long { // Or Int if you don't expect ve
         -1L // Or handle the exception as appropriate
     }
 }
+
+
+@SuppressLint("RestrictedApi")
+fun logBackStack(navController: NavController, contextMessage: String = "") {
+    val stack = navController.currentBackStack.value
+    val currentNavControllerDestination = navController.currentDestination
+    val currentNavControllerRoute = currentNavControllerDestination?.route
+    val currentNavControllerId = currentNavControllerDestination?.id
+    val currentNavControllerClass =
+        currentNavControllerDestination?.displayName
+
+    val TAG = "LogBackStack"
+    Log.d("${TAG}:stack", "---- NavController Back Stack ($contextMessage) ----")
+    Log.d(
+        "${TAG}:stack",
+        "NavController Current Destination: Route='${currentNavControllerRoute ?: "null"}', ID='${currentNavControllerId ?: "null"}', Class='${currentNavControllerClass ?: "null"}'"
+    )
+
+    if (stack.isEmpty()) {
+        Log.d("${TAG}:stack", "Back stack is empty.")
+    } else {
+        stack.forEachIndexed { index, navBackStackEntry ->
+            val entryDestination = navBackStackEntry.destination
+            val route = entryDestination.route
+            val arguments = navBackStackEntry.arguments?.toString() ?: "null"
+            val destDisplayName = entryDestination.displayName
+
+            Log.d(
+                "${TAG}:stack",
+                "$index: Route='${route ?: "null"}', Args=[$arguments], ID='${navBackStackEntry.id}', NavDestId='${entryDestination.id}', NavDestClass='${destDisplayName}'"
+            )
+        }
+    }
+    Log.d("${TAG}:stack", "------------------------------------------")
+}
+
 

@@ -25,6 +25,7 @@ object PreviewTools {
             awayTeamName = "Beta United",
             currentPhase = GamePhase.FIRST_HALF,
             gameDateTimeEpochMillis = System.currentTimeMillis() + (2 * 60 * 60 * 1000L), // 2 hours from now
+            refereeAssignment = "Referee",
             venue = "Stadium One",
         )
 
@@ -54,6 +55,7 @@ object PreviewTools {
             awayTeamName = "Beta United",
             currentPhase = GamePhase.EXTRA_TIME_FIRST_HALF,
             gameDateTimeEpochMillis = System.currentTimeMillis() + (2 * 60 * 60 * 1000L), // 2 hours from now
+            refereeAssignment = "Assistant Referee 1",
             venue = "Stadium One",
         )
     }
@@ -76,7 +78,6 @@ object PreviewTools {
                 id = "scheduledGame1",
                 homeTeamName = "Alpha FC",
                 awayTeamName = "Beta United",
-                status = GameStatus.SCHEDULED,
                 gameDateTimeEpochMillis = System.currentTimeMillis() + (2 * 60 * 60 * 1000L), // 2 hours from now
                 gameNumber = "123",
                 venue = "Stadium One",
@@ -85,7 +86,6 @@ object PreviewTools {
                 id = "scheduledGame2",
                 homeTeamName = "Gamma Rovers",
                 awayTeamName = "Delta City",
-                status = GameStatus.SCHEDULED,
                 homeTeamColorArgb = Color.parseColor("#3F51B5"), // Indigo
                 awayTeamColorArgb = Color.parseColor("#FFC107"), // Amber
                 gameDateTimeEpochMillis = System.currentTimeMillis() + (26 * 60 * 60 * 1000L), // 26 hours from now
@@ -98,7 +98,6 @@ object PreviewTools {
                 id = "inProgressGame1",
                 homeTeamName = "Red Warriors",
                 awayTeamName = "Blue Thunder",
-                status = GameStatus.IN_PROGRESS, // Or any active status
                 currentPhase = GamePhase.FIRST_HALF,
                 isTimerRunning = true,
                 displayedTimeMillis = 15 * 60 * 1000L, // 15:00 on the clock
@@ -117,7 +116,6 @@ object PreviewTools {
                 id = "completedGame1",
                 homeTeamName = "Green Hornets",
                 awayTeamName = "Purple Haze",
-                status = GameStatus.COMPLETED,
                 currentPhase = GamePhase.GAME_ENDED,
                 isTimerRunning = false,
                 gameDateTimeEpochMillis = System.currentTimeMillis() - (1 * 24 * 60 * 60 * 1000L), // 1 day ago
@@ -132,7 +130,6 @@ object PreviewTools {
                 id = "completedGame2",
                 homeTeamName = "Black Cats",
                 awayTeamName = "White Knights",
-                status = GameStatus.COMPLETED,
                 currentPhase = GamePhase.GAME_ENDED,
                 gameDateTimeEpochMillis = System.currentTimeMillis() - (5 * 24 * 60 * 60 * 1000L), // 5 days ago
                 homeScore = 0,
@@ -145,7 +142,6 @@ object PreviewTools {
             // Your example item (slightly adjusted if `halfDurationMinutes` affects display directly)
             Game.defaults().copy(
                 id = "previewGameYourExample",
-                status = GameStatus.COMPLETED, // Assuming if it has score and time, it's active
                 currentPhase = GamePhase.GAME_ENDED,
                 homeTeamName = "Red Team Example",
                 awayTeamName = "Blue Team Example",

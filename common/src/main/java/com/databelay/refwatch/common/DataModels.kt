@@ -41,9 +41,8 @@ enum class GameStatus {
     SCHEDULED,
     COMPLETED,
     IN_PROGRESS, // Can be added for more clarity
-
-    CANCELLED    // Easy to add later
 }
+
 
 @Serializable
 enum class GamePhase {
@@ -65,23 +64,13 @@ enum class GamePhase {
     KICK_OFF_SELECTION_PENALTIES,
     PENALTIES,
     GAME_ENDED,
-    // Terminal states
-    ABANDONED;
 }
 
-fun GamePhase.shouldTimerAutostart(): Boolean {
-    return when (this) {
-        GamePhase.HALF_TIME, GamePhase.EXTRA_TIME_HALF_TIME -> true // Breaks usually auto-start
-        // Add other phases that should always auto-start their timers
-        // GamePhase.FIRST_HALF -> true // If you want the first half to start immediately after KICK_OFF_SELECTION
-        else -> false
-    }
-}
 // --- Helper Extension Functions (Place here or in a utils.kt file) ---
-fun Long.formatTime(): String {
+fun Long.formatTime(isInAddedTime: Boolean = false): String {
     val minutes = TimeUnit.MILLISECONDS.toMinutes(this)
     val seconds = TimeUnit.MILLISECONDS.toSeconds(this) % 60
-    return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+    return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)+ if (isInAddedTime) {" (Added Time)" } else {""}
 }
 
 fun String.capitalizeWords(): String = split(" ").joinToString(" ") { word ->
@@ -105,7 +94,6 @@ fun GamePhase.readable(): String {
         GamePhase.EXTRA_TIME_SECOND_HALF -> "2nd Half (ET)"
         GamePhase.PENALTIES -> "Penalties"
         GamePhase.NOT_STARTED -> "Not Started"
-        GamePhase.ABANDONED -> "Abandoned"
     }
 }
 
@@ -119,6 +107,23 @@ fun GamePhase.hasTimer(): Boolean {
             this == GamePhase.EXTRA_TIME_HALF_TIME
 }
 
+fun GamePhase.status(): GameStatus {
+    return when (this) {
+        GamePhase.NOT_STARTED -> GameStatus.SCHEDULED
+        GamePhase.PRE_GAME,
+        GamePhase.KICK_OFF_SELECTION_FIRST_HALF,
+        GamePhase.FIRST_HALF,
+        GamePhase.HALF_TIME,
+        GamePhase.SECOND_HALF,
+        GamePhase.KICK_OFF_SELECTION_EXTRA_TIME,
+        GamePhase.EXTRA_TIME_FIRST_HALF,
+        GamePhase.EXTRA_TIME_HALF_TIME,
+        GamePhase.EXTRA_TIME_SECOND_HALF,
+        GamePhase.KICK_OFF_SELECTION_PENALTIES,
+        GamePhase.PENALTIES -> GameStatus.IN_PROGRESS
+        GamePhase.GAME_ENDED -> GameStatus.COMPLETED
+    }
+}
 //
 fun GamePhase.isBreak(): Boolean {
     return this == GamePhase.HALF_TIME ||

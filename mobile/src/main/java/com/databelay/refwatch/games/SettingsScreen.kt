@@ -26,7 +26,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -35,11 +37,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.databelay.refwatch.BuildConfig
 import com.databelay.refwatch.common.LegalLinks
+import com.databelay.refwatch.common.getAppVersionCode
+import com.databelay.refwatch.common.getAppVersionName
 import com.databelay.refwatch.common.theme.RefWatchMobileTheme
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 
@@ -57,6 +64,16 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
+    var appVersionName by remember { mutableStateOf("Loading...") } // State for version name
+    var appVersionNumber by remember { mutableLongStateOf(0L) } // State for version name
+    val buildDateString = BuildConfig.BUILD_TIME
+
+    // LaunchedEffect to get version name (it's a synchronous call but good practice
+    // if it were asynchronous, and keeps UI responsive during initial composition)
+    LaunchedEffect(Unit) {
+        appVersionName = getAppVersionName(context)
+        appVersionNumber = getAppVersionCode(context)
+    }
 
     Scaffold(
         topBar = {
@@ -140,8 +157,15 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp)) // More space before other settings
 
-            Text("Other Settings will go here...", style = MaterialTheme.typography.bodyMedium)
-
+            // --- ADD BUILD INFO TEXT HERE ---
+            Text(
+                text = "Version: $appVersionName $buildDateString", // Display version name
+                color = androidx.wear.compose.material.MaterialTheme.colors.primary,
+                style = androidx.wear.compose.material.MaterialTheme.typography.caption1.copy(fontSize = 14.sp),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            // --- END BUILD INFO TEXT ---
             Spacer(modifier = Modifier.weight(1f)) // Pushes delete account to bottom
 
             Button(
