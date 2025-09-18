@@ -366,10 +366,11 @@ fun GameScreenWithPagerPreviewSettingsOpen() {
 }
 
 
-@Preview(device = "id:wearos_small_round",name = "AddedTime SmRnd",showBackground = true)
-@Preview(device = "id:wearos_large_round",name = "AddedTime LrgRnd",showBackground = true)
-@Preview(device = "id:wearos_square",name = "AddedTime Sqr",showBackground = true)
-@WearPreviewFontScales
+//@Preview(device = "id:wearos_small_round",name = "AddedTime SmRnd",showBackground = true)
+//@Preview(device = "id:wearos_square",name = "AddedTime Sqr",showBackground = true)
+//@WearPreviewFontScales
+@Preview(device = "id:wearos_large_round",name = "AddedTime LrgRnd",showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
+
 @Composable
 fun Preview_MainGameDisplay_Penalties() {
     val sampleGame = Game.defaults().copy(currentPhase = GamePhase.PENALTIES)

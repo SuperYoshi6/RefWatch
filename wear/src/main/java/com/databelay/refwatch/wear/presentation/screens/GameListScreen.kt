@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +35,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.ChipDefaults.chipColors
@@ -42,6 +44,7 @@ import androidx.wear.compose.material.ToggleButton
 import androidx.wear.compose.material.ToggleButtonDefaults
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.databelay.refwatch.BuildConfig
@@ -131,83 +134,88 @@ fun GameListScreen(
     val gamesToDisplay =
         if (selectedFilterState == GameListFilterState.UPCOMING) upcomingGames else pastGames
 
+    val listState = rememberScalingLazyListState()
+
     ScreenScaffold(
+        scrollIndicator = { ScrollIndicator(modifier = Modifier.align(Alignment.CenterEnd), state = listState) },
         modifier = modifier
-            .fillMaxSize()
-            .padding(2.dp)
-    ) {
-        ScalingLazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            item { Spacer(modifier = Modifier.padding(top = 0.dp)) }
+            .fillMaxSize(),
+        contentPadding = PaddingValues(2.dp),
+    ) { contentPadding ->
+            ScalingLazyColumn(
+                state = listState, contentPadding = contentPadding,
+//            modifier = Modifier.fillMaxSize(),
+//            horizontalAlignment = Alignment.CenterHorizontally,
+//            verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item { Spacer(modifier = Modifier.padding(top = 0.dp)) }
 
-            if (selectedFilterState == GameListFilterState.UPCOMING) {
-                item {
-                    Chip(
-                        onClick = onNavigateToNewGame,
-                        label = {
-                            Text(
-                                "New Game",
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                if (selectedFilterState == GameListFilterState.UPCOMING) {
+                    item {
+                        Chip(
+                            onClick = onNavigateToNewGame,
+                            label = {
+                                Text(
+                                    "New Game",
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
+                            },
+                            icon = {
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = "Start New Ad-Hoc Game"
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f),
+                            colors = chipColors(
+                                backgroundColor = MaterialTheme.colorScheme.secondaryContainer.copy(
+                                    alpha = 0.4f
+                                )
                             )
-                        },
-                        icon = {
-                            Icon(
-                                Icons.Filled.Add,
-                                contentDescription = "Start New Ad-Hoc Game"
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth(0.9f),
-                        colors = chipColors(
-                            backgroundColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
                         )
-                    )
-                }
-            }
-
-            items(items = gamesToDisplay, key = { game -> game.id }) { game ->
-                ScheduledGameItem(
-                    game = game,
-                    onClick = {
-                        if (game.status == GameStatus.SCHEDULED) {
-                            onGameSelected(game)
-                        } else {
-                            onViewLog(game.id)
-                        }
                     }
-                )
-            }
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    contentAlignment = Alignment.Center
-                ) {
-                    val emptyMessage =
-                        if (isOnline) "Online." else "Not online."
-                    Text(
-                        text = emptyMessage,
-                        color = MaterialTheme.colorScheme.onSecondary,
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(16.dp)
+                }
+
+                items(items = gamesToDisplay, key = { game -> game.id }) { game ->
+                    ScheduledGameItem(
+                        game = game,
+                        onClick = {
+                            if (game.status == GameStatus.SCHEDULED) {
+                                onGameSelected(game)
+                            } else {
+                                onViewLog(game.id)
+                            }
+                        }
                     )
                 }
-            }
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Version: $appVersionName $buildDateString",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val emptyMessage =
+                            if (isOnline) "Online." else "Not online."
+                        Text(
+                            text = emptyMessage,
+                            color = MaterialTheme.colorScheme.onSecondary,
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Version: $appVersionName $buildDateString",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
         }
-
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -302,8 +310,8 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
 
 // --------------------------------------- Previews ----------------------------------------
 // -----------------------------------------------------------------------------------------
-@Preview(device = "id:wearos_small_round",showBackground = true)
-@Preview(device = "id:wearos_square",showBackground = true)
+@Preview(device = "id:wearos_small_round", showBackground = true)
+@Preview(device = "id:wearos_square", showBackground = true)
 @Preview(device = "id:wearos_large_round", showBackground = true)
 @WearPreviewFontScales
 @Composable

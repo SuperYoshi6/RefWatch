@@ -7,6 +7,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -31,6 +32,7 @@ import androidx.wear.compose.material3.Card
 import androidx.wear.compose.material3.CardDefaults
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.databelay.refwatch.common.Game
@@ -56,14 +58,22 @@ fun GameLogScreen(
             Log.d(tag, "Displaying Game ID: ${it.id}, Status: ${it.status}")
             Log.d(tag, "Scores: ${it.homeScore}-${it.awayScore}")
             Log.d(tag, "Events Count: ${it.events.size}")
-        } ?: Log.d(tag, "Game object is null.")
+        }
     }
     val listState = rememberScalingLazyListState()
     ScreenScaffold(
+        scrollIndicator = {
+            ScrollIndicator(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                state = listState
+            )
+        },
         modifier = modifier
             .fillMaxSize()
-            .padding(2.dp)
-    ) { _ ->
+        .padding(2.dp),
+                contentPadding = PaddingValues(vertical = 0.dp, horizontal = 2.dp),
+
+    ) { contentPadding ->
         ScalingLazyColumn(
             state = listState,
             modifier = Modifier

@@ -370,7 +370,6 @@ fun AddEditGameScreen(
 fun AddEditGameRoute(
     navController: NavController,
     addEditViewModel: AddEditGameViewModel = hiltViewModel(),
-    mobileGameViewModel: MobileGameViewModel = hiltViewModel()
 ) {
     val tag = "AddEditGameRoute"
     val uiState by addEditViewModel.uiState.collectAsStateWithLifecycle()

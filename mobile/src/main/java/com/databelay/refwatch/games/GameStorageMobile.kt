@@ -142,7 +142,7 @@ class GameStorageMobile(private val firestore: FirebaseFirestore) {
             // Attempt 2: Alternative search if not found by ID (existingDocSnapshot == null)
             if (existingDocSnapshot == null) {
                 Log.d(tag, "Attempting alternative search for gameNumber: '${gameToSave.gameNumber}' and timestamp: ${gameToSave.gameDateTimeEpochMillis}")
-                if (gameToSave.gameNumber.isNotBlank() && gameToSave.gameDateTimeEpochMillis != null
+                if (gameToSave.gameNumber != Game.defaults().gameNumber && gameToSave.gameDateTimeEpochMillis != null
                     && gameToSave.gameDateTimeEpochMillis!! > 0) {
                     val query = userGamesCollection
                         .whereEqualTo("gameNumber", gameToSave.gameNumber)

@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -35,6 +36,7 @@ import com.databelay.refwatch.wear.presentation.screens.LogCardScreen
 import com.databelay.refwatch.wear.presentation.screens.PreGameSetupRoute
 import kotlinx.coroutines.delay
 import androidx.wear.compose.foundation.pager.rememberPagerState
+import androidx.wear.compose.material3.AppScaffold
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.isPlayablePhase
 import kotlin.let
@@ -56,13 +58,14 @@ fun NavigationRoutes() {
         } ?: WearNavRoutes.GAME_LIST_SCREEN
     }
 
-    Scaffold(
+    AppScaffold (
+        timeText = { },
         modifier = Modifier.background(MaterialTheme.colorScheme.background),
     ) {
         SwipeDismissableNavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = Modifier.padding(it)
+            modifier = Modifier.padding(8.dp)
         ) {
             composable(WearNavRoutes.GAME_LIST_SCREEN) {
                 GameListScreen(
@@ -208,6 +211,8 @@ fun NavigationRoutes() {
                         preselectedTeam = team,
                         cardType = cardType,
                         onLogCard = { loggedTeam, playerNum, loggedCardType ->
+                            // TODO: add logic to add a read if second yellow for the same number on the team, display an alert saying that a red was given
+
                             gameViewModel.addCard(
                                 team,
                                 playerNum,

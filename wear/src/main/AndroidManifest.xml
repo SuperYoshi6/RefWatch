@@ -21,6 +21,7 @@
         <!-- ... your existing activity ... -->
         <activity
             android:name=".wear.MainActivity"
+            android:launchMode="singleTop"
             android:exported="true"
             android:taskAffinity=""
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar">

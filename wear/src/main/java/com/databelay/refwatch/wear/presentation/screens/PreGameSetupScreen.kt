@@ -39,26 +39,24 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
-import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.CompactButton
 import androidx.wear.compose.material.OutlinedChip
 import androidx.wear.compose.material3.AlertDialogDefaults
-import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.Dialog
+import androidx.wear.compose.material3.EdgeButton
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
-import androidx.wear.compose.material3.SurfaceTransformation
+import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
-import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.databelay.refwatch.common.Game
-import com.databelay.refwatch.common.theme.PredefinedJerseyColors
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 
 @Composable
@@ -73,9 +71,7 @@ fun PreGameSetupScreen(
     onCreateMatchClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val columnState = rememberTransformingLazyColumnState()
-    val transformationSpec = rememberTransformationSpec()
-
+    val listState = rememberScalingLazyListState()
     val homeTeamName = game?.homeTeamName ?: "Home"
     val awayTeamName = game?.awayTeamName ?: "Away"
     val homeTeamColor = game?.homeTeamColor ?: Color.Gray
@@ -84,21 +80,23 @@ fun PreGameSetupScreen(
     val halftimeDurationMinutes = game?.halftimeDurationMinutes ?: 10
 
     ScreenScaffold(
+        scrollIndicator = {
+            ScrollIndicator(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                state = listState
+            )
+        },
         modifier = modifier,
-        scrollState = columnState,
-        contentPadding = PaddingValues(vertical = 4.dp, horizontal = 2.dp),
-    ) { contentPadding ->
-        TransformingLazyColumn(
-            state = columnState,
-            contentPadding = contentPadding,
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
+        contentPadding = PaddingValues(vertical = 0.dp, horizontal = 2.dp),
+
+        ) { contentPadding ->
+        ScalingLazyColumn(
+            state = listState, contentPadding = contentPadding,
+
+            ) {
             item {
                 ListHeader(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
                         "Match Setup",
@@ -135,7 +133,7 @@ fun PreGameSetupScreen(
                         },
                         modifier = Modifier.weight(1f)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+//                        Spacer(modifier = Modifier.width(8.dp))
                     OutlinedChip(
                         onClick = onEditAwayTeamNameClick,
                         label = {
@@ -202,22 +200,13 @@ fun PreGameSetupScreen(
 
             // Create Match Button
             item {
-                Button(
+                EdgeButton(
                     onClick = onCreateMatchClick,
-                    modifier = Modifier
-                        .wrapContentWidth()
-                        .padding(horizontal = 32.dp)
-                        .defaultMinSize(minHeight = 52.dp),
-                    transformation = SurfaceTransformation(transformationSpec),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondary
                     )
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                        Icon(Icons.Filled.Check, contentDescription = "Create Match")
-                        Spacer(Modifier.width(8.dp))
-                        Text("Create")
-                    }
+                    Icon(Icons.Filled.Check, contentDescription = "Create Match")
                 }
             }
         }
@@ -234,9 +223,9 @@ fun TeamNameEditDialogContent(
 ) {
     var text by remember { mutableStateOf(initialValue) }
 
-    val columnState = rememberTransformingLazyColumnState()
-    val transformationSpec = rememberTransformationSpec()
-    TransformingLazyColumn(
+    val columnState = rememberScalingLazyListState()
+
+    ScalingLazyColumn(
         state = columnState,
         contentPadding = PaddingValues(vertical = 8.dp, horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -246,7 +235,6 @@ fun TeamNameEditDialogContent(
             ListHeader(
                 modifier = Modifier
                     .fillMaxWidth(),
-                transformation = SurfaceTransformation(transformationSpec),
             ) {
                 Text(
                     "Edit Team Name",
@@ -363,7 +351,10 @@ fun SimpleColorPickerDialog(
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(12.dp))
-            TransformingLazyColumn(
+            val listState = rememberScalingLazyListState()
+            ScalingLazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(vertical = 8.dp, horizontal = 2.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.weight(1f)
@@ -453,10 +444,9 @@ fun DurationSettingStepper(
 }
 
 // --------------------------------------- Previews ----------------------------------------
-@Preview(device = "id:wearos_small_round", name = "PreGameSetupScreen Preview", showBackground = true)
-@Preview(device = "id:wearos_square", name = "PreGameSetupScreen Preview", showBackground = true)
-@Preview(device = "id:wearos_large_round", name = "PreGameSetupScreen Preview", showBackground = true)
-
+@Preview(device = "id:wearos_small_round", showBackground = true)
+@Preview(device = "id:wearos_square", showBackground = true)
+@Preview(device = "id:wearos_large_round", showBackground = true)
 @WearPreviewFontScales
 @Composable
 fun PreviewPreGameSetupScreen() {
@@ -480,10 +470,11 @@ fun PreviewPreGameSetupScreen() {
         )
     }
 }
+/*
 
-@Preview(device = "id:wearos_small_round", name = "PreGameSetupScreen Preview", showBackground = true)
-@Preview(device = "id:wearos_square", name = "PreGameSetupScreen Preview", showBackground = true)
-@Preview(device = "id:wearos_large_round", name = "PreGameSetupScreen Preview", showBackground = true)
+@Preview(device = "id:wearos_small_round",showBackground = true)
+@Preview(device = "id:wearos_square", showBackground = true)
+@Preview(device = "id:wearos_large_round",showBackground = true)
 @WearPreviewFontScales
 @Composable
 fun PreviewTeamNameEditDialog_Home() {
@@ -497,4 +488,4 @@ fun PreviewTeamNameEditDialog_Home() {
             )
         }
     }
-}
+}*/

@@ -1,6 +1,8 @@
 package com.databelay.refwatch.wear.presentation.screens // Or your chosen package
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,117 +32,132 @@ import com.databelay.refwatch.common.theme.RefWatchWearTheme
 @Composable
 fun GameSettingsScreen(
     game: Game,
-    onAttemptFinishGame: () -> Unit, 
-    onAttemptResetPeriodTimer: () -> Unit, 
-    onAttemptResetFullGame: () -> Unit, 
+    onAttemptFinishGame: () -> Unit,
+    onAttemptResetPeriodTimer: () -> Unit,
+    onAttemptResetFullGame: () -> Unit,
     onViewLog: () -> Unit,
     onToggleTimer: () -> Unit,
-    onAttemptEndPhase: () -> Unit, 
+    onAttemptEndPhase: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberScalingLazyListState()
-
-    ScalingLazyColumn(
-        state = listState,
-        modifier = modifier
-            .padding(horizontal = 16.dp, vertical = 24.dp), 
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)
-    ) {
-        item {
-            Text(
-                "Game Menu",
-                style = MaterialTheme.typography.displaySmall,
-                textAlign = TextAlign.Center
+    ScreenScaffold(
+        scrollIndicator = {
+            ScrollIndicator(
+                modifier = Modifier.align(Alignment.CenterStart),
+                state = listState
             )
-        }
+        },
+        modifier = modifier
+            .fillMaxSize(),
+        contentPadding = PaddingValues(2.dp),
+    ) { contentPadding ->
+        ScalingLazyColumn(
+            state = listState,
+            modifier = modifier
+                .padding(horizontal = 8.dp, vertical = 0.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)
+        ) {
 
-        if (game.currentPhase.hasTimer()) {
             item {
-                Button(
-                    onClick = onToggleTimer,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (game.isTimerRunning) Color(0xFFFF6822) else Color.Green,
-                        contentColor = Color.Black
-                    ),
-                ) {
-                    Icon(
-                        imageVector = if (game.isTimerRunning) Icons.Filled.PauseCircleFilled else Icons.Filled.PlayCircleFilled,
-                        contentDescription = if (game.isTimerRunning) "Pause Timer" else "Start Timer",
-                    )
+                Text(
+                    "Game Menu",
+                    style = MaterialTheme.typography.displaySmall,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            if (game.currentPhase.hasTimer()) {
+                item {
+                    Button(
+                        onClick = onToggleTimer,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (game.isTimerRunning) Color(0xFFFF6822) else Color.Green,
+                            contentColor = Color.Black
+                        ),
+                    ) {
+                        Icon(
+                            imageVector = if (game.isTimerRunning) Icons.Filled.PauseCircleFilled else Icons.Filled.PlayCircleFilled,
+                            contentDescription = if (game.isTimerRunning) "Pause Timer" else "Start Timer",
+                        )
+                    }
+                }
+                item {
+                    Button(
+                        onClick = onAttemptEndPhase,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+
+                        ) {
+                        Text(
+                            text = "End ${game.currentPhase.readable()}",
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
+
             item {
                 Button(
-                    onClick = onAttemptEndPhase, 
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                    ),
+                    onClick = onAttemptFinishGame,
                     modifier = Modifier.fillMaxWidth(),
-
-                    ) {
+                ) {
                     Text(
-                        text = "End ${game.currentPhase.readable()}",
+                        "Finish Game",
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
-        }
 
-        item {
-            Button(
-                onClick = onAttemptFinishGame, 
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    "Finish Game",
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-
-        item {
-            Button(
-                onClick = onAttemptResetPeriodTimer, 
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    "Reset Period Timer",
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-
-
-        item {
-            Button(
-                onClick = onViewLog,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    "View Game Log",
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-
-        item {
-            Button(
-                onClick = onAttemptResetFullGame, 
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.fillMaxWidth()
+            item {
+                Button(
+                    onClick = onAttemptResetPeriodTimer,
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Reset Game")
-                    Icon(imageVector = Icons.Filled.PriorityHigh, contentDescription = "Warning")
+                    Text(
+                        "Reset Period Timer",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+
+            item {
+                Button(
+                    onClick = onViewLog,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "View Game Log",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            item {
+                Button(
+                    onClick = onAttemptResetFullGame,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Reset Game")
+                        Icon(
+                            imageVector = Icons.Filled.PriorityHigh,
+                            contentDescription = "Warning"
+                        )
+                    }
                 }
             }
         }
@@ -164,7 +181,13 @@ private fun PreviewableAlertDialog(
     }
 }
 
-@Preview(device = "id:wearos_small_round", name = "End Phase Dialog Preview", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
+@Preview(
+    device = "id:wearos_small_round",
+    name = "End Phase Dialog Preview",
+    showSystemUi = true,
+    backgroundColor = 0xff000000,
+    showBackground = true
+)
 @Composable
 fun PreviewSettingsEndPhaseDialog() {
     PreviewableAlertDialog(
@@ -174,7 +197,13 @@ fun PreviewSettingsEndPhaseDialog() {
     )
 }
 
-@Preview(device = "id:wearos_small_round", name = "Finish Game Dialog Preview", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
+@Preview(
+    device = "id:wearos_small_round",
+    name = "Finish Game Dialog Preview",
+    showSystemUi = true,
+    backgroundColor = 0xff000000,
+    showBackground = true
+)
 @Composable
 fun PreviewSettingsFinishGameDialog() {
     PreviewableAlertDialog(
@@ -185,7 +214,13 @@ fun PreviewSettingsFinishGameDialog() {
     )
 }
 
-@Preview(device = "id:wearos_small_round", name = "Reset Timer Dialog Preview", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
+@Preview(
+    device = "id:wearos_small_round",
+    name = "Reset Timer Dialog Preview",
+    showSystemUi = true,
+    backgroundColor = 0xff000000,
+    showBackground = true
+)
 @Composable
 fun PreviewSettingsResetPeriodTimerDialog() {
     PreviewableAlertDialog(
@@ -196,7 +231,13 @@ fun PreviewSettingsResetPeriodTimerDialog() {
     )
 }
 
-@Preview(device = "id:wearos_small_round", name = "Reset Full Game Dialog Preview", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
+@Preview(
+    device = "id:wearos_small_round",
+    name = "Reset Full Game Dialog Preview",
+    showSystemUi = true,
+    backgroundColor = 0xff000000,
+    showBackground = true
+)
 @Composable
 fun PreviewSettingsResetFullGameDialog() {
     PreviewableAlertDialog(
@@ -208,7 +249,13 @@ fun PreviewSettingsResetFullGameDialog() {
     )
 }
 
-@Preview(device = "id:wearos_small_round", name = "Extra Time Dialog Preview", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
+@Preview(
+    device = "id:wearos_small_round",
+    name = "Extra Time Dialog Preview",
+    showSystemUi = true,
+    backgroundColor = 0xff000000,
+    showBackground = true
+)
 @Composable
 fun PreviewSettingsExtraTimeDialog() {
     PreviewableAlertDialog(
@@ -229,7 +276,7 @@ fun PreviewSettingsExtraTimeDialog() {
 )
 @Composable
 fun SettingsPageContentPreview() {
-    RefWatchWearTheme { 
+    RefWatchWearTheme {
         GameSettingsScreen(
             game = Game.defaults().copy(currentPhase = GamePhase.FIRST_HALF, isTimerRunning = true),
             onAttemptFinishGame = {},

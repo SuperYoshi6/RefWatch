@@ -24,9 +24,12 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
@@ -57,6 +60,9 @@ class MobileGameViewModel @Inject constructor(
     // --- Tab State Management ---
     private val _selectedTab = MutableStateFlow(GameStatus.SCHEDULED) // Default to SCHEDULED
     val selectedTab: StateFlow<GameStatus> = _selectedTab.asStateFlow()
+    private val _scrollToTopGamesListEvent =
+        MutableSharedFlow<Unit>(replay = 0) // Simpler: just Unit event
+    val scrollToTopGamesListEvent: SharedFlow<Unit> = _scrollToTopGamesListEvent.asSharedFlow()
 
     // Job to manage the delayed task of syncing to the watch
     private var syncToWatchJob: Job? = null
@@ -463,22 +469,48 @@ class MobileGameViewModel @Inject constructor(
         addOrUpdateGames(listOf(game))
     }
 
+    // Simplified: Call this function from anywhere a new game is added
+    // and you want the list on mobile to scroll to the top.
+    private fun triggerScrollToTopGamesList() {
+        viewModelScope.launch {
+            // Emit the event. The list should ideally have updated or be updating shortly.
+            _scrollToTopGamesListEvent.emit(Unit)
+            Log.d(TAG, "ScrollToTopGamesList event emitted.")
+        }
+    }
+
     // When importing ICS, use the new constructor in your Game class
-    fun addOrUpdateGames(games: List<Game>) {
+    fun addOrUpdateGames(games: List<Game>) { // Assuming this is called when games are added/imported
         val userId = _currentUserId.value
         if (userId == null) {
             Log.w(TAG, "Cannot save games: User not logged in.")
             return
         }
         viewModelScope.launch(Dispatchers.IO) {
+            var newItemsWereAdded = false // Simple flag
             games.forEach { game ->
+                // Basic check: if the game isn't already in the current list by ID, assume it's new for scroll purposes.
+                // This is a simplification; for updates, you might not want to scroll.
+                // For this example, let's assume any game passed here for "addOrUpdate"
+                // when it's part of an "add new" flow should trigger a scroll.
+                // A more robust check might involve comparing with the list *before* this operation.
                 val gameWithTimestamp = game.copy(lastUpdated = System.currentTimeMillis())
-                gameRepository.addOrUpdateGame(userId, gameWithTimestamp).onFailure { e ->
-                    Log.e(TAG, "Failed to save game ${game.id}: ${e.message}")
+                val result = gameRepository.addOrUpdateGame(userId, gameWithTimestamp)
+                if (result.isSuccess) {
+                    newItemsWereAdded = true
+                } else {
+                    Log.e(TAG, "Failed to save game ${game.id}: ${result.exceptionOrNull()?.message}")
                 }
+            }
+
+            if (newItemsWereAdded) {
+                // The gamesList StateFlow will update due to Firestore listener.
+                // After data is saved, trigger the scroll.
+                triggerScrollToTopGamesList()
             }
         }
     }
+
 
     override fun onCleared() {
         super.onCleared()

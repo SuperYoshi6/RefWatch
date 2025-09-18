@@ -9,6 +9,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
@@ -20,7 +21,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -28,19 +28,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.databelay.refwatch.BuildConfig
 import com.databelay.refwatch.auth.AuthState
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameStatus
 import com.databelay.refwatch.common.PreviewTools.createSampleGames
-import com.databelay.refwatch.common.getAppVersionCode
-import com.databelay.refwatch.common.getAppVersionName
 import com.databelay.refwatch.common.theme.RefWatchMobileTheme
-import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.collectLatest
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -57,6 +53,7 @@ fun GameListScreen(
     authStateValue: AuthState, // << Pass AuthState directly
     games: List<Game>, // << Pass the list of games to display directly
     selectedTab: GameStatus,    // << Pass current tab
+    scrollToTopSignal: SharedFlow<Unit>?, // Event stream passed in
     onTabSelected: (GameStatus) -> Unit, // << Callback to change tab
     onAddGame: () -> Unit,
     onEditGame: (Game) -> Unit,
@@ -81,6 +78,17 @@ fun GameListScreen(
         )
     }
     val gamesToDisplay = if (selectedTab == GameStatus.SCHEDULED) upcomingGames else pastGames
+    val lazyListState = rememberLazyListState()
+
+    // --- Collect UI events ---
+    LaunchedEffect(key1 = scrollToTopSignal) { // Key on the signal itself in case it could change
+        scrollToTopSignal?.collectLatest {
+            Log.d("GameListScreen", "ScrollToTop event received in UI.")
+            if (gamesToDisplay.isNotEmpty()) {
+                lazyListState.animateScrollToItem(index = 0)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -398,6 +406,7 @@ fun GameListScreenPreview_Unauthenticated() {
             authStateValue = AuthState.Unauthenticated,
             games = createSampleGames(),
             selectedTab = GameStatus.SCHEDULED, // Default, not really visible
+            scrollToTopSignal = null,
             onTabSelected = {},
             onAddGame = {},
             onEditGame = {},
@@ -424,6 +433,7 @@ fun GameListScreenPreview_Loading() {
             authStateValue = AuthState.Unauthenticated,
             games = createSampleGames(),
             selectedTab = GameStatus.COMPLETED, // Default
+            scrollToTopSignal = null,
             onTabSelected = {},
             onAddGame = {},
             onEditGame = {},

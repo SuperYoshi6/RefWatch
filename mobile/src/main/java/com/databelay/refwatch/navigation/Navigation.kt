@@ -203,6 +203,7 @@ fun RefWatchNavHost() {
                 authStateValue = authStateValue,
                 games = gamesToDisplay,
                 selectedTab = selectedTab,
+                scrollToTopSignal = mobileGameViewModel.scrollToTopGamesListEvent, // Pass the SharedFlow
                 onTabSelected = { newTab -> mobileGameViewModel.selectTab(newTab) }, // ViewModel handles tab change
                 onAddGame = {
                     // Navigate to AddEditGameScreen for a new game
@@ -266,7 +267,6 @@ fun RefWatchNavHost() {
         ) { backStackEntry ->
             val addEditViewModel: AddEditGameViewModel = hiltViewModel()
             val gameId = backStackEntry.arguments?.getString("gameId")
-
             LaunchedEffect(gameId) {
                 addEditViewModel.initializeForm(gameId) // Initialize with game data
             }
