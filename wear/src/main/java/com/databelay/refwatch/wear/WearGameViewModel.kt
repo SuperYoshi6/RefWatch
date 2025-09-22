@@ -32,10 +32,14 @@ import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.formatTime
 import com.databelay.refwatch.common.hasTimer
 import com.databelay.refwatch.common.isBreak
+import com.databelay.refwatch.common.isKickOffSelectionPhase
 import com.databelay.refwatch.common.isPlayablePhase
+import com.databelay.refwatch.common.needsKickOff
+import com.databelay.refwatch.common.needsKickOffSelection
 import com.databelay.refwatch.common.opposite
 import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.toSnapshotForStorage
+import com.databelay.refwatch.common.usesHalfDuration
 import com.databelay.refwatch.wear.data.GameStorageWear
 import com.databelay.refwatch.wear.data.GameTimerService
 import com.databelay.refwatch.wear.util.ConnectivityObserver // For network status
@@ -77,13 +81,13 @@ class WearGameViewModel @Inject constructor(
 
     override val gamesList: StateFlow<List<Game>> = gameStorage.gamesListFlow
         .onEach { list -> // DEBUG LOGGING
-            Log.d(tag, "gamesList updated. Total games: ${list.size}")
-            list.forEach { game ->
-                Log.d(
-                    tag,
-                    "Game in gamesList - ID: ${game.id}, Status: ${game.status}, Score: ${game.homeScore}-${game.awayScore}, Events: ${game.events.size}"
-                )
-            }
+//            Log.d(tag, "gamesList updated. Total games: ${list.size}")
+//            list.forEach { game ->
+//                Log.d(
+//                    tag,
+//                    "Game in gamesList - ID: ${game.id}, Status: ${game.status}, Score: ${game.homeScore}-${game.awayScore}, Events: ${game.events.size}"
+//                )
+//            }
         }
         .stateIn(
             viewModelScope,
@@ -236,14 +240,14 @@ class WearGameViewModel @Inject constructor(
             Log.i(tag, "Network status in ViewModel: ${if (online) "Online" else "Offline"}")
         }.launchIn(viewModelScope)
 
-        Intent(getApplication(), GameTimerService::class.java).also { intent ->
+/*        Intent(getApplication(), GameTimerService::class.java).also { intent ->
             try {
                 ContextCompat.startForegroundService(getApplication(), intent)
                 Log.d(tag, "Requested to start GameTimerService.")
             } catch (e: Exception) {
                 Log.e(tag, "Failed to start GameTimerService", e)
             }
-        }
+        }*/
         bindToGameTimerService()
     }
 
@@ -652,6 +656,14 @@ class WearGameViewModel @Inject constructor(
         )
 
         _activeGame.value = updatedGame
+        if (nextPhase.isKickOffSelectionPhase()) {
+            // ...
+        } else {
+            gameTimerService?.configureTimerForGame(
+                game = updatedGame, // Use the DEFINITIVE updatedGame
+                startImmediately = false // Explicitly false for SECOND_HALF
+            )
+        }
         Log.i(
             tag,
             "Phase ${gameAtPeriodEnd.currentPhase} ended. New phase: ${updatedGame.currentPhase}. Kick-off: ${updatedGame.kickOffTeam}"
@@ -919,6 +931,7 @@ class WearGameViewModel @Inject constructor(
             return
         }
         Log.d(tag, "Recording penalty attempt for ${taker.name}. Scored: $scored")
+        vibrate(VibrationPattern.GOAL_SCORED)
 
         _activeGame.update { game ->
             game?.let {
@@ -1030,27 +1043,3 @@ class WearGameViewModel @Inject constructor(
     }
 }
 
-// Helper extension function, consider moving to common GamePhase related file
-fun GamePhase.needsKickOffSelection(): Boolean {
-    return this == GamePhase.FIRST_HALF ||
-            this == GamePhase.EXTRA_TIME_FIRST_HALF ||
-            this == GamePhase.PENALTIES
-}
-
-fun GamePhase.needsKickOff(): Boolean {
-    return this == GamePhase.FIRST_HALF || this == GamePhase.SECOND_HALF ||
-            this == GamePhase.EXTRA_TIME_FIRST_HALF || this == GamePhase.EXTRA_TIME_SECOND_HALF ||
-            this == GamePhase.PENALTIES
-}
-
-fun GamePhase.isKickOffSelectionPhase(): Boolean { // More precise than needsKickOffSelection
-    return this == GamePhase.KICK_OFF_SELECTION_FIRST_HALF ||
-            this == GamePhase.KICK_OFF_SELECTION_EXTRA_TIME ||
-            this == GamePhase.KICK_OFF_SELECTION_PENALTIES
-}
-
-fun GamePhase.usesHalfDuration(): Boolean {
-    return this == GamePhase.FIRST_HALF || this == GamePhase.SECOND_HALF ||
-            this == GamePhase.EXTRA_TIME_FIRST_HALF || this == GamePhase.EXTRA_TIME_SECOND_HALF ||
-            this == GamePhase.PRE_GAME // Allow setting duration in pre-game
-}

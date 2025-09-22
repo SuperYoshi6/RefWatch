@@ -31,7 +31,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.databelay.refwatch.auth.AuthScreen
 import com.databelay.refwatch.auth.AuthState
 import com.databelay.refwatch.auth.AuthViewModel
 import com.databelay.refwatch.common.Game
@@ -39,6 +38,7 @@ import com.databelay.refwatch.common.SimpleIcsEvent
 import com.databelay.refwatch.common.SimpleIcsParser
 import com.databelay.refwatch.games.AddEditGameRoute
 import com.databelay.refwatch.games.AddEditGameViewModel
+import com.databelay.refwatch.games.AuthScreenRoute
 import com.databelay.refwatch.games.GameListScreen
 import com.databelay.refwatch.games.GameLogScreen
 import com.databelay.refwatch.games.MobileGameViewModel
@@ -72,9 +72,6 @@ fun RefWatchNavHost() {
     val authState by authViewModel.authState.collectAsState()
     val coroutineScope = rememberCoroutineScope() // For parsing in a background thread
 
-    // ---- STATE TO CONTROL DELAYED COMPOSITION ----
-    var canInitializeViewModels by remember { mutableStateOf(false) }
-
     // This LaunchedEffect is responsible for reacting to authState changes globally
     // and navigating to the correct top-level screen (Auth or GameList).
     LaunchedEffect(authState) {
@@ -82,16 +79,15 @@ fun RefWatchNavHost() {
             TAG,
             "AuthState changed: $authState. Current route: ${navController.currentBackStackEntry?.destination?.route}"
         )
+        val currentRoute = navController.currentBackStackEntry?.destination?.route
         when (authState) {
             is AuthState.Authenticated -> {
-                // If we are not already on a screen within the authenticated part of the app, navigate.
-                // This prevents re-navigating if already on GameList or AddEditGame.
-                if (navController.currentBackStackEntry?.destination?.route != MobileNavRoutes.GAME_LIST_SCREEN &&
-                    navController.currentBackStackEntry?.destination?.route?.startsWith(
-                        MobileNavRoutes.ADD_EDIT_GAME_SCREEN.substringBefore("?")
-                    ) != true
+                if (currentRoute != MobileNavRoutes.GAME_LIST_SCREEN &&
+                    currentRoute?.startsWith(MobileNavRoutes.ADD_EDIT_GAME_SCREEN.substringBefore("?")) != true &&
+                    currentRoute != MobileNavRoutes.SETTINGS_SCREEN && // Ensure settings screen doesn't cause re-navigation
+                    currentRoute?.startsWith(MobileNavRoutes.GAME_LOG_SCREEN.substringBefore("?")) != true // Ensure game log doesn't cause re-navigation
                 ) {
-                    Log.d(TAG, "Navigating to GAME_LIST_SCREEN due to Authenticated state.")
+                    Log.d(TAG, "Navigating to GAME_LIST_SCREEN due to Authenticated state from $currentRoute.")
                     navController.navigate(MobileNavRoutes.GAME_LIST_SCREEN) {
                         popUpTo(navController.graph.findStartDestination().id) {
                             inclusive = true
@@ -103,10 +99,10 @@ fun RefWatchNavHost() {
 
             is AuthState.Unauthenticated, is AuthState.Error -> {
                 // If we are not already on the AuthScreen, navigate.
-                if (navController.currentBackStackEntry?.destination?.route != MobileNavRoutes.AUTH_SCREEN) {
+                if (currentRoute != MobileNavRoutes.AUTH_SCREEN) {
                     Log.d(
                         TAG,
-                        "Navigating to AUTH_SCREEN due to Unauthenticated or Error state."
+                        "Navigating to AUTH_SCREEN due to Unauthenticated or Error state from $currentRoute."
                     )
                     navController.navigate(MobileNavRoutes.AUTH_SCREEN) {
                         popUpTo(navController.graph.findStartDestination().id) {
@@ -118,10 +114,6 @@ fun RefWatchNavHost() {
             }
 
             AuthState.Loading -> {
-                // If currently on Loading screen, do nothing, let it decide.
-                // If on another screen and auth becomes Loading (e.g. during re-auth),
-                // you might want to navigate to LoadingScreen or show an overlay.
-                // For simplicity, often this state is handled within specific operations.
                 Log.d(TAG, "AuthState is Loading.")
             }
         }
@@ -172,8 +164,7 @@ fun RefWatchNavHost() {
         }
 
         composable(MobileNavRoutes.AUTH_SCREEN) {
-            AuthScreen(
-                authViewModel = authViewModel,
+            AuthScreenRoute(
                 onSignInSuccess = {
                     // The LaunchedEffect(authState) above will handle navigating to GAME_LIST_SCREEN
                     // once authState becomes Authenticated. So this callback might not even need

@@ -123,7 +123,23 @@ sealed class ConfirmationDialogInfo(
             onDialogClose()
         }
     )
+
+    class RemoveLogEvent(
+        onConfirm: () -> Unit,
+        onDialogClose: () -> Unit // Even if no animation, good to have consistent close logic
+    ) : ConfirmationDialogInfo(
+        title = "Delete Log Event?",
+        text = "This will delete the event and potentially update the score. Are you sure?",
+        confirmButtonText = "Yes",
+        dismissButtonText = "No",
+        onConfirmAction = {
+            onConfirm()
+            onDialogClose()
+        },
+        onDismissDialogAction = onDialogClose
+    )
 }
+
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -149,7 +165,7 @@ fun GameScreenWithPager(
     val context = LocalContext.current
 
     var activeDialogInfo: ConfirmationDialogInfo? by remember { mutableStateOf(null) }
-
+    // FIXME: transitions blink white borders after the confirmation dialog
     val animateToMainPage: () -> Unit = {
         coroutineScope.launch { verticalPagerState.animateScrollToPage(0) }
     }
@@ -272,33 +288,7 @@ fun GameScreenWithPager(
 
     // Unified Confirmation Dialog
     activeDialogInfo?.let { dialogInfo ->
-        Log.d("ConfirmationDialog", "Showing dialog: ${dialogInfo.title}")
-        AlertDialog(
-            visible = true,
-            onDismissRequest = {
-                dialogInfo.onDismissDialogAction() // This handles specific dismiss logic + common close logic
-            },
-            title = { Text(dialogInfo.title, color = MaterialTheme.colorScheme.primary) },
-            dismissButton = {
-                AlertDialogDefaults.DismissButton(
-                    onClick = {
-                        dialogInfo.onDismissDialogAction() // This handles specific dismiss logic + common close logic
-                    },
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = androidx.compose.ui.graphics.Color.Transparent, // Standard for dismiss
-//                        contentColor = MaterialTheme.colorScheme.primary
-                    )
-                ) { Text(dialogInfo.dismissButtonText) }
-            },
-            text = { dialogInfo.text?.let { Text(it) } },
-            confirmButton = {
-                AlertDialogDefaults.ConfirmButton(
-                    onClick = {
-                        dialogInfo.onConfirmAction() // This handles specific confirm logic + common close logic
-                    }
-                ) { Text(dialogInfo.confirmButtonText) }
-            },
-        )
+        UnifiedConfirmationDialog(dialogInfo = dialogInfo)
     }
 }
 

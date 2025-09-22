@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -124,9 +125,8 @@ fun GameListScreen(
                 .fillMaxSize()
                 .padding(paddingValues),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.SpaceEvenly,
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
             // --- TABS FOR FILTERING ---
             TabRow(selectedTabIndex = if (selectedTab == GameStatus.SCHEDULED) 0 else 1) { // Determine index based on selectedTab
                 Tab(
@@ -140,14 +140,17 @@ fun GameListScreen(
                     text = { Text("Past (${pastGames.size})") }
                 )
             }
-
             // --- GAME LIST or EMPTY MESSAGE ---
             if (gamesToDisplay.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("No games scheduled. Add one or import ICS.")
                 }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyColumn(
+                    state = lazyListState,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 72.dp)
+                ) {
                     items(gamesToDisplay, key = { it.id }) { game ->
                         GameListItem(
                             game = game,
@@ -158,7 +161,6 @@ fun GameListScreen(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

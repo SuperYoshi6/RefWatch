@@ -24,6 +24,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,6 +63,16 @@ fun LogCardScreen(
     ScreenScaffold(
 //        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
     ) {
+        // Request focus when the composable enters the composition
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+            // Note: Showing the keyboard programmatically can sometimes be tricky
+            // and platform-dependent. FocusRequester.requestFocus() should typically
+            // also trigger the keyboard for a TextField on Wear OS.
+            // If the keyboard doesn't show, you might need to investigate further,
+            // potentially using LocalSoftwareKeyboardController.
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize(),
@@ -93,6 +104,7 @@ fun LogCardScreen(
                 modifier = Modifier
                     .focusRequester(focusRequester)
                     .padding(horizontal = 32.dp),
+
                 colors = TextFieldDefaults.colors(
                     // Focused colors
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -103,7 +115,7 @@ fun LogCardScreen(
                     unfocusedContainerColor = Color.Transparent, // Or MaterialTheme.colorScheme.surface
 
                     // Disabled colors (optional, but good to define)
-                    disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     disabledContainerColor = Color.Transparent,
 
                     // Cursor color
@@ -197,7 +209,7 @@ fun LogCardScreen(
 // -----------------------------------------------------------------------------------------
 @Preview(device = "id:wearos_small_round", name = "LogCard SmRnd", showBackground = true)
 @Preview(device = "id:wearos_large_round", name = "LogCard LrgRnd", showBackground = true)
-@Preview(device = "id:wearos_square", name = "LogCard Sqr", showBackground = true)
+@Preview(device = "id:wearos_square", name = "LogCard Sqr", showBackground = false)
 @WearPreviewFontScales
 @Composable
 fun LogCardScreenPreview_Yellow_Home() {

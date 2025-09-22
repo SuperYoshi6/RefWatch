@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +42,8 @@ import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameEvent
 import com.databelay.refwatch.common.PreviewTools.createFirstHalfSampleGame
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -48,10 +53,12 @@ import java.util.Locale
 fun GameLogScreen(
     game: Game,
     onDismiss: () -> Unit,
-    onUndoEvent: (event: GameEvent) -> Unit,
+    onRemoveEvent: (event: GameEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val tag = "GameLogScreen"
+    var activeDialogInfo: ConfirmationDialogInfo? by remember { mutableStateOf(null) }
+    // Common logic for closing any dialog and animating back to the main page (if applicable)
 
     LaunchedEffect(game) {
         game.let {
@@ -70,7 +77,7 @@ fun GameLogScreen(
         },
         modifier = modifier
             .fillMaxSize()
-        .padding(2.dp),
+            .padding(2.dp),
                 contentPadding = PaddingValues(vertical = 0.dp, horizontal = 2.dp),
 
     ) { contentPadding ->
@@ -109,8 +116,10 @@ fun GameLogScreen(
                     EventLogItem(
                         event = event,
                         onLongClick = {
-                            Log.d("EventLogItem", "Long click on event: ${event.displayString}")
-                            onUndoEvent(event)
+                            activeDialogInfo = ConfirmationDialogInfo.RemoveLogEvent(
+                                onConfirm = { onRemoveEvent(event)},
+                                onDialogClose = onDismiss
+                            )
                         }
                     )
                     // HorizontalDivider removed as Cards provide separation
@@ -130,6 +139,12 @@ fun GameLogScreen(
             }
         }
     }
+
+    // Unified Confirmation Dialog
+    activeDialogInfo?.let { dialogInfo ->
+        UnifiedConfirmationDialog(dialogInfo = dialogInfo)
+    }
+
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -186,7 +201,7 @@ fun GameLogScreenPreview() {
         GameLogScreen(
             game = sampleGame,
             onDismiss = { Log.d("Preview", "Dismiss clicked") },
-            onUndoEvent = { Log.d("Preview", "Undo event clicked") }
+            onRemoveEvent = { Log.d("Preview", "Undo event clicked") }
         )
     }
 }

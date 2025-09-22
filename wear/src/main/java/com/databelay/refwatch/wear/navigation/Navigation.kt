@@ -4,17 +4,30 @@ import android.annotation.SuppressLint
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Announcement
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Report
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -36,13 +49,22 @@ import com.databelay.refwatch.wear.presentation.screens.LogCardScreen
 import com.databelay.refwatch.wear.presentation.screens.PreGameSetupRoute
 import kotlinx.coroutines.delay
 import androidx.wear.compose.foundation.pager.rememberPagerState
+import androidx.wear.compose.material.dialog.Confirmation
 import androidx.wear.compose.material3.AppScaffold
+import androidx.wear.compose.material3.ConfirmationDialog
+import androidx.wear.compose.material3.ConfirmationDialogDefaults
+import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.SuccessConfirmationDialog
+import androidx.wear.compose.material3.confirmationDialogCurvedText
+import com.databelay.refwatch.common.CardIssuedEvent
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.isPlayablePhase
+import com.databelay.refwatch.wear.presentation.screens.ConfirmationDialogInfo
+import com.databelay.refwatch.wear.presentation.screens.UnifiedConfirmationDialog
 import kotlin.let
 
 const val TAG = "NavigationRoutes"
-// FIXME: seems to be resolved (after swipe left in halftime the game doesn't restore to it's state)
+
 @Composable
 fun NavigationRoutes() {
     val navController = rememberSwipeDismissableNavController()
@@ -50,15 +72,17 @@ fun NavigationRoutes() {
     val activeGame by gameViewModel.activeGame.collectAsStateWithLifecycle()
     val allGames by gameViewModel.gamesList.collectAsStateWithLifecycle() // Assuming gamesList is the correct source
     val isOnline by gameViewModel.isOnline.collectAsStateWithLifecycle()
-
     val startDestination = remember(activeGame) {
         activeGame?.let {
-            Log.d(TAG, "Determined start destination based on active game phase: ${activeGame?.currentPhase}")
+            Log.d(
+                TAG,
+                "Determined start destination based on active game phase: ${activeGame?.currentPhase}"
+            )
             mapGamePhaseToRoute(it.currentPhase)
         } ?: WearNavRoutes.GAME_LIST_SCREEN
     }
 
-    AppScaffold (
+    AppScaffold(
         timeText = { },
         modifier = Modifier.background(MaterialTheme.colorScheme.background),
     ) {
@@ -103,6 +127,7 @@ fun NavigationRoutes() {
                     navController = navController,
                     gameViewModel = gameViewModel
                 )
+
             }
 
             composable(WearNavRoutes.KICK_OFF_SELECTION_SCREEN) {
@@ -179,9 +204,7 @@ fun NavigationRoutes() {
                             }
                         },
                         onPenaltyAttemptRecorded = { scored ->
-                            gameViewModel.recordPenaltyAttempt(
-                                scored
-                            )
+                            gameViewModel.recordPenaltyAttempt(scored)
                         }
                     )
                 } else {
@@ -199,28 +222,56 @@ fun NavigationRoutes() {
                 )
             )
             { backStackEntry ->
+
                 val teamId = backStackEntry.arguments?.getString(WearNavRoutes.TEAM_ARG)
                 val cardTypeString = backStackEntry.arguments?.getString("cardType")
 
                 val team =
                     teamId?.let { Team.valueOf(it.uppercase()) }
                 val cardType = cardTypeString?.let { CardType.valueOf(it.uppercase()) }
-
+                var confirmedRedPlayerNumber by remember { mutableStateOf<Int?>(null) }
+                var showRedCardConfirmationDialog by remember { mutableStateOf(false) }
                 if (team != null && cardType != null) {
                     LogCardScreen(
                         preselectedTeam = team,
                         cardType = cardType,
                         onLogCard = { loggedTeam, playerNum, loggedCardType ->
-                            // TODO: add logic to add a read if second yellow for the same number on the team, display an alert saying that a red was given
+                            var autoRedCardIssued = false
 
-                            gameViewModel.addCard(
-                                team,
-                                playerNum,
-                                cardType
-                            ) // Use arguments from closure
-                            navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
-                                popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
-                                launchSingleTop = true
+                            // Log the original card (yellow or direct red)
+                            gameViewModel.addCard(loggedTeam, playerNum, loggedCardType)
+
+                            // --- Logic for two yellows leading to a red ---
+                            if (loggedCardType == CardType.YELLOW) {
+                                val activeGameSnapshot = gameViewModel.activeGame.value
+                                if (activeGameSnapshot != null) {
+                                    val yellowCardsForPlayer =
+                                        activeGameSnapshot.events.filterIsInstance<CardIssuedEvent>()
+                                            .count { event ->
+                                                event.team == loggedTeam &&
+                                                        event.playerNumber == playerNum &&
+                                                        event.cardType == CardType.YELLOW
+                                            }
+
+                                    if (yellowCardsForPlayer == 2) { // Current yellow makes it the second
+                                        // Issue an automatic red card
+                                        gameViewModel.addCard(loggedTeam, playerNum, CardType.RED)
+                                        // Unified Confirmation Dialog
+                                        confirmedRedPlayerNumber = playerNum
+                                        showRedCardConfirmationDialog = true
+                                        Log.i(
+                                            TAG,
+                                            "Second yellow for player $playerNum of team $loggedTeam. Auto red card issued."
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (!showRedCardConfirmationDialog) { // Navigate only if dialog isn't shown
+                                navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
+                                    popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
+                                    launchSingleTop = true
+                                }
                             }
                         },
                         onCancel = {
@@ -230,6 +281,33 @@ fun NavigationRoutes() {
                             }
                         },
                     )
+                    ConfirmationDialog(
+                        visible = showRedCardConfirmationDialog,
+                        onDismissRequest = {
+                            showRedCardConfirmationDialog = false
+                            navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
+                                popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        },
+                        text = {
+                            Text(
+                                text = "Second yellow for player $confirmedRedPlayerNumber of team $team. Auto red card issued.",
+                                color = MaterialTheme.colorScheme.onError
+
+                            )
+                        },
+                        colors = ConfirmationDialogDefaults.colors(
+                            iconColor = MaterialTheme.colorScheme.onErrorContainer,
+                            iconContainerColor = MaterialTheme.colorScheme.primary,
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Report,
+                            contentDescription = null,
+                            modifier = Modifier.size(ConfirmationDialogDefaults.SmallIconSize),
+                        )
+                    }
                 } else {
                     Text("Error: Invalid navigation arguments for Log Card.")
                     LaunchedEffect(Unit) {
@@ -246,15 +324,27 @@ fun NavigationRoutes() {
                     }
                 )
             ) { backStackEntry ->
-                val gameIdString = backStackEntry.arguments?.getString(WearNavRoutes.GAME_ID_ARG)
-                val gameForLogNullable: Game? = gameIdString?.let { idToFind ->
-                    allGames.find { game -> game.id == idToFind } // Assuming Game has a String id property
+                val currentActiveGameSnapshot = activeGame
+                val gameIdString =
+                    backStackEntry.arguments?.getString(WearNavRoutes.GAME_ID_ARG)
+                var game: Game? = null
+                if (currentActiveGameSnapshot != null && currentActiveGameSnapshot.id == gameIdString) {
+                    // The requested gameId is the currently active game. Use its state directly.
+                    Log.i(
+                        TAG,
+                        "GameLog: Using current active game data (ID: $gameIdString) from ViewModel. Event count: ${currentActiveGameSnapshot.events.size}"
+                    )
+                    game = currentActiveGameSnapshot
+                } else {
+                    game = gameIdString?.let { idToFind ->
+                        allGames.find { game -> game.id == idToFind } // Assuming Game has a String id property
+                    }
                 }
-                gameForLogNullable?.let { gameForLog ->
+                game?.let { game ->
                     GameLogScreen(
-                        game = gameForLog,
+                        game = game,
                         onDismiss = { navController.popBackStack() },
-                        onUndoEvent = { event ->
+                        onRemoveEvent = { event ->
                             gameViewModel.removeEvent(event, gameIdString)
                         },
                     )
@@ -270,6 +360,7 @@ fun mapGamePhaseToRoute(phase: GamePhase): String {
         GamePhase.FIRST_HALF, GamePhase.HALF_TIME, GamePhase.SECOND_HALF,
         GamePhase.EXTRA_TIME_FIRST_HALF, GamePhase.EXTRA_TIME_HALF_TIME, GamePhase.EXTRA_TIME_SECOND_HALF,
         GamePhase.PENALTIES, GamePhase.GAME_ENDED -> WearNavRoutes.GAME_IN_PROGRESS_SCREEN
+
         GamePhase.NOT_STARTED -> WearNavRoutes.GAME_LIST_SCREEN
         GamePhase.PRE_GAME -> WearNavRoutes.PRE_GAME_SETUP_SCREEN
         GamePhase.KICK_OFF_SELECTION_FIRST_HALF,

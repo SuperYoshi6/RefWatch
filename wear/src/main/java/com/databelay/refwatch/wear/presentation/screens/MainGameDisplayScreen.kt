@@ -1,5 +1,6 @@
 package com.databelay.refwatch.wear.presentation.screens
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -168,6 +169,13 @@ fun MainGameDisplayScreen(
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
+                // --- DEBUG LOGGING ---
+                Log.d(tag, "KickOff Button Condition Check: " +
+                        "Phase: ${game.currentPhase}, " +
+                        "isPlayable: ${game.currentPhase.isPlayablePhase()}, " +
+                        "ElapsedMillis: ${game.actualTimeElapsedInPeriodMillis}, " +
+                        "isTimerRunning: ${game.isTimerRunning}")
+                // --- END DEBUG LOGGING ---
                 if (game.actualTimeElapsedInPeriodMillis == 0L && !game.isTimerRunning && game.currentPhase.isPlayablePhase()) {
                     Button(
                         onClick = onKickOff,

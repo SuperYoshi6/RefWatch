@@ -79,6 +79,32 @@ fun String.capitalizeWords(): String = split(" ").joinToString(" ") { word ->
     }
 }
 
+
+// Helper extension function, consider moving to common GamePhase related file
+fun GamePhase.needsKickOffSelection(): Boolean {
+    return this == GamePhase.FIRST_HALF ||
+            this == GamePhase.EXTRA_TIME_FIRST_HALF ||
+            this == GamePhase.PENALTIES
+}
+
+fun GamePhase.needsKickOff(): Boolean {
+    return this == GamePhase.FIRST_HALF || this == GamePhase.SECOND_HALF ||
+            this == GamePhase.EXTRA_TIME_FIRST_HALF || this == GamePhase.EXTRA_TIME_SECOND_HALF ||
+            this == GamePhase.PENALTIES
+}
+
+fun GamePhase.isKickOffSelectionPhase(): Boolean { // More precise than needsKickOffSelection
+    return this == GamePhase.KICK_OFF_SELECTION_FIRST_HALF ||
+            this == GamePhase.KICK_OFF_SELECTION_EXTRA_TIME ||
+            this == GamePhase.KICK_OFF_SELECTION_PENALTIES
+}
+
+fun GamePhase.usesHalfDuration(): Boolean {
+    return this == GamePhase.FIRST_HALF || this == GamePhase.SECOND_HALF ||
+            this == GamePhase.EXTRA_TIME_FIRST_HALF || this == GamePhase.EXTRA_TIME_SECOND_HALF ||
+            this == GamePhase.PRE_GAME // Allow setting duration in pre-game
+}
+
 fun GamePhase.readable(): String {
     return when (this) {
         GamePhase.FIRST_HALF -> "1st Half"
@@ -130,25 +156,12 @@ fun GamePhase.isBreak(): Boolean {
             this == GamePhase.EXTRA_TIME_HALF_TIME
 }
 
-fun GamePhase.isKickoffSelection(): Boolean {
-    return this == GamePhase.KICK_OFF_SELECTION_FIRST_HALF ||
-            this == GamePhase.KICK_OFF_SELECTION_EXTRA_TIME ||
-            this == GamePhase.KICK_OFF_SELECTION_PENALTIES
-}
-
 fun GamePhase.isPlayablePhase(): Boolean { // Phases where goals/cards can be recorded
     return this == GamePhase.FIRST_HALF ||
             this == GamePhase.SECOND_HALF ||
             this == GamePhase.EXTRA_TIME_FIRST_HALF ||
             this == GamePhase.EXTRA_TIME_SECOND_HALF ||
             this == GamePhase.PENALTIES
-}
-
-fun GamePhase.hasKickoff(): Boolean { // Phases where kick of starts the phase
-    return this == GamePhase.FIRST_HALF ||
-            this == GamePhase.SECOND_HALF ||
-            this == GamePhase.EXTRA_TIME_FIRST_HALF ||
-            this == GamePhase.EXTRA_TIME_SECOND_HALF
 }
 
 // vv DEFINE IT HERE vv
