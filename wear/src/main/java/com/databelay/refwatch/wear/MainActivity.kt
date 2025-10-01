@@ -9,6 +9,7 @@ import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.wear.navigation.NavigationRoutes
 import dagger.hilt.android.AndroidEntryPoint
 
+// TODO: add gps game movement statistics
 
 @AndroidEntryPoint // This annotation enables Hilt injection for the Activity
 class MainActivity : ComponentActivity() {

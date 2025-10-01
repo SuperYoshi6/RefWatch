@@ -7,30 +7,36 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.*
+import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+import android.os.Binder
+import android.os.Build
+import android.os.CountDownTimer
+import android.os.IBinder
+import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.wear.ongoing.OngoingActivity
 import androidx.wear.ongoing.Status
 import com.databelay.refwatch.R
-import com.databelay.refwatch.common.Game // Assuming you need parts of Game state
+import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.GameStatus
 import com.databelay.refwatch.common.formatTime
 import com.databelay.refwatch.common.hasTimer
-import com.databelay.refwatch.common.isPlayablePhase
 import com.databelay.refwatch.common.readable
-import com.databelay.refwatch.common.status
 import com.databelay.refwatch.wear.MainActivity
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 // Define your constants for notification
 private const val ONGOING_NOTIFICATION_ID_SERVICE = 2 // Different from OngoingActivity's ID
@@ -197,7 +203,11 @@ class GameTimerService : Service() {
                 makeOngoing = true 
                 // Ensure service is foreground for PRE_GAME ongoing activity
                 if (canPostNotifications()) {
-                     startForeground(ONGOING_NOTIFICATION_ID_SERVICE, createServiceNotification("Pre-Game Setup"))
+                     startForeground(
+                         ONGOING_NOTIFICATION_ID_SERVICE,
+                         createServiceNotification("Pre-Game Setup"),
+                         FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                         )
                      Log.d(TAG, "Service brought to foreground for PRE_GAME.")
                 } else {
                     Log.w(TAG, "Cannot start foreground for PRE_GAME, notifications disabled.")

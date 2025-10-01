@@ -74,10 +74,10 @@ dependencies {
     implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.constraintlayout)
-    implementation(libs.androidx.ui)
+    implementation(libs.androidx.compose.ui)
     implementation(libs.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.compose.ui.ui.tooling)
+    implementation(libs.androidx.ui.tooling)
 
     implementation(libs.androidx.compose.material) // Replace with latest version
     implementation(libs.androidx.material3)

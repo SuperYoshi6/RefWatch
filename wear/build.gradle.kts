@@ -1,10 +1,12 @@
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.screenshot)
     kotlin("plugin.serialization") version "2.1.21"
     id("com.google.gms.google-services") // If your wear app uses Firebase directly
     id("com.google.devtools.ksp")        // Apply KSP if you use it for Room, etc.
@@ -14,6 +16,15 @@ plugins {
 android {
     namespace = "com.databelay.refwatch"
     compileSdk = 36
+    experimentalProperties["android.experimental.enableScreenshotTest"] = true
+
+    sourceSets {
+        // Add this block for the main source set
+        getByName("main") {
+            java.srcDirs("src/main/java")
+            kotlin.srcDirs("src/main/kotlin", "src/screeshotTest/kotlin")
+        }
+    }
 
     buildFeatures {
         compose = true
@@ -22,13 +33,17 @@ android {
 
     defaultConfig {
         applicationId = "com.databelay.refwatch"
-        minSdk = 31
+        minSdk = 34
         targetSdk = 36
 //        Version code scheme explained here:  https://developer.android.com/training/wearables/packaging
         versionCode = 361040005
         versionName = "1.0.4"
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-        buildConfigField("String", "BUILD_TIME", "\"$buildTime\"") // BUILD_TIME becomes accessible in code
+        buildConfigField(
+            "String",
+            "BUILD_TIME",
+            "\"$buildTime\""
+        ) // BUILD_TIME becomes accessible in code
     }
 
     buildTypes {
@@ -48,14 +63,38 @@ android {
         jvmTarget = "11"
     }
     useLibrary("wear-sdk")
+
+/*    android {
+        testOptions {
+            screenshotTests {
+                imageDifferenceThreshold = 0.0001f // 0.01%
+            }
+        }
+    }*/
+
+/*    tasks.withType<Test>().configureEach {
+        // This checks if the task is a test running on a JVM (like a screenshot test)
+        if (this is org.gradle.api.tasks.testing.Test) {
+            // Creates a JAR file containing the classpath to avoid issues with
+            // long command lines on Windows, which is what causes your error.
+            print("Creating classpath jar for ${name}")
+            // vvv FIX IS HERE vvv
+            val classpathJar = tasks.register<Jar>("${name}ClasspathJar") {
+                archiveClassifier.set("classpath")
+                from(classpath.map { if (it.isDirectory) it else zipTree(it) })
+            }
+            // When using .register(), you must use .get() to access the task provider's value
+            classpath = files(classpathJar)
+        }
+    }*/
 }
 
 dependencies {
     implementation(project(":common"))
     implementation(platform(libs.compose.bom))
-    implementation(libs.ui)
+    implementation(libs.androidx.compose.ui)
     implementation(libs.ui.graphics)
-    implementation(libs.ui.tooling.preview)
+    implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.compose.material)
     implementation(libs.compose.foundation)
     implementation(libs.activity.compose)
@@ -64,8 +103,12 @@ dependencies {
     implementation(libs.play.services.wearable)
     implementation(libs.androidx.compose.navigation) // If you're using Wear Navigation
     implementation(libs.androidx.navigation.runtime.android)
-    implementation(libs.kotlinx.coroutines.android) // You likely have this or core
-    implementation(libs.kotlinx.coroutines.play.services) // Or the latest version
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.kotlinx.serialization.json)
+
+
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -74,21 +117,18 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.compose.material)
     implementation(libs.androidx.compose.foundation)
-    implementation(libs.kotlinx.serialization.json)
     implementation(libs.play.services.auth) // Check for latest
     implementation(libs.hilt.android) // Use the same version as the plugin
     implementation(libs.androidx.hilt.navigation.compose)
 
-    implementation(libs.kotlinx.serialization.json) // For deserialization
     implementation(libs.androidx.lifecycle.viewmodel.compose) // For ViewModels
     implementation(libs.play.services.wearable)
     implementation(libs.androidx.core.ktx)
     implementation(libs.play.services.wearable) // Crucial
     implementation(libs.androidx.lifecycle.runtime.ktx) // For coroutines
-    implementation(libs.kotlinx.coroutines.android) // You likely have this or core
-    implementation(libs.kotlinx.coroutines.core) // Or latest stable version
+
     implementation(libs.gson)
-    implementation(libs.androidx.compose.ui.ui.tooling)
+    implementation(libs.androidx.ui.tooling)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
@@ -97,14 +137,22 @@ dependencies {
     implementation(libs.wear.tooling.preview)
     implementation(libs.androidx.wear.ongoing)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.ui.tooling)
     implementation(libs.androidx.media3.common.ktx)
     implementation(libs.androidx.compose.foundation.layout)
+    implementation(libs.androidx.foundation)
+    implementation(libs.screenshot.validation.api)
+    implementation(libs.androidx.core.core.ktx)
+    implementation(libs.androidx.compose.ui.tooling)
 
 
+    screenshotTestImplementation(libs.kotlinx.coroutines.android)
+    screenshotTestImplementation(libs.kotlinx.coroutines.core)
+    screenshotTestImplementation(libs.screenshot.validation.api)
+    screenshotTestImplementation(libs.wear.tooling.preview)
+    screenshotTestImplementation(libs.androidx.ui.tooling)
 
     ksp(libs.hilt.compiler)
-    debugImplementation(libs.androidx.compose.ui.ui.tooling) // Or latest version
+    debugImplementation(libs.androidx.ui.tooling) // Or latest version
     debugImplementation(libs.ui.test.manifest)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.compose.bom))
@@ -114,3 +162,4 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
+

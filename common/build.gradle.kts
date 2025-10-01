@@ -9,6 +9,7 @@ plugins {
 android {
     namespace = "com.databelay.common"
     compileSdk = 36
+    experimentalProperties["android.experimental.enableScreenshotTest"] = true
 
     defaultConfig {
         minSdk = 31
@@ -38,14 +39,15 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+
 }
 
 dependencies {
     implementation(libs.play.services.wearable)
     implementation(platform(libs.compose.bom))
-    implementation(libs.ui)
+    implementation(libs.androidx.compose.ui)
     implementation(libs.ui.graphics)
-    implementation(libs.ui.tooling.preview)
+    implementation(libs.androidx.ui.tooling)
     implementation(libs.compose.material)
     implementation(libs.compose.foundation)
     implementation(libs.wear.tooling.preview)

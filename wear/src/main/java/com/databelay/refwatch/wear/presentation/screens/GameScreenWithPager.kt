@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
+import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.foundation.pager.PagerState
 import androidx.wear.compose.foundation.pager.VerticalPager
 import androidx.wear.compose.foundation.pager.rememberPagerState
@@ -32,6 +34,7 @@ import androidx.wear.compose.material3.VerticalPageIndicator
 import androidx.wear.compose.material3.VerticalPagerScaffold
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
+import com.android.tools.screenshot.PreviewTest
 import com.databelay.refwatch.common.CardType
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
@@ -40,6 +43,9 @@ import com.databelay.refwatch.common.hasTimer
 import com.databelay.refwatch.common.logBackStack
 import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
+import com.google.android.horologist.compose.layout.ColumnItemType
+import com.google.android.horologist.compose.layout.ColumnItemType.Companion.EdgeButtonPadding
+import com.google.android.horologist.compose.layout.rememberResponsiveColumnPadding
 import kotlinx.coroutines.launch
 
 // Sealed class to define the information for different confirmation dialogs
@@ -293,6 +299,7 @@ fun GameScreenWithPager(
 }
 
 // -------------------------------- Previews -----------------------------------------------
+@PreviewTest
 @OptIn(ExperimentalFoundationApi::class)
 @Preview(device = "id:wearos_small_round", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
 @Composable
@@ -355,12 +362,10 @@ fun GameScreenWithPagerPreviewSettingsOpen() {
     }
 }
 
-
-//@Preview(device = "id:wearos_small_round",name = "AddedTime SmRnd",showBackground = true)
-//@Preview(device = "id:wearos_square",name = "AddedTime Sqr",showBackground = true)
-//@WearPreviewFontScales
+@Preview(device = "id:wearos_small_round",name = "AddedTime SmRnd",showBackground = true)
+@Preview(device = "id:wearos_square",name = "AddedTime Sqr",showBackground = true)
 @Preview(device = "id:wearos_large_round",name = "AddedTime LrgRnd",showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
-
+@WearPreviewFontScales
 @Composable
 fun Preview_MainGameDisplay_Penalties() {
     val sampleGame = Game.defaults().copy(currentPhase = GamePhase.PENALTIES)
@@ -385,5 +390,40 @@ fun Preview_MainGameDisplay_Penalties() {
             onConfirmEndMatch = {},
             onPenaltyAttemptRecorded = {}
         )
+    }
+}
+
+@Composable
+fun Test() {
+    val sampleGame = Game.Companion.defaults().copy(
+        currentPhase = GamePhase.FIRST_HALF,
+        isTimerRunning = true,
+        actualTimeElapsedInPeriodMillis = (10 * 60000L)
+    )
+    val horizontalPagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
+    val verticalPagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
+
+
+    val scrollState = rememberTransformingLazyColumnState()
+
+    /* If you have enough items in your list, use [TransformingLazyColumn] which is an optimized
+     * version of LazyColumn for wear devices with some added features. For more information,
+     * see d.android.com/wear/compose.
+     */
+    ScreenScaffold(
+        scrollState = scrollState,
+        contentPadding =
+            rememberResponsiveColumnPadding(
+                first = ColumnItemType.ListHeader,
+                last = EdgeButtonPadding
+            )
+    ) { contentPadding ->
+        // Use workaround from Horologist for padding or wait until fix lands
+        TransformingLazyColumn(
+            state = scrollState,
+            contentPadding = contentPadding
+        ) {
+            item { Text("Header") }
+        }
     }
 }
