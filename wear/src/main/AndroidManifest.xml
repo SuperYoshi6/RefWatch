@@ -18,7 +18,7 @@
         <meta-data
             android:name="com.google.android.wearable.standalone"
             android:value="true" />
-        <!-- ... your existing activity ... -->
+
         <activity
             android:name=".wear.MainActivity"
             android:launchMode="singleTop"
@@ -30,6 +30,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
         <service
             android:name=".wear.data.GameTimerService"
             android:foregroundServiceType="specialUse">
@@ -38,8 +39,10 @@
                 android:value="Referee timer that needs to be always in foreground to be available at a glance."
                 />
         </service>
-
-<!--        <service
+<!--       !!!!!! WearDataListenerService: Although data is obtained directly from firestore
+                    we still need to keep this service to get auth token from phone
+                    -->
+        <service
             android:name=".wear.data.WearDataListenerService"
             android:exported="true">
             <intent-filter>
@@ -56,8 +59,7 @@
                 <data android:pathPrefix="/games_list_all" />
                 <data android:pathPrefix="/phone_user_id" />
             </intent-filter>
-        </service>-->
-        <!-- ▲▲▲ END OF SERVICE DECLARATION ▲▲▲ -->
+        </service>
 
     </application>
 </manifest>

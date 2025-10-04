@@ -171,9 +171,11 @@ fun GameScreenWithPager(
     val context = LocalContext.current
 
     var activeDialogInfo: ConfirmationDialogInfo? by remember { mutableStateOf(null) }
-    // FIXME: transitions blink white borders after the confirmation dialog
+    // TODO: transitions blink white borders after the confirmation dialog
+    //        animatescrolltopage flashing white borders (commented out for now)
     val animateToMainPage: () -> Unit = {
-        coroutineScope.launch { verticalPagerState.animateScrollToPage(0) }
+//        coroutineScope.launch { verticalPagerState.animateScrollToPage(0) }
+        coroutineScope.launch { verticalPagerState.scrollToPage(0) }
     }
 
     // Common logic for closing any dialog and animating back to the main page (if applicable)
@@ -301,7 +303,7 @@ fun GameScreenWithPager(
 // -------------------------------- Previews -----------------------------------------------
 @PreviewTest
 @OptIn(ExperimentalFoundationApi::class)
-@Preview(device = "id:wearos_small_round", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
+@Preview(device = "id:wearos_large_round", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
 @Composable
 fun GameScreenWithPagerPreviewSmallRegulationTime() {
     val sampleGame = Game.defaults().copy(
@@ -334,7 +336,7 @@ fun GameScreenWithPagerPreviewSmallRegulationTime() {
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-@Preview(device = "id:wearos_small_round", name = "Settings Page Open", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
+@Preview(device = "id:wearos_large_round", name = "Settings Page Open", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
 @Composable
 fun GameScreenWithPagerPreviewSettingsOpen() {
     val sampleGame = Game.defaults().copy(currentPhase = GamePhase.FIRST_HALF)
@@ -362,10 +364,10 @@ fun GameScreenWithPagerPreviewSettingsOpen() {
     }
 }
 
-@Preview(device = "id:wearos_small_round",name = "AddedTime SmRnd",showBackground = true)
-@Preview(device = "id:wearos_square",name = "AddedTime Sqr",showBackground = true)
+//@Preview(device = "id:wearos_small_round",name = "AddedTime SmRnd",showBackground = true)
+//@Preview(device = "id:wearos_square",name = "AddedTime Sqr",showBackground = true)
 @Preview(device = "id:wearos_large_round",name = "AddedTime LrgRnd",showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
-@WearPreviewFontScales
+//@WearPreviewFontScales
 @Composable
 fun Preview_MainGameDisplay_Penalties() {
     val sampleGame = Game.defaults().copy(currentPhase = GamePhase.PENALTIES)

@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
@@ -47,6 +48,7 @@ import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
+import androidx.wear.tooling.preview.devices.WearDevices
 import com.databelay.refwatch.BuildConfig
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameStatus
@@ -310,10 +312,11 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
 
 // --------------------------------------- Previews ----------------------------------------
 // -----------------------------------------------------------------------------------------
-@Preview(device = "id:wearos_small_round", showBackground = true)
-@Preview(device = "id:wearos_square", showBackground = true)
-@Preview(device = "id:wearos_large_round", showBackground = true)
+@Preview(device = WearDevices.LARGE_ROUND, showBackground = true)
+@Preview(device =  WearDevices.SMALL_ROUND, showBackground = true)
+@Preview(device =  WearDevices.SQUARE, showBackground = true)
 @WearPreviewFontScales
+
 @Composable
 fun GameListScreenPreview_WithScheduledGames() {
     val allGames = createSampleGames()

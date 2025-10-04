@@ -56,7 +56,6 @@ data class TimerState(
     val inAddedTime: Boolean = false
 )
 
-
 class GameTimerService : Service() {
     private val TAG = "GameTimerService"
     private val binder = LocalBinder()
@@ -234,10 +233,7 @@ class GameTimerService : Service() {
 
 
     private fun canPostNotifications(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        }
-        return true 
+        return ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     }
 
     fun startGameTimer(

@@ -15,6 +15,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * WearDataListenerService:
+ * Although data is obtained directly from firestore we still need to keep this service to get auth token from phone
+ *
+ */
 @AndroidEntryPoint
 class WearDataListenerService : WearableListenerService() {
     private val tag = "WearDataListenerSvc"
@@ -22,8 +27,6 @@ class WearDataListenerService : WearableListenerService() {
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
 
-    // @Inject // No longer needed if GameStorageWear is not used
-    // lateinit var gameStorage: GameStorageWear 
     @Inject
     lateinit var watchAuthManager: WatchAuthManager
 
@@ -32,7 +35,7 @@ class WearDataListenerService : WearableListenerService() {
 
         var newReceivedPhoneUserId: String? = null
         var phoneUserIdChanged = false
-// FIXME: are app permissions good on watch?
+
         dataEvents.forEach { event ->
             Log.d(tag, "Event: type=${event.type}, path=${event.dataItem.uri.path}")
             val dataItem = event.dataItem

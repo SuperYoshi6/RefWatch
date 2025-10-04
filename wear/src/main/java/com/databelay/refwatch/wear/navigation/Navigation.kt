@@ -1,22 +1,20 @@
 package com.databelay.refwatch.wear.navigation
 
-import android.annotation.SuppressLint
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Announcement
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Report
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,21 +23,32 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import androidx.wear.compose.foundation.pager.rememberPagerState
+import androidx.wear.compose.material3.AlertDialog
+import androidx.wear.compose.material3.AlertDialogDefaults
+import androidx.wear.compose.material3.AppScaffold
+import androidx.wear.compose.material3.ConfirmationDialog
+import androidx.wear.compose.material3.ConfirmationDialogDefaults
+import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.Text
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
+import com.databelay.refwatch.common.CardIssuedEvent
 import com.databelay.refwatch.common.CardType
+import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.Team
+import com.databelay.refwatch.common.isPlayablePhase
 import com.databelay.refwatch.wear.WearGameViewModel
 import com.databelay.refwatch.wear.presentation.screens.GameListScreen
 import com.databelay.refwatch.wear.presentation.screens.GameLogScreen
@@ -48,20 +57,6 @@ import com.databelay.refwatch.wear.presentation.screens.KickOffSelectionScreen
 import com.databelay.refwatch.wear.presentation.screens.LogCardScreen
 import com.databelay.refwatch.wear.presentation.screens.PreGameSetupRoute
 import kotlinx.coroutines.delay
-import androidx.wear.compose.foundation.pager.rememberPagerState
-import androidx.wear.compose.material.dialog.Confirmation
-import androidx.wear.compose.material3.AppScaffold
-import androidx.wear.compose.material3.ConfirmationDialog
-import androidx.wear.compose.material3.ConfirmationDialogDefaults
-import androidx.wear.compose.material3.Icon
-import androidx.wear.compose.material3.SuccessConfirmationDialog
-import androidx.wear.compose.material3.confirmationDialogCurvedText
-import com.databelay.refwatch.common.CardIssuedEvent
-import com.databelay.refwatch.common.Game
-import com.databelay.refwatch.common.isPlayablePhase
-import com.databelay.refwatch.wear.presentation.screens.ConfirmationDialogInfo
-import com.databelay.refwatch.wear.presentation.screens.UnifiedConfirmationDialog
-import kotlin.let
 
 const val TAG = "NavigationRoutes"
 
@@ -72,6 +67,99 @@ fun NavigationRoutes() {
     val activeGame by gameViewModel.activeGame.collectAsStateWithLifecycle()
     val allGames by gameViewModel.gamesList.collectAsStateWithLifecycle() // Assuming gamesList is the correct source
     val isOnline by gameViewModel.isOnline.collectAsStateWithLifecycle()
+    val context = LocalContext.current // Get the context
+    // State to track if the permission has been explicitly denied by the user.
+    var showPermissionDeniedDialog by remember { mutableStateOf(false) }
+    // SET UP THE PERMISSION LAUNCHER
+    // This launcher will receive the result (true/false) from the user's choice.
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                Log.i(TAG, "Notification permission GRANTED by user.")
+                showPermissionDeniedDialog = false // Ensure dialog is hidden if they grant it later
+                // You can now be confident that the GameTimerService can post notifications.
+            } else {
+                Log.w(TAG, "Notification permission DENIED by user.")
+                showPermissionDeniedDialog = true
+                // The user denied the permission. Your app should handle this gracefully.
+                // The service's `canPostNotifications()` check will now correctly return false.
+            }
+        }
+    )
+    // TRIGGER THE CHECK ONCE WHEN THE APP LAUNCHES
+    LaunchedEffect(key1 = true) {
+        val activity = context as? android.app.Activity ?: return@LaunchedEffect
+
+        when {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED -> {
+            }
+                ActivityCompat.shouldShowRequestPermissionRationale(
+                    activity, Manifest.permission.POST_NOTIFICATIONS) -> {
+                    // In an educational UI, explain to the user why your app requires this
+                    // permission for a specific feature to behave as expected, and what
+                    // features are disabled if it's declined. In this UI, include a
+                    // "cancel" or "no thanks" button that lets the user continue
+                    // using your app without granting the permission.
+                    showPermissionDeniedDialog = true
+                }
+                else -> {
+                    Log.d(TAG, "Notification permission is not granted. Requesting it now.")
+                    // Launch the system dialog to ask the user for permission.
+                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+    }
+
+    // Intent to open app settings
+    val openSettingsIntent = remember {
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    }
+
+    // Dialog to show when permission is denied
+    if (showPermissionDeniedDialog) {
+        AlertDialog(
+            visible = true,
+            onDismissRequest = { showPermissionDeniedDialog = false }, // Hide dialog on timeout
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Report,
+                    contentDescription = "Warning Icon",
+                    modifier = Modifier.size(ConfirmationDialogDefaults.IconSize)
+                )
+            },
+            title = {
+                Text("Permission Required")
+            },
+            text = {
+                Text(
+                    "Notifications are needed for the timer to run reliably in the background. Please enable them in settings.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            },
+            confirmButton = {
+                AlertDialogDefaults.ConfirmButton(
+                    onClick = {
+                        showPermissionDeniedDialog = false
+                        context.startActivity(openSettingsIntent) // Go to settings
+                    },
+                )
+            },
+            dismissButton = {
+                AlertDialogDefaults.DismissButton(
+                    onClick = { showPermissionDeniedDialog = false }, // Just dismiss the dialog
+                )
+            },
+
+        )
+    }
+
     val startDestination = remember(activeGame) {
         activeGame?.let {
             Log.d(

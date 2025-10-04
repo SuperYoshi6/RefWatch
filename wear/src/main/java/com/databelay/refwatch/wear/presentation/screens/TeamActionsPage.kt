@@ -34,6 +34,7 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
+import androidx.wear.tooling.preview.devices.WearDevices
 import com.databelay.refwatch.common.CardType
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
@@ -182,10 +183,11 @@ fun CardShapedButton(
 
 // -------------------------------- Previews -----------------------------------------------
 // -----------------------------------------------------------------------------------------
-@Preview(device = "id:wearos_small_round", showBackground = true)
-@Preview(device = "id:wearos_large_round", showBackground = true)
-@Preview(device = "id:wearos_square", showBackground = true)
+@Preview(device = WearDevices.LARGE_ROUND, showBackground = true)
+@Preview(device =  WearDevices.SMALL_ROUND, showBackground = true)
+@Preview(device =  WearDevices.SQUARE, showBackground = true)
 @WearPreviewFontScales
+
 @Composable
 fun TeamActionsPagePreview() {
     RefWatchWearTheme { // Wrap in MaterialTheme for previews
