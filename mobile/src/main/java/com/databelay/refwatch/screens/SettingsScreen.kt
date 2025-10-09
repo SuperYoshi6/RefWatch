@@ -1,4 +1,4 @@
-package com.databelay.refwatch.games
+package com.databelay.refwatch.screens
 
 import android.content.Intent
 import android.content.res.Configuration
@@ -48,7 +48,6 @@ import com.databelay.refwatch.common.LegalLinks
 import com.databelay.refwatch.common.getAppVersionCode
 import com.databelay.refwatch.common.getAppVersionName
 import com.databelay.refwatch.common.theme.RefWatchMobileTheme
-import com.databelay.refwatch.common.theme.RefWatchWearTheme
 
 // Assuming you have an AuthViewModel or similar to handle account deletion
 // import com.databelay.refwatch.auth.AuthViewModel

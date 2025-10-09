@@ -1,4 +1,4 @@
-package com.databelay.refwatch.games
+package com.databelay.refwatch.screens
 
 import AuthScreen
 import android.util.Log

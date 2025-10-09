@@ -29,8 +29,8 @@ android {
 //        Reserve the last two digits for a multi-APK variant, such as 00.
 //
 //        For example, the sample values here—28, 152, 01, and 00—result in a version code of 281520100.
-        versionCode = 361060002
-        versionName = "1.0.6"
+        versionCode = 361070000
+        versionName = "1.0.7"
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"") // BUILD_TIME becomes accessible in code
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -66,8 +66,9 @@ dependencies {
     implementation(libs.play.services.auth) // Check for latest
     implementation(libs.play.services.wearable)
     implementation(libs.material)
-    implementation(libs.androidx.compose.navigation) // If you're using Wear Navigation
-    implementation(libs.androidx.material3)
+    implementation(libs.androidx.compose.navigation)
+    implementation(libs.androidx.compose.material3)
+
     implementation(libs.androidx.compose.material)
     implementation(libs.androidx.compose.foundation)
 
@@ -80,7 +81,6 @@ dependencies {
     implementation(libs.androidx.ui.tooling)
 
     implementation(libs.androidx.compose.material) // Replace with latest version
-    implementation(libs.androidx.material3)
     implementation(libs.kotlinx.coroutines.android) // You likely have this or core
     implementation(libs.kotlinx.coroutines.play.services) // Or the latest version
     implementation(platform(libs.firebase.bom))
@@ -91,7 +91,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.hilt.android)
     implementation(libs.androidx.hilt.navigation.compose)
-    implementation(libs.androidx.compose.material3)
+
 
     debugImplementation(libs.mockito.core)
     testImplementation(libs.junit)

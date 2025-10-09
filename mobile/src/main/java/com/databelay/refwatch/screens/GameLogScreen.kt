@@ -1,4 +1,4 @@
-package com.databelay.refwatch.games
+package com.databelay.refwatch.screens
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize

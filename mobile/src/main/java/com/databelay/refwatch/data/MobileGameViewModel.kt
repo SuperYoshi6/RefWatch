@@ -1,8 +1,9 @@
-package com.databelay.refwatch.games // Or your package
+package com.databelay.refwatch.data // Or your package
 
 import android.app.Application
 import android.net.Uri
 import android.util.Log
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.databelay.refwatch.common.AppJsonConfiguration
@@ -40,6 +41,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.encodeToString
 import javax.inject.Inject
+import androidx.compose.material3.TooltipState
 
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -48,7 +50,8 @@ class MobileGameViewModel @Inject constructor(
     // Hilt injects the following:
     application: Application,
     private val gameRepository: GameStorageMobile,
-    @UserIdFlow private val userIdFlow: Flow<String?>
+    @UserIdFlow private val userIdFlow: Flow<String?>,
+//    val onboardingViewModel: OnboardingViewModel // <-- ADD THIS LINE
 ) : AndroidViewModel(application), IMobileGameViewModel {
 
     companion object {
@@ -56,6 +59,8 @@ class MobileGameViewModel @Inject constructor(
         private const val WATCH_GAME_PAYLOAD_KEY = WearSyncConstants.KEY_GAME_UPDATE
         private const val SYNC_TO_WATCH_DELAY_MS = 3000L // 3 seconds, adjust as needed
     }
+    // --- Onboarding Tooltip State ---
+    @OptIn(ExperimentalMaterial3Api::class)
 
     // --- Tab State Management ---
     private val _selectedTab = MutableStateFlow(GameStatus.SCHEDULED) // Default to SCHEDULED
@@ -273,7 +278,7 @@ class MobileGameViewModel @Inject constructor(
                 Log.i(TAG, "PHONE: Connected nodes: ${nodes.joinToString { it.displayName }}")
             }
             try {
-                val jsonString = com.databelay.refwatch.common.AppJsonConfiguration.encodeToString(games)
+                val jsonString = AppJsonConfiguration.encodeToString(games)
                 Log.d(TAG, "syncGamesToWatch: Sending to watch. Path: ${WearSyncConstants.PATH_GAMES_LIST}, User: $userIdForSync, Games: ${games.size}")
                 // ... (rest of PutDataMapRequest logic) ...
 
@@ -511,10 +516,10 @@ class MobileGameViewModel @Inject constructor(
         }
     }
 
-
     override fun onCleared() {
         super.onCleared()
         dataClient.removeListener(dataChangedListener)
         Log.d("MobileVM", "DataChangedListener removed.")
     }
+
 }

@@ -1,14 +1,11 @@
-package com.databelay.refwatch.games // Or a subpackage like com.databelay.refwatch.games.addedit
+package com.databelay.refwatch.data // Or a subpackage like com.databelay.refwatch.games.addedit
 
 import android.util.Log
-import androidx.compose.animation.core.copy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.databelay.refwatch.auth.AuthRepository
-import com.databelay.refwatch.auth.AuthViewModel
 import com.databelay.refwatch.common.AgeGroup
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.Team

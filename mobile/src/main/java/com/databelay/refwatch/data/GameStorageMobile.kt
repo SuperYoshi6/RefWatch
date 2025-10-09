@@ -1,4 +1,4 @@
-package com.databelay.refwatch.games
+package com.databelay.refwatch.data
 
 // import com.google.gson.Gson // No longer needed for event parsing if using ktx.serialization consistently
 
@@ -16,7 +16,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
-import kotlin.io.path.exists
+import kotlin.collections.iterator
 
 
 class GameStorageMobile(private val firestore: FirebaseFirestore) {

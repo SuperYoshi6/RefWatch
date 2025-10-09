@@ -4,7 +4,6 @@ import android.util.Log
 import com.databelay.refwatch.common.AppJsonConfiguration
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.WearSyncConstants
-import com.databelay.refwatch.games.GameStorageMobile
 import com.google.android.gms.wearable.DataClient // For sending data back
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer

@@ -36,8 +36,8 @@ android {
         minSdk = 34
         targetSdk = 36
 //        Version code scheme explained here:  https://developer.android.com/training/wearables/packaging
-        versionCode = 361060003
-        versionName = "1.0.6"
+        versionCode = 361070001
+        versionName = "1.0.7"
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
         buildConfigField(
             "String",
@@ -95,13 +95,10 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.compose.material)
-    implementation(libs.compose.foundation)
-    implementation(libs.activity.compose)
     implementation(libs.core.splashscreen)
-    implementation(libs.core.ktx)
+    implementation(libs.androidx.core.ktx)
     implementation(libs.play.services.wearable)
-    implementation(libs.androidx.compose.navigation) // If you're using Wear Navigation
+    implementation(libs.androidx.wear.compose.navigation) // If you're using Wear Navigation
     implementation(libs.androidx.navigation.runtime.android)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
@@ -114,7 +111,6 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.material.icons.extended)
-    implementation(libs.androidx.material3)
     implementation(libs.androidx.compose.material)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.play.services.auth) // Check for latest
@@ -136,13 +132,16 @@ dependencies {
     implementation(libs.horologist.compose.material)
     implementation(libs.wear.tooling.preview)
     implementation(libs.androidx.wear.ongoing)
+    implementation(libs.androidx.wear.compose.material3)
+    implementation(libs.androidx.compose.ui.tooling)
     implementation(libs.androidx.compose.material3)
+    
     implementation(libs.androidx.media3.common.ktx)
     implementation(libs.androidx.compose.foundation.layout)
     implementation(libs.androidx.foundation)
     implementation(libs.screenshot.validation.api)
-    implementation(libs.androidx.core.core.ktx)
-    implementation(libs.androidx.compose.ui.tooling)
+    implementation(libs.androidx.core.ktx)
+
 
 
     screenshotTestImplementation(libs.kotlinx.coroutines.android)

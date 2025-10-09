@@ -1,13 +1,21 @@
-package com.databelay.refwatch.games
+package com.databelay.refwatch.screens
 
 import android.content.Intent
-import android.content.res.Configuration
 import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -18,7 +26,20 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.UploadFile
-import androidx.compose.material3.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,18 +50,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.databelay.refwatch.auth.AuthState
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameStatus
-import com.databelay.refwatch.common.PreviewTools.createSampleGames
-import com.databelay.refwatch.common.theme.RefWatchMobileTheme
-import kotlinx.coroutines.flow.SharedFlow
+import com.databelay.refwatch.data.ExplanationArea
 import kotlinx.coroutines.flow.collectLatest
 import java.text.SimpleDateFormat
-import java.util.*
-
+import java.util.Locale
 
 // Data class to define the structure and behavior of context menu items
 data class ContextMenuItemAction(
@@ -48,25 +65,92 @@ data class ContextMenuItemAction(
     val action: (game: Game) -> Unit // The action lambda now takes the specific Game as a parameter
 )
 
+val tag = "GameListScreen"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameListScreen(
-    authStateValue: AuthState, // << Pass AuthState directly
-    games: List<Game>, // << Pass the list of games to display directly
-    selectedTab: GameStatus,    // << Pass current tab
-    scrollToTopSignal: SharedFlow<Unit>?, // Event stream passed in
-    onTabSelected: (GameStatus) -> Unit, // << Callback to change tab
-    onAddGame: () -> Unit,
-    onEditGame: (Game) -> Unit,
-    onViewLog: (Game) -> Unit, // <-- Ensure this is passed
-    onDeleteGame: (Game) -> Unit,
-    onSignOut: () -> Unit, // This might be handled by the calling composable via AuthViewModel
-    onImportGames: () -> Unit, // Callback for importing
-    onNavigateToSettings: () -> Unit
+    authStateValue: com.databelay.refwatch.auth.AuthState, // << Pass AuthState directly
+    games: kotlin.collections.List<com.databelay.refwatch.common.Game>, // << Pass the list of games to display directly
+    selectedTab: com.databelay.refwatch.common.GameStatus,    // << Pass current tab
+    scrollToTopSignal: kotlinx.coroutines.flow.SharedFlow<kotlin.Unit>?, // Event stream passed in
+    onTabSelected: (com.databelay.refwatch.common.GameStatus) -> kotlin.Unit, // << Callback to change tab
+    onAddGame: () -> kotlin.Unit,
+    onEditGame: (com.databelay.refwatch.common.Game) -> kotlin.Unit,
+    onViewLog: (com.databelay.refwatch.common.Game) -> kotlin.Unit, // <-- Ensure this is passed
+    onDeleteGame: (com.databelay.refwatch.common.Game) -> kotlin.Unit,
+    onSignOut: () -> kotlin.Unit, // This might be handled by the calling composable via AuthViewModel
+    onImportGames: () -> kotlin.Unit, // Callback for importing
+    onNavigateToSettings: () -> kotlin.Unit,
+    onboardingStep: com.databelay.refwatch.data.OnboardingStep?, // << Pass the list of onboarding steps,
+    onNextTooltip: () -> kotlin.Unit,
+    onDismissTooltip: () -> kotlin.Unit
 ) {
-
+    /*    // ================================== BEGIN ULTIMATE DEBUG:
+        // This is the most minimal test possible.
+        Scaffold(
+            topBar = { TopAppBar(title = { Text("Ultimate TooltipBox Test") }) }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                val tooltipState = rememberTooltipState(isPersistent = true, initialIsVisible = true)
+                val scope = rememberCoroutineScope()
+                // This LaunchedEffect will trigger whenever the onboardingStep changes.
+                // Use the onboardingStep itself as the key. When it recomposes with a new step object,
+                // this effect will relaunch, which is what we want.
+                LaunchedEffect(onboardingStep) {
+                    // If there is a current, valid step, show its tooltip.
+                    // If the step is null (tour is inactive/finished), this does nothing.
+                    onboardingStep?.let { step ->
+                        Log.d(tag, "LaunchedEffect for step: ${step.title}. Requesting show().")
+                        // The show() function is suspend, so the coroutine will pause here.
+                        // If a recomposition happens while it's paused, this coroutine will be
+                        // cancelled and a new one will start.
+                        tooltipState.show()
+                        // This log will likely not be seen if a recomposition happens quickly,
+                        // which we've established is the case. This is expected behavior.
+                        Log.d(tag, "show() has completed for step: ${step.title}.")
+                    }
+                }
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberRichTooltipPositionProvider(8.dp),
+                    tooltip = {
+                        RichTooltip(
+                            title = { Text("Title of the tooltip") },
+                            action = {
+                                TextButton(
+                                    onClick = {
+                                        scope.launch {
+                                            tooltipState.dismiss()
+                                        }
+                                    }
+                                ) {
+                                    Text("Dismiss")
+                                }
+                            }
+                        ) {
+                            Text("This is the main content of the rich tooltip")
+                        }
+                    },
+                    state = tooltipState
+                ) {
+                    Button(onClick = {
+                        scope.launch {
+                            tooltipState.show()
+                        }
+                    }) {
+                        Text(text = "Show Rich Tooltip on Click")
+                    }
+                }
+            }
+        }
+        // ==================================  END DEBUG*/
     Log.d(
-        "GameListScreen",
+        tag,
         "Received games: ${games.map { it.id + " -> " + it.status }}"
     ) // Log input games
 
@@ -84,14 +168,17 @@ fun GameListScreen(
     // --- Collect UI events ---
     LaunchedEffect(key1 = scrollToTopSignal) { // Key on the signal itself in case it could change
         scrollToTopSignal?.collectLatest {
-            Log.d("GameListScreen", "ScrollToTop event received in UI.")
+            Log.d(tag, "ScrollToTop event received in UI.")
             if (gamesToDisplay.isNotEmpty()) {
                 lazyListState.animateScrollToItem(index = 0)
             }
         }
     }
 
+
+
     Scaffold(
+
         topBar = {
             TopAppBar(
                 title = { Text("My Games") },
@@ -105,21 +192,65 @@ fun GameListScreen(
                             )
                         }
                     }
-                    IconButton(onClick = onImportGames) {
-                        Icon(Icons.Default.UploadFile, contentDescription = "Import ICS")
+                    ExplanationArea(
+                        tag = "import_ics_button", // <-- The tag we defined
+                        onboardingStep = onboardingStep,
+                        onNext = onNextTooltip,
+                        onDismiss = onDismissTooltip
+                    ) {
+                        IconButton(onClick = onImportGames) {
+                            Icon(Icons.Default.UploadFile, contentDescription = "Import ICS")
+                        }
                     }
-                    IconButton(onClick = onSignOut) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Sign Out")
+                    ExplanationArea(
+                        tag = "sign_out_button", // <-- The tag we defined
+                        onboardingStep = onboardingStep,
+                        onNext = onNextTooltip,
+                        onDismiss = onDismissTooltip
+                    ) {
+                        IconButton(onClick = onSignOut) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ExitToApp,
+                                contentDescription = "Sign Out"
+                            )
+                        }
                     }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddGame) {
-                Icon(Icons.Filled.Add, "Add Game")
+            ExplanationArea(
+                tag = "add_game_fab",
+                onboardingStep = onboardingStep,
+                onNext = onNextTooltip,
+                onDismiss = onDismissTooltip
+            ) {
+                FloatingActionButton(onClick = onAddGame) {
+                    Icon(Icons.Filled.Add, "Add Game")
+                }
             }
         }
     ) { paddingValues ->
+        // This LaunchedEffect will trigger whenever the onboardingStep changes.
+        // Use the onboardingStep itself as the key. When it recomposes with a new step object,
+        // this effect will relaunch, which is what we want.
+        val tooltipState = rememberTooltipState(isPersistent = true, initialIsVisible = true)
+
+        LaunchedEffect(onboardingStep) {
+            // If there is a current, valid step, show its tooltip.
+            // If the step is null (tour is inactive/finished), this does nothing.
+            onboardingStep?.let { step ->
+                Log.d(tag, "LaunchedEffect for step: ${step.title}. Requesting show().")
+                // The show() function is suspend, so the coroutine will pause here.
+                // If a recomposition happens while it's paused, this coroutine will be
+                // cancelled and a new one will start.
+                step.tooltipState.show()
+//                tooltipState.show()
+                // This log will likely not be seen if a recomposition happens quickly,
+                // which we've established is the case. This is expected behavior.
+                Log.d(tag, "show() has completed for step: ${step.title}.")
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -252,7 +383,7 @@ fun GameListItem(
                     // --- End Display Venue and/or Field Number ---
                     Text(
                         "H: ${game.homeScore} - A: ${game.awayScore}",
-                        /*(${game.currentPhase.readable()})*/
+                        /*($ { game.currentPhase.readable() })*/
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -386,9 +517,11 @@ fun GameListItem(
 }
 
 
+/*
 // -------------------------------- PREVIEWS ----------------------------------------------------
 // ----------------------------------------------------------------------------------------------
 // Helper to create sample games for previews
+@OptIn(ExperimentalMaterial3Api::class)
 @Preview(
     device = "id:medium_phone",
     showSystemUi = true,
@@ -416,11 +549,15 @@ fun GameListScreenPreview_Unauthenticated() {
             onDeleteGame = {},
             onSignOut = {},
             onImportGames = {},
-            onNavigateToSettings = {}
+            onNavigateToSettings = {},
+            onboardingStep = OnboardingStep.defaults(),
+            onNextTooltip = {},
+            onDismissTooltip = {}
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Preview(
     device = "id:pixel_9",
     showSystemUi = true,
@@ -443,10 +580,13 @@ fun GameListScreenPreview_Loading() {
             onDeleteGame = {},
             onSignOut = {},
             onImportGames = {},
-            onNavigateToSettings = {}
+            onNavigateToSettings = {},
+            onboardingStep = OnboardingStep.defaults(),
+            onNextTooltip = {},
+            onDismissTooltip = {}
         )
     }
 }
-
+*/
 
 

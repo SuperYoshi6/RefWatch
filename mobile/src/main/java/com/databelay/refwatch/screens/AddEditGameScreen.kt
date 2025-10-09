@@ -1,4 +1,4 @@
-package com.databelay.refwatch.games
+package com.databelay.refwatch.screens
 
 import android.content.res.Configuration
 import android.util.Log
@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,6 +59,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.databelay.refwatch.common.predefinedColors
 import com.databelay.refwatch.common.theme.RefWatchMobileTheme
+import com.databelay.refwatch.data.AddEditGameUiState
+import com.databelay.refwatch.data.AddEditGameViewModel
+import com.databelay.refwatch.data.ColorPickerDialog
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -91,7 +95,6 @@ fun AddEditGameScreen(
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = uiState.gameDateTimeEpochMillis ?: System.currentTimeMillis()
     )
-    var showDatePicker by remember { mutableStateOf(false) }
 
     val calendar = Calendar.getInstance()
     uiState.gameDateTimeEpochMillis?.let { calendar.timeInMillis = it }
@@ -101,7 +104,7 @@ fun AddEditGameScreen(
         is24Hour = true
     )
     var showTimePicker by remember { mutableStateOf(false) }
-
+    var showDatePicker by remember { mutableStateOf(false) }
     var showHomeColorPicker by remember { mutableStateOf(false) }
     var showAwayColorPicker by remember { mutableStateOf(false) }
 
@@ -208,17 +211,32 @@ fun AddEditGameScreen(
                 "${sdfDate.format(Date(it))} at ${sdfTime.format(Date(it))}"
             } ?: "Select Date & Time"
 
-            OutlinedTextField(
-                value = selectedDateTimeString,
-                onValueChange = {},
-                label = { Text("Game Date & Time") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showDatePicker = true },
-                readOnly = true,
-                trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date") }
-            )
-
+            // Wrap the TextField in a Box to intercept the click
+            Box {
+                OutlinedTextField(
+                    value = selectedDateTimeString,        onValueChange = {},
+                    label = { Text("Game Date & Time") },
+                    modifier = Modifier.fillMaxWidth(),
+                    // Set enabled to false to prevent focus and cursor
+                    enabled = false,
+                    // Change colors to make it look enabled
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    readOnly = true,
+                    trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date") }
+                )
+                // Apply the clickable modifier to a covering Box
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable { showDatePicker = true }
+                )
+            }
             if (showDatePicker) {
                 DatePickerDialog(
                     onDismissRequest = { showDatePicker = false },

@@ -171,7 +171,7 @@ fun GameScreenWithPager(
     val context = LocalContext.current
 
     var activeDialogInfo: ConfirmationDialogInfo? by remember { mutableStateOf(null) }
-    // TODO: transitions blink white borders after the confirmation dialog
+    // transitions blink white borders after the confirmation dialog
     //        animatescrolltopage flashing white borders (commented out for now)
     val animateToMainPage: () -> Unit = {
 //        coroutineScope.launch { verticalPagerState.animateScrollToPage(0) }

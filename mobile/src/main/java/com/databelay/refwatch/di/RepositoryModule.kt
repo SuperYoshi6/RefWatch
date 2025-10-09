@@ -1,8 +1,5 @@
 package com.databelay.refwatch.di
-import com.databelay.refwatch.auth.AuthRepository
-import com.databelay.refwatch.auth.FirebaseAuthRepository
-import com.databelay.refwatch.games.GameStorageMobile
-import com.google.firebase.auth.FirebaseAuth
+import com.databelay.refwatch.data.GameStorageMobile
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
 import dagger.Provides

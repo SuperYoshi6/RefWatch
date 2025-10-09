@@ -11,14 +11,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -36,13 +35,15 @@ import com.databelay.refwatch.auth.AuthViewModel
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.SimpleIcsEvent
 import com.databelay.refwatch.common.SimpleIcsParser
-import com.databelay.refwatch.games.AddEditGameRoute
-import com.databelay.refwatch.games.AddEditGameViewModel
-import com.databelay.refwatch.games.AuthScreenRoute
-import com.databelay.refwatch.games.GameListScreen
-import com.databelay.refwatch.games.GameLogScreen
-import com.databelay.refwatch.games.MobileGameViewModel
-import com.databelay.refwatch.games.SettingsScreen
+import com.databelay.refwatch.screens.AddEditGameRoute
+import com.databelay.refwatch.data.AddEditGameViewModel
+import com.databelay.refwatch.screens.AuthScreenRoute
+import com.databelay.refwatch.screens.GameListScreen
+import com.databelay.refwatch.screens.GameLogScreen
+import com.databelay.refwatch.data.MobileGameViewModel
+import com.databelay.refwatch.data.OnboardingStep
+import com.databelay.refwatch.data.OnboardingViewModel
+import com.databelay.refwatch.screens.SettingsScreen
 import kotlinx.coroutines.launch
 
 const val TAG = "RefWatchNavHost"
@@ -63,12 +64,14 @@ fun rememberFilePickerLauncher(
         onResult = onResult
     )
 }
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RefWatchNavHost() {
     val context = LocalContext.current
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = hiltViewModel()
     val mobileGameViewModel: MobileGameViewModel = hiltViewModel() // GameViewModel for game list
+    val onboardingViewModel: OnboardingViewModel = hiltViewModel()
     val authState by authViewModel.authState.collectAsState()
     val coroutineScope = rememberCoroutineScope() // For parsing in a background thread
 
@@ -189,7 +192,20 @@ fun RefWatchNavHost() {
             val gamesToDisplay by mobileGameViewModel.gamesList.collectAsStateWithLifecycle(emptyList())
             val selectedTab by mobileGameViewModel.selectedTab.collectAsStateWithLifecycle()
 
+            // Access the onboarding state through the main ViewModel
+            val onboardingState by onboardingViewModel.uiState.collectAsState()
 
+            // Example of showing an onboarding step
+            val currentStep = if (
+                onboardingState.isTourActive &&
+                onboardingState.steps.isNotEmpty() &&
+                onboardingState.currentStepIndex < onboardingState.steps.size
+            ) {
+                onboardingState.steps[onboardingState.currentStepIndex]
+            } else {
+                null
+            }
+            Log.d(TAG, "Ran game list screen.")
             GameListScreen(
                 authStateValue = authStateValue,
                 games = gamesToDisplay,
@@ -209,8 +225,11 @@ fun RefWatchNavHost() {
                 onDeleteGame = { gameToDelete -> mobileGameViewModel.deleteGame(gameToDelete) },
                 onSignOut = { authViewModel.signOut()},
                 onImportGames = {filePickerLauncher.launch("text/calendar")},
-                onNavigateToSettings = { navController.navigate(MobileNavRoutes.SETTINGS_SCREEN) }
-            )
+                onNavigateToSettings = { navController.navigate(MobileNavRoutes.SETTINGS_SCREEN) },
+                onboardingStep = currentStep, // States are held by the steps
+                onNextTooltip = { onboardingViewModel.advanceTour() },
+                onDismissTooltip = { onboardingViewModel.dismissTour() },
+                )
         }
         // It tells the NavHost what to display for the "game_log?{gameId}" route.
         composable(
@@ -266,6 +285,8 @@ fun RefWatchNavHost() {
         }
     }
 }
+
+
 
 @Composable
 fun LoadingScreen(message: String? = null) {

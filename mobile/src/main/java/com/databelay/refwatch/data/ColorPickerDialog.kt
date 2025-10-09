@@ -1,4 +1,4 @@
-package com.databelay.refwatch.games
+package com.databelay.refwatch.data
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
