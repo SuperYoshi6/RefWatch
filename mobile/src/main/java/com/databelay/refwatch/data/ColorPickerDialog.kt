@@ -120,7 +120,7 @@ private fun ColorPickerItem(
 //
 //     if (showDialog) {
 //         ColorPickerDialog(
-//             title = "Select Home Color",
+//             title = "Wähle die Farbe des Teams",
 //             availableColors = predefinedColors,
 //             selectedColor = selected,
 //             onColorSelected = {

@@ -39,19 +39,37 @@ import com.databelay.refwatch.common.CardType
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.Team
+import com.databelay.refwatch.common.GoalType
 import com.databelay.refwatch.common.isDark
 import com.databelay.refwatch.common.isPlayablePhase
 import com.databelay.refwatch.common.shortName
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
+import androidx.wear.compose.material3.Dialog
+import androidx.compose.ui.res.stringResource
+import com.databelay.refwatch.R
+import com.databelay.refwatch.wear.presentation.utils.localizedName
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material3.ListHeader
+import androidx.wear.compose.material.Chip
+import androidx.wear.compose.material.ChipDefaults
 
 @Composable
 fun TeamActionsPage(
     team: Team,
     game: Game,
-    onAddGoal: (Team) -> Unit,
+    onNavigateToLogGoal: (Team, GoalType) -> Unit,
     onNavigateToLogCard: (team: Team, cardType: CardType) -> Unit,
+    onNavigateToLogSubstitution: (Team) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showGoalTypeDialog by remember { mutableStateOf(false) }
+
     val teamColor = if (team == Team.HOME) game.homeTeamColor else game.awayTeamColor
     val teamName =
         if (team == Team.HOME) shortName(game.homeTeamName) else shortName(game.awayTeamName)
@@ -86,7 +104,7 @@ fun TeamActionsPage(
             // Goal Button
             if (game.currentPhase.isPlayablePhase()) {
                 Button(
-                    onClick = { onAddGoal(team) },
+                    onClick = { showGoalTypeDialog = true },
                     shape = CircleShape,
                     modifier = Modifier
                         .size(72.dp)
@@ -116,7 +134,7 @@ fun TeamActionsPage(
                 // Yellow Card Button
                 CardShapedButton(
                     onClick = { onNavigateToLogCard(team, CardType.YELLOW) },
-                    text = "Yellow",
+                    text = CardType.YELLOW.localizedName(),
                     backgroundColor = Color.Yellow,
                     contentColor = Color.Black,
                     modifier = Modifier.weight(1f) // Distribute space equally
@@ -125,14 +143,100 @@ fun TeamActionsPage(
                 // Red Card Button
                 CardShapedButton(
                     onClick = { onNavigateToLogCard(team, CardType.RED) },
-                    text = "Red",
+                    text = CardType.RED.localizedName(),
                     backgroundColor = Color.Red,
                     contentColor = Color.White,
                     modifier = Modifier.weight(1f) // Distribute space equally
                 )
             }
+
+            // Substitution Button
+            val subsCount = game.events.filterIsInstance<com.databelay.refwatch.common.SubstitutionEvent>().count { it.team == team }
+            val subsRemaining = (game.maxSubstitutionsAllowed - subsCount).coerceAtLeast(0)
+            
+            Button(
+                onClick = { onNavigateToLogSubstitution(team) },
+                enabled = subsRemaining > 0,
+                modifier = Modifier.fillMaxWidth(0.6f).height(32.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            ) {
+                Text(
+                    text = "${stringResource(R.string.substitution)} ($subsRemaining)",
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+
             Spacer(modifier = Modifier.height(1.dp))
 
+        }
+    }
+
+    if (showGoalTypeDialog) {
+        GoalTypeSelectionDialog(
+            team = team,
+            onGoalTypeSelected = { goalType ->
+                showGoalTypeDialog = false
+                onNavigateToLogGoal(team, goalType)
+            },
+            onDismiss = { showGoalTypeDialog = false }
+        )
+    }
+}
+
+@Composable
+fun GoalTypeSelectionDialog(
+    team: Team,
+    onGoalTypeSelected: (GoalType) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        visible = true,
+        onDismissRequest = onDismiss
+    ) {
+        val listState = rememberScalingLazyListState()
+        ScalingLazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(vertical = 16.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            item {
+                ListHeader {
+                    Text(
+                        stringResource(R.string.goal_type),
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            item {
+                Chip(
+                    onClick = { onGoalTypeSelected(GoalType.REGULAR) },
+                    colors = ChipDefaults.primaryChipColors(),
+                    label = { Text(stringResource(R.string.goal_regular)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            item {
+                Chip(
+                    onClick = { onGoalTypeSelected(GoalType.PENALTY) },
+                    colors = ChipDefaults.primaryChipColors(),
+                    label = { Text(stringResource(R.string.goal_penalty)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            item {
+                Chip(
+                    onClick = { onGoalTypeSelected(GoalType.OWN_GOAL) },
+                    colors = ChipDefaults.primaryChipColors(),
+                    label = { Text(stringResource(R.string.goal_own_goal)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
@@ -201,8 +305,9 @@ fun TeamActionsPagePreview() {
                 awayTeamColorArgb = android.graphics.Color.YELLOW,
                 homeScore = 2
             ),
-            onAddGoal = {},
-            onNavigateToLogCard = { _, _ -> }
+            onNavigateToLogGoal = { _, _ -> },
+            onNavigateToLogCard = { _, _ -> },
+            onNavigateToLogSubstitution = {}
         )
     }
 }

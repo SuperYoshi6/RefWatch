@@ -33,6 +33,10 @@ data class Game(
     var fieldNumber: String? = null, // Default, can be overridden
     var homeTeamName: String = "Home", // Default, can be overridden
     var awayTeamName: String = "Away", // Default, can be overridden
+    var homeTeamAbbr: String? = null,
+    var awayTeamAbbr: String? = null,
+    var homeCaptainNumber: Int? = null,
+    var awayCaptainNumber: Int? = null,
     var ageGroup: AgeGroup? = null,          // e.g., "U12 Boys", "Adult Men"
     var competition: String? = null,       // e.g., "League Match", "Cup Final"
     var refereeAssignment: String? = null, // e.g. Assistant Referee
@@ -43,7 +47,7 @@ data class Game(
     val inAddedTime: Boolean = false, // Is the current playable period in added time?
     var hasExtraTime: Boolean = false, // True if extra time has been initiated
     var hasPenalties: Boolean = false, // True if extra time has been initiated
-    var homeTeamColorArgb: Int = DefaultHomeJerseyColor.toArgb(),
+    var homeTeamColorArgb: Int = Color.Yellow.toArgb(),
     var awayTeamColorArgb: Int = DefaultAwayJerseyColor.toArgb(),
     var kickOffTeam: Team = Team.HOME, // Actual team kicking off current period (managed by ViewModel)
     var penaltiesTakenHome: Int = 0, // Number of penalties scored by home team
@@ -53,9 +57,12 @@ data class Game(
     var awayScore: Int = 0,
     var displayedTimeMillis: Long = 45,
     var actualTimeElapsedInPeriodMillis: Long = 0L,
+    var stoppageTimeMillis: Long = 0L,
     var isTimerRunning: Boolean = false,
+    var isStoppageTimerRunning: Boolean = false,
     @get:Exclude
     val needsSyncWithPhone: Boolean = false, // Store locally on watch, needs sync with phone
+    var maxSubstitutionsAllowed: Int = 5,
     @get:Exclude
     val events: List<GameEvent> = emptyList() // We will sync this one manually
 )  {
@@ -82,6 +89,10 @@ data class Game(
         fieldNumber = null,
         homeTeamName = "Home",
         awayTeamName = "Away",
+        homeTeamAbbr = null,
+        awayTeamAbbr = null,
+        homeCaptainNumber = null,
+        awayCaptainNumber = null,
         ageGroup = null,
         competition = null,
         refereeAssignment = null,
@@ -91,7 +102,7 @@ data class Game(
         inAddedTime = false,
         hasExtraTime = false,
         hasPenalties = false,
-        homeTeamColorArgb = DefaultHomeJerseyColor.toArgb(),
+        homeTeamColorArgb = Color.Yellow.toArgb(),
         awayTeamColorArgb = DefaultAwayJerseyColor.toArgb(),
         kickOffTeam = Team.HOME,
         penaltiesTakenHome = 0,
@@ -101,8 +112,11 @@ data class Game(
         awayScore = 0,
         displayedTimeMillis = 45L * 60 * 1000, // Default to half duration in millis
         actualTimeElapsedInPeriodMillis = 0L,
+        stoppageTimeMillis = 0L,
         isTimerRunning = false,
+        isStoppageTimerRunning = false,
         needsSyncWithPhone = false,
+        maxSubstitutionsAllowed = 5,
         events = emptyList()
     )
 
@@ -118,18 +132,23 @@ data class Game(
                 extraTimeHalftimeDurationMinutes = 1,
                 gameNumber = "XXXX",
                 fieldNumber = null,
-                homeTeamName = "Home",
-                awayTeamName = "Away",
+                homeTeamName = "Heim",
+                awayTeamName = "Gast",
+                homeTeamAbbr = null,
+                awayTeamAbbr = null,
+                homeCaptainNumber = null,
+                awayCaptainNumber = null,
                 ageGroup = null,
                 competition = null,
                 refereeAssignment = null,
                 venue = null,
                 gameDateTimeEpochMillis = null,
                 notes = null,
+                stoppageTimeMillis = 0L,
                 inAddedTime = false,
                 hasExtraTime = false,
                 hasPenalties = false,
-                homeTeamColorArgb = DefaultHomeJerseyColor.toArgb(),
+                homeTeamColorArgb = Color.Yellow.toArgb(),
                 awayTeamColorArgb = DefaultAwayJerseyColor.toArgb(),
                 kickOffTeam = Team.HOME,
                 penaltiesTakenHome = 0,
@@ -140,7 +159,9 @@ data class Game(
                 displayedTimeMillis = 45L * 60 * 1000, // default half duration in millis
                 actualTimeElapsedInPeriodMillis = 0L,
                 isTimerRunning = false,
+                isStoppageTimerRunning = false,
                 needsSyncWithPhone = false, // Not typically set in defaults directly
+                maxSubstitutionsAllowed = 5,
                 events = emptyList()
             )
         }
@@ -260,6 +281,10 @@ data class GameSnapshotForStorage(
     val gameNumber: String,
     val homeTeamName: String,
     val awayTeamName: String,
+    val homeTeamAbbr: String?,
+    val awayTeamAbbr: String?,
+    val homeCaptainNumber: Int?,
+    val awayCaptainNumber: Int?,
     val halfDurationMinutes: Int,
     val halftimeDurationMinutes: Int,
     val penaltiesTakenHome: Int,
@@ -277,6 +302,10 @@ fun Game.toSnapshotForStorage(): GameSnapshotForStorage {
         gameNumber = this.gameNumber,
         homeTeamName = this.homeTeamName,
         awayTeamName = this.awayTeamName,
+        homeTeamAbbr = this.homeTeamAbbr,
+        awayTeamAbbr = this.awayTeamAbbr,
+        homeCaptainNumber = this.homeCaptainNumber,
+        awayCaptainNumber = this.awayCaptainNumber,
         halfDurationMinutes = this.halfDurationMinutes,
         halftimeDurationMinutes = this.halftimeDurationMinutes,
         penaltiesTakenHome = this.penaltiesTakenHome,
@@ -298,6 +327,10 @@ fun Game.toFirestoreMap(): Map<String, Any?> {
         "fieldNumber" to this.fieldNumber,
         "homeTeamName" to this.homeTeamName,
         "awayTeamName" to this.awayTeamName,
+        "homeTeamAbbr" to this.homeTeamAbbr,
+        "awayTeamAbbr" to this.awayTeamAbbr,
+        "homeCaptainNumber" to this.homeCaptainNumber,
+        "awayCaptainNumber" to this.awayCaptainNumber,
         "ageGroup" to this.ageGroup?.name, 
         "competition" to this.competition,
         "refereeAssignment" to this.refereeAssignment,
@@ -318,7 +351,9 @@ fun Game.toFirestoreMap(): Map<String, Any?> {
         "awayScore" to this.awayScore,
         "displayedTimeMillis" to this.displayedTimeMillis,
         "actualTimeElapsedInPeriodMillis" to this.actualTimeElapsedInPeriodMillis,
-        "isTimerRunning" to this.isTimerRunning
+        "isTimerRunning" to this.isTimerRunning,
+        "isStoppageTimerRunning" to this.isStoppageTimerRunning,
+        "maxSubstitutionsAllowed" to this.maxSubstitutionsAllowed
     )
 
     val eventsForFirestore = this.events.mapNotNull { event ->

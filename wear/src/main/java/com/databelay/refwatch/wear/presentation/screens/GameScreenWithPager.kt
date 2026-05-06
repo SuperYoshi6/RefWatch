@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.foundation.pager.PagerState
@@ -43,6 +44,7 @@ import com.databelay.refwatch.common.hasTimer
 import com.databelay.refwatch.common.logBackStack
 import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
+import com.databelay.refwatch.wear.TimerDisplayMode
 import com.google.android.horologist.compose.layout.ColumnItemType
 import com.google.android.horologist.compose.layout.ColumnItemType.Companion.EdgeButtonPadding
 import com.google.android.horologist.compose.layout.rememberResponsiveColumnPadding
@@ -74,8 +76,8 @@ sealed class ConfirmationDialogInfo(
         onConfirm: () -> Unit, 
         onDialogClose: () -> Unit
     ) : ConfirmationDialogInfo(
-        title = "Finish Game?",
-        text = "Are you sure you want to end and save this game?",
+        title = "Spiel beenden?",
+        text = "Bist du sicher, dass du dieses Spiel beenden und speichern möchtest?",
         onConfirmAction = {
             onConfirm()
             onDialogClose()
@@ -88,8 +90,8 @@ sealed class ConfirmationDialogInfo(
         onConfirm: () -> Unit,
         onDialogClose: () -> Unit
     ) : ConfirmationDialogInfo(
-        title = "Reset Timer?",
-        text = "Reset timer for $gamePhaseReadable?",
+        title = "Spielzeit zurücksetzen?",
+        text = "Spielzeit für $gamePhaseReadable zurücksetzen?",
         onConfirmAction = {
             onConfirm()
             onDialogClose()
@@ -101,10 +103,10 @@ sealed class ConfirmationDialogInfo(
         onConfirm: () -> Unit,
         onDialogClose: () -> Unit // Even if no animation, good to have consistent close logic
     ) : ConfirmationDialogInfo(
-        title = "Reset Full Game?",
-        text = "This will erase all scores and logs for this game. Are you sure?",
-        confirmButtonText = "Yes",
-        dismissButtonText = "No",
+        title = "Vollständiges Spiel zurücksetzen?",
+        text = "Diese Aktion wird alle Ergebnisse und das komplette Protokoll dieses Spiels löschen. Bist du sicher?",
+        confirmButtonText = "Ja, zurücksetzen",
+        dismissButtonText = "Nein",
         onConfirmAction = {
             onConfirm()
             onDialogClose()
@@ -117,9 +119,9 @@ sealed class ConfirmationDialogInfo(
         onEndPhaseWithoutExtraTime: () -> Unit,   // Specific action for dismiss
         onDialogClose: () -> Unit // Common action for closing dialog
     ) : ConfirmationDialogInfo(
-        title = "Extra Time?",
-        confirmButtonText = "Yes",
-        dismissButtonText = "No",
+        title = "Verlängerung?",
+        confirmButtonText = "Ja, Verlängerung",
+        dismissButtonText = "Nein, Spiel beenden",
         onConfirmAction = {
             onSetExtraTimeAndPenalties()
             onDialogClose()
@@ -134,10 +136,10 @@ sealed class ConfirmationDialogInfo(
         onConfirm: () -> Unit,
         onDialogClose: () -> Unit // Even if no animation, good to have consistent close logic
     ) : ConfirmationDialogInfo(
-        title = "Delete Log Event?",
-        text = "This will delete the event and potentially update the score. Are you sure?",
-        confirmButtonText = "Yes",
-        dismissButtonText = "No",
+        title = "Protokoll-Ereignis löschen?",
+        text = "Diese Aktion wird das Ereignis löschen und möglicherweise den Spielstand aktualisieren. Bist du sicher?",
+        confirmButtonText = "Ja",
+        dismissButtonText = "Nein",
         onConfirmAction = {
             onConfirm()
             onDialogClose()
@@ -151,6 +153,9 @@ sealed class ConfirmationDialogInfo(
 @Composable
 fun GameScreenWithPager(
     game: Game,
+    kickoffCountdownSeconds: Int? = null,
+    timerDisplayMode: TimerDisplayMode = TimerDisplayMode.REMAINING,
+    onToggleTimerDisplayMode: () -> Unit = {},
     horizontalPagerState: PagerState,
     verticalPagerState: PagerState,
     onKickOff: () -> Unit,
@@ -158,8 +163,10 @@ fun GameScreenWithPager(
     onSetToHaveExtraTime: () -> Unit,
     onSetToHavePenalties: () -> Unit,
     onToggleTimer: () -> Unit,
-    onAddGoal: (Team) -> Unit,
+    onToggleStoppageTimer: () -> Unit = {},
+    onNavigateToLogGoal: (Team, com.databelay.refwatch.common.GoalType) -> Unit,
     onNavigateToLogCard: (team: Team, cardType: CardType) -> Unit,
+    onNavigateToLogSubstitution: (Team) -> Unit,
     onNavigateToGameLog: () -> Unit,
     onEndPhase: () -> Unit,
     onResetPeriodTimer: () -> Unit, // For current period's timer
@@ -221,22 +228,35 @@ fun GameScreenWithPager(
                 flingBehavior =
                 PagerScaffoldDefaults.snapWithSpringFlingBehavior(state = verticalPagerState),
                 state = verticalPagerState,
+                userScrollEnabled = false,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 when (page) {
                     0 -> {
                         GamePagerContent(
                             game = game,
+                            kickoffCountdownSeconds = kickoffCountdownSeconds,
+                            timerDisplayMode = timerDisplayMode,
+                            onToggleTimerDisplayMode = onToggleTimerDisplayMode,
                             pagerState = horizontalPagerState,
                             pageIndicatorState = pageIndicatorState,
                             onKickOff = onKickOff,
-                            onAddGoal = onAddGoal,
+                            onNavigateToLogGoal = onNavigateToLogGoal,
                             onNavigateToLogCard = onNavigateToLogCard,
+                            onNavigateToLogSubstitution = onNavigateToLogSubstitution,
                             onPenaltyAttemptRecorded = onPenaltyAttemptRecorded,
+                            onToggleTimer = onToggleTimer,
+                            onToggleStoppageTimer = onToggleStoppageTimer,
+                            onOpenGameMenu = {
+                                coroutineScope.launch { verticalPagerState.scrollToPage(1) }
+                            },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
                     1 -> {
+                        BackHandler {
+                            coroutineScope.launch { verticalPagerState.scrollToPage(0) }
+                        }
                         GameSettingsScreen(
                             game = game,
                             onAttemptFinishGame = {
@@ -324,13 +344,15 @@ fun GameScreenWithPagerPreviewSmallRegulationTime() {
             onSetToHaveExtraTime = {},
             onSetToHavePenalties = {},
             onToggleTimer = {},
-            onAddGoal = {},
+            onToggleStoppageTimer = {},
+            onNavigateToLogGoal = { _, _ -> },
             onNavigateToLogCard = { _: Team, _: CardType -> },
             onNavigateToGameLog = {},
             onEndPhase = {},
             onResetPeriodTimer = {},
             onConfirmEndMatch = {},
-            onPenaltyAttemptRecorded = {}
+            onPenaltyAttemptRecorded = {},
+            onNavigateToLogSubstitution = {}
         )
     }
 }
@@ -353,13 +375,15 @@ fun GameScreenWithPagerPreviewSettingsOpen() {
             onSetToHaveExtraTime = {},
             onSetToHavePenalties = {},
             onToggleTimer = {},
-            onAddGoal = {},
+            onToggleStoppageTimer = {},
+            onNavigateToLogGoal = { _, _ -> },
             onNavigateToLogCard = { _: Team, _: CardType -> },
             onNavigateToGameLog = {},
             onEndPhase = {},
             onResetPeriodTimer = {},
             onConfirmEndMatch = {},
-            onPenaltyAttemptRecorded = {}
+            onPenaltyAttemptRecorded = {},
+            onNavigateToLogSubstitution = {}
         )
     }
 }
@@ -384,13 +408,15 @@ fun Preview_MainGameDisplay_Penalties() {
             onSetToHaveExtraTime = {},
             onSetToHavePenalties = {},
             onToggleTimer = {},
-            onAddGoal = {},
+            onToggleStoppageTimer = {},
+            onNavigateToLogGoal = { _, _ -> },
             onNavigateToLogCard = { _: Team, _: CardType -> },
             onNavigateToGameLog = {},
             onEndPhase = {},
             onResetPeriodTimer = {},
             onConfirmEndMatch = {},
-            onPenaltyAttemptRecorded = {}
+            onPenaltyAttemptRecorded = {},
+            onNavigateToLogSubstitution = {}
         )
     }
 }

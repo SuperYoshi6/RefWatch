@@ -50,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -57,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.databelay.refwatch.R
 import com.databelay.refwatch.common.predefinedColors
 import com.databelay.refwatch.common.theme.RefWatchMobileTheme
 import com.databelay.refwatch.data.AddEditGameUiState
@@ -111,17 +113,17 @@ fun AddEditGameScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (uiState.isEditing) "Edit Game" else "Add New Game") },
+                title = { Text(if (uiState.isEditing) stringResource(R.string.edit_game) else stringResource(R.string.add_game)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onSaveGame) {
-                Icon(Icons.Filled.Save, contentDescription = "Save Game")
+                Icon(Icons.Filled.Save, contentDescription = stringResource(R.string.save_game))
             }
         }
     ) { paddingValues ->
@@ -135,7 +137,7 @@ fun AddEditGameScreen(
             OutlinedTextField(
                 value = uiState.homeTeamName,
                 onValueChange = onHomeTeamNameChange,
-                label = { Text("Home Team Name") },
+                label = { Text(stringResource(R.string.home_team_name)) },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 singleLine = true
@@ -143,7 +145,7 @@ fun AddEditGameScreen(
             OutlinedTextField(
                 value = uiState.awayTeamName,
                 onValueChange = onAwayTeamNameChange,
-                label = { Text("Away Team Name") },
+                label = { Text(stringResource(R.string.away_team_name)) },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 singleLine = true
@@ -154,7 +156,7 @@ fun AddEditGameScreen(
                 OutlinedTextField(
                     value = uiState.homeScore,
                     onValueChange = onHomeScoreChange,
-                    label = { Text("Home Score") },
+                    label = { Text(stringResource(R.string.home_score)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                     singleLine = true
@@ -162,7 +164,7 @@ fun AddEditGameScreen(
                 OutlinedTextField(
                     value = uiState.awayScore,
                     onValueChange = onAwayScoreChange,
-                    label = { Text("Away Score") },
+                    label = { Text(stringResource(R.string.away_score)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                     singleLine = true
@@ -171,7 +173,7 @@ fun AddEditGameScreen(
             OutlinedTextField(
                 value = uiState.refereeAssignment,
                 onValueChange = onRefereeAssignmentChange,
-                label = { Text("Assignment") },
+                label = { Text(stringResource(R.string.assignment)) },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 singleLine = true
@@ -181,7 +183,7 @@ fun AddEditGameScreen(
                 OutlinedTextField(
                     value = uiState.venue,
                     onValueChange = onVenueChange,
-                    label = { Text("Venue / Location (Optional)") },
+                    label = { Text(stringResource(R.string.venue_optional)) },
                     modifier = Modifier.weight(1f),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     singleLine = true
@@ -189,7 +191,7 @@ fun AddEditGameScreen(
                 OutlinedTextField(
                     value = uiState.fieldNumber,
                     onValueChange = onFieldNumberChange,
-                    label = { Text("Field Number (Optional)") },
+                    label = { Text(stringResource(R.string.field_number_optional)) },
                     modifier = Modifier.weight(1f),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true
@@ -198,7 +200,7 @@ fun AddEditGameScreen(
             OutlinedTextField(
                 value = uiState.competition,
                 onValueChange = onCompetitionChange,
-                label = { Text("Competition (Optional)") },
+                label = { Text(stringResource(R.string.competition_optional)) },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 singleLine = true
@@ -208,14 +210,14 @@ fun AddEditGameScreen(
             val sdfDate = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()) }
             val sdfTime = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
             val selectedDateTimeString = uiState.gameDateTimeEpochMillis?.let {
-                "${sdfDate.format(Date(it))} at ${sdfTime.format(Date(it))}"
-            } ?: "Select Date & Time"
+                stringResource(R.string.date_time_format, sdfDate.format(Date(it)), sdfTime.format(Date(it)))
+            } ?: stringResource(R.string.select_date_time)
 
             // Wrap the TextField in a Box to intercept the click
             Box {
                 OutlinedTextField(
                     value = selectedDateTimeString,        onValueChange = {},
-                    label = { Text("Game Date & Time") },
+                    label = { Text(stringResource(R.string.game_date_time)) },
                     modifier = Modifier.fillMaxWidth(),
                     // Set enabled to false to prevent focus and cursor
                     enabled = false,
@@ -228,7 +230,7 @@ fun AddEditGameScreen(
                         disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     readOnly = true,
-                    trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date") }
+                    trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = stringResource(R.string.select_date)) }
                 )
                 // Apply the clickable modifier to a covering Box
                 Box(
@@ -251,12 +253,12 @@ fun AddEditGameScreen(
                                 timePickerState.minute = cal.get(Calendar.MINUTE)
                                 showTimePicker = true
                             }
-                        }) { Text("OK") }
+                        }) { Text(stringResource(R.string.ok)) }
                     },
                     dismissButton = {
                         TextButton(onClick = {
                             showDatePicker = false
-                        }) { Text("Cancel") }
+                        }) { Text(stringResource(R.string.cancel)) }
                     }
                 ) {
                     DatePicker(state = datePickerState)
@@ -276,12 +278,12 @@ fun AddEditGameScreen(
                             cal.set(Calendar.SECOND, 0)
                             cal.set(Calendar.MILLISECOND, 0)
                             onGameDateTimeChange(cal.timeInMillis)
-                        }) { Text("OK") }
+                        }) { Text(stringResource(R.string.ok)) }
                     },
                     dismissButton = {
                         TextButton(onClick = {
                             showTimePicker = false
-                        }) { Text("Cancel") }
+                        }) { Text(stringResource(R.string.cancel)) }
                     }
                 ) {
                     TimePicker(state = timePickerState, modifier = Modifier.padding(16.dp))
@@ -292,14 +294,14 @@ fun AddEditGameScreen(
                 OutlinedTextField(
                     value = uiState.halfDurationMinutes.toString(),
                     onValueChange = onHalfDurationChange,
-                    label = { Text("Half (min)") },
+                    label = { Text(stringResource(R.string.half_minutes)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f)
                 )
                 OutlinedTextField(
                     value = uiState.halftimeDurationMinutes.toString(),
                     onValueChange = onHalftimeDurationChange,
-                    label = { Text("Halftime (min)") },
+                    label = { Text(stringResource(R.string.halftime_minutes)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f)
                 )
@@ -318,7 +320,7 @@ fun AddEditGameScreen(
                                 .background(Color(uiState.homeTeamColorArgb))
                         )
                         Spacer(Modifier.width(4.dp))
-                        Text("Home Color")
+                        Text(stringResource(R.string.home_color))
                     }
                 }
                 Button(onClick = { showAwayColorPicker = true }) {
@@ -329,14 +331,14 @@ fun AddEditGameScreen(
                                 .background(Color(uiState.awayTeamColorArgb))
                         )
                         Spacer(Modifier.width(4.dp))
-                        Text("Away Color")
+                        Text(stringResource(R.string.away_color))
                     }
                 }
             }
 
             if (showHomeColorPicker) {
                 ColorPickerDialog(
-                    title = "Select Home Color",
+                    title = stringResource(R.string.team_color_select),
                     availableColors = predefinedColors,
                     selectedColor = Color(uiState.homeTeamColorArgb),
                     onColorSelected = { color: Color ->
@@ -348,7 +350,7 @@ fun AddEditGameScreen(
             }
             if (showAwayColorPicker) {
                 ColorPickerDialog(
-                    title = "Select Away Color",
+                    title = stringResource(R.string.select_away_color),
                     availableColors = predefinedColors,
                     selectedColor = Color(uiState.awayTeamColorArgb),
                     onColorSelected = { color: Color ->
@@ -362,7 +364,7 @@ fun AddEditGameScreen(
             OutlinedTextField(
                 value = uiState.notes,
                 onValueChange = onNotesChanged,
-                label = { Text("Notes (Optional)") },
+                label = { Text(stringResource(R.string.notes_optional)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 80.dp),

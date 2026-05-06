@@ -62,7 +62,7 @@ fun GameSettingsScreen(
 
             item {
                 Text(
-                    "Game Menu",
+                    "Spiel Menü",
                     style = MaterialTheme.typography.displaySmall,
                     textAlign = TextAlign.Center
                 )
@@ -94,7 +94,7 @@ fun GameSettingsScreen(
 
                         ) {
                         Text(
-                            text = "End ${game.currentPhase.readable()}",
+                            text = "Beende ${game.currentPhase.readable()}",
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -108,7 +108,7 @@ fun GameSettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        "Finish Game",
+                        "Spiel beenden",
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -121,7 +121,7 @@ fun GameSettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        "Reset Period Timer",
+                        "Halbzeit zurücksetzen",
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -135,7 +135,7 @@ fun GameSettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        "View Game Log",
+                        "Spielprotokoll anzeigen",
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -152,10 +152,10 @@ fun GameSettingsScreen(
                         horizontalArrangement = Arrangement.Center,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Reset Game")
+                        Text("Spiel zurücksetzen")
                         Icon(
                             imageVector = Icons.Filled.PriorityHigh,
-                            contentDescription = "Warning"
+                            contentDescription = "Warnung"
                         )
                     }
                 }
@@ -168,8 +168,8 @@ fun GameSettingsScreen(
 private fun PreviewableAlertDialog(
     title: String,
     message: String? = null,
-    confirmButtonText: String = "Confirm",
-    dismissButtonText: String = "Dismiss",
+    confirmButtonText: String = "Ja, zurücksetzen",
+    dismissButtonText: String = "Nein",
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -183,7 +183,7 @@ private fun PreviewableAlertDialog(
 
 @Preview(
     device = "id:wearos_small_round",
-    name = "End Phase Dialog Preview",
+    name = "Beende Halbzeit Protokoll nsicht",
     showSystemUi = true,
     backgroundColor = 0xff000000,
     showBackground = true
@@ -191,7 +191,7 @@ private fun PreviewableAlertDialog(
 @Composable
 fun PreviewSettingsEndPhaseDialog() {
     PreviewableAlertDialog(
-        title = "End First Half?",
+        title = "1. Halbzeit beenden",
         onConfirm = {},
         onDismiss = {}
     )
@@ -199,7 +199,7 @@ fun PreviewSettingsEndPhaseDialog() {
 
 @Preview(
     device = "id:wearos_small_round",
-    name = "Finish Game Dialog Preview",
+    name = "Beende Spiel Protokoll Ansicht",
     showSystemUi = true,
     backgroundColor = 0xff000000,
     showBackground = true
@@ -216,7 +216,7 @@ fun PreviewSettingsFinishGameDialog() {
 
 @Preview(
     device = "id:wearos_small_round",
-    name = "Reset Timer Dialog Preview",
+    name = "Halbziet Protokoll ansicht zurücksetzen",
     showSystemUi = true,
     backgroundColor = 0xff000000,
     showBackground = true
@@ -241,9 +241,9 @@ fun PreviewSettingsResetPeriodTimerDialog() {
 @Composable
 fun PreviewSettingsResetFullGameDialog() {
     PreviewableAlertDialog(
-        title = "Reset Full Game?",
-        message = "This will erase all scores and logs for this game. Are you sure?",
-        confirmButtonText = "Yes, Reset",
+        title = "Spiel zurücksetzen?",
+        message = "Diese Aktion wird alle Ergebnisse und das komplette Protokoll dieses Spiels löschen.",
+        confirmButtonText = "Ja, zurücksetzen",
         onConfirm = {},
         onDismiss = {}
     )
@@ -251,7 +251,7 @@ fun PreviewSettingsResetFullGameDialog() {
 
 @Preview(
     device = "id:wearos_small_round",
-    name = "Extra Time Dialog Preview",
+    name = "Verlängerungs Protokoll Ansicht",
     showSystemUi = true,
     backgroundColor = 0xff000000,
     showBackground = true
@@ -259,9 +259,9 @@ fun PreviewSettingsResetFullGameDialog() {
 @Composable
 fun PreviewSettingsExtraTimeDialog() {
     PreviewableAlertDialog(
-        title = "Extra Time?",
-        confirmButtonText = "Yes",
-        dismissButtonText = "No",
+        title = "Verlängerung?",
+        confirmButtonText = "Ja",
+        dismissButtonText = "Nein",
         onConfirm = {},
         onDismiss = {}
     )

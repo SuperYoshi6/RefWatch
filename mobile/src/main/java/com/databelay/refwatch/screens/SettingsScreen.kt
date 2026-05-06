@@ -77,7 +77,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text("Einstellungen") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -95,7 +95,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.Top
         ) {
             Text(
-                "Legal",
+                "Rechtliches",
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
@@ -108,7 +108,7 @@ fun SettingsScreen(
                         textDecoration = TextDecoration.Underline
                     )
                 ) {
-                    append("Privacy Policy")
+                    append("Datenschutzerklärung")
                 }
             }
 
@@ -135,7 +135,7 @@ fun SettingsScreen(
                         textDecoration = TextDecoration.Underline
                     )
                 ) {
-                    append("Terms of Use")
+                    append("Nutzungsbedingungen")
                 }
             }
 
@@ -158,7 +158,7 @@ fun SettingsScreen(
 
             // --- ADD BUILD INFO TEXT HERE ---
             Text(
-                text = "Version: $appVersionName $buildDateString", // Display version name
+                text = "Version: $appVersionName", // Display version name
                 color = androidx.wear.compose.material.MaterialTheme.colors.primary,
                 style = androidx.wear.compose.material.MaterialTheme.typography.caption1.copy(fontSize = 14.sp),
                 textAlign = TextAlign.Center,
@@ -172,7 +172,7 @@ fun SettingsScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Delete Account")
+                Text("Account löschen")
             }
         }
     }
@@ -180,8 +180,8 @@ fun SettingsScreen(
     if (showDeleteConfirmationDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmationDialog = false },
-            title = { Text("Delete Account?") },
-            text = { Text("This action is permanent and cannot be undone. All your data will be erased. Are you sure you want to delete your account?") },
+            title = { Text("Account löschen?") },
+            text = { Text("Diese Aktion ist endgültig und kann nicht rückgängig gemacht werden. Bist du sicher, dass du deinen Account löschen möchtest?") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -202,7 +202,7 @@ fun SettingsScreen(
                 TextButton(
                     onClick = { showDeleteConfirmationDialog = false }
                 ) {
-                    Text("Cancel")
+                    Text("Abbrechen")
                 }
             }
         )

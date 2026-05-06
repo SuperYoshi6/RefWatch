@@ -26,6 +26,7 @@ import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.GameStatus
 import com.databelay.refwatch.common.GenericLogEvent
 import com.databelay.refwatch.common.GoalScoredEvent
+import com.databelay.refwatch.common.GoalType
 import com.databelay.refwatch.common.IWearGameViewModel
 import com.databelay.refwatch.common.PenaltyEvent
 import com.databelay.refwatch.common.Team
@@ -48,6 +49,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import com.databelay.refwatch.common.SubstitutionEvent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -62,12 +64,17 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import javax.inject.Inject
+import java.util.Locale
 
 
+enum class TimerDisplayMode {
+    REMAINING, PLAYED
+}
 
 @OptIn(FlowPreview::class)
 @HiltViewModel
@@ -102,6 +109,17 @@ class WearGameViewModel @Inject constructor(
     // Initialize _activeGame as potentially null or with a loading state initially
     private val _activeGame = MutableStateFlow<Game?>(null) // Start as null
     override val activeGame: StateFlow<Game?> = _activeGame.asStateFlow() // Expose as nullable
+
+    private val _timerDisplayMode = MutableStateFlow(TimerDisplayMode.REMAINING)
+    val timerDisplayMode: StateFlow<TimerDisplayMode> = _timerDisplayMode.asStateFlow()
+    private val _kickoffCountdownSeconds = MutableStateFlow<Int?>(null)
+    val kickoffCountdownSeconds: StateFlow<Int?> = _kickoffCountdownSeconds.asStateFlow()
+
+    fun toggleTimerDisplayMode() {
+        _timerDisplayMode.update {
+            if (it == TimerDisplayMode.REMAINING) TimerDisplayMode.PLAYED else TimerDisplayMode.REMAINING
+        }
+    }
 
 
     private var isCurrentGameSessionActive = false
@@ -158,6 +176,8 @@ class WearGameViewModel @Inject constructor(
                             displayedTimeMillis = serviceState.displayedMillis,
                             actualTimeElapsedInPeriodMillis = serviceState.actualTimeElapsedInPeriodMillis,
                             inAddedTime = serviceState.inAddedTime,
+                            stoppageTimeMillis = serviceState.stoppageTimeMillis,
+                            isStoppageTimerRunning = serviceState.isStoppageTimerRunning
                         )
                     }
                 }
@@ -652,10 +672,12 @@ class WearGameViewModel @Inject constructor(
             actualTimeElapsedInPeriodMillis = 0L,
             displayedTimeMillis = gameAtPeriodEnd.regulationPeriodDurationMillis(nextPhase),
             kickOffTeam = newKickOffTeam,
+            stoppageTimeMillis = 0L,
             lastUpdated = System.currentTimeMillis()
         )
 
         _activeGame.value = updatedGame
+        viewModelScope.launch { gameStorage.addOrUpdateGame(updatedGame) }
         if (nextPhase.isKickOffSelectionPhase()) {
             // ...
         } else {
@@ -702,15 +724,26 @@ class WearGameViewModel @Inject constructor(
         val currentPhase = currentGame.currentPhase
 
         if (currentPhase.needsKickOff()) {
-            val teamName =
-                if (currentGame.kickOffTeam == Team.HOME) currentGame.homeTeamName else currentGame.awayTeamName
-            val kickOffMessage = "Kick Off - ${teamName} - ${currentPhase.readable()}"
-            val kickOffEvent = GenericLogEvent(message = kickOffMessage)
-            Log.i(tag, kickOffMessage)
-            // Use the new addGameEventToList method
-            addEvent(kickOffEvent)
-            gameTimerService?.startGameTimer(currentGame)
-            vibrate(VibrationPattern.GENERIC_EVENT)
+            if (_kickoffCountdownSeconds.value != null) return
+            viewModelScope.launch {
+                _kickoffCountdownSeconds.value = 5
+                while ((_kickoffCountdownSeconds.value ?: 0) > 0) {
+                    val value = _kickoffCountdownSeconds.value ?: 0
+                    if (value <= 3) {
+                        vibrateKickoffTick()
+                    }
+                    delay(1000)
+                    _kickoffCountdownSeconds.value = (value - 1).coerceAtLeast(0)
+                }
+                vibrateKickoffGo()
+                val latestGame = _activeGame.value ?: return@launch
+                val teamName =
+                    if (latestGame.kickOffTeam == Team.HOME) latestGame.homeTeamName else latestGame.awayTeamName
+                val kickOffMessage = "Anstoß ${teamName} ${latestGame.currentPhase.readable()}"
+                addEvent(GenericLogEvent(message = kickOffMessage))
+                gameTimerService?.startGameTimer(latestGame)
+                _kickoffCountdownSeconds.value = null
+            }
         } else {
             Log.w(tag, "KickOff action attempted in inappropriate phase: $currentPhase")
         }
@@ -735,7 +768,12 @@ class WearGameViewModel @Inject constructor(
         }
     }
 
-    fun addGoal(team: Team) {
+    fun toggleStoppageTimer() {
+        gameTimerService?.toggleStoppageTimer()
+        vibrate(VibrationPattern.GENERIC_EVENT)
+    }
+
+    fun addGoal(team: Team, playerNumber: Int? = null, goalType: GoalType = GoalType.REGULAR) {
         val currentGame = _activeGame.value ?: return
         if (!currentGame.currentPhase.isPlayablePhase()) return
 
@@ -745,6 +783,8 @@ class WearGameViewModel @Inject constructor(
             if (team == Team.AWAY) currentGame.awayScore + 1 else currentGame.awayScore
         val goalEvent = GoalScoredEvent(
             team = team,
+            goalType = goalType,
+            playerNumber = playerNumber,
             gameTimeMillis = currentGame.actualTimeElapsedInPeriodMillis.toDouble(),
             homeScoreAtTime = newHomeScore,
             awayScoreAtTime = newAwayScore
@@ -782,49 +822,161 @@ class WearGameViewModel @Inject constructor(
     }
 
     fun updateGameNumber(gameNumber: String) {
-        _activeGame.update {
+        val updated = _activeGame.updateAndGet {
             it?.copy(
                 gameNumber = gameNumber,
                 lastUpdated = System.currentTimeMillis()
             )
         }
+        updated?.let { viewModelScope.launch { gameStorage.addOrUpdateGame(it) } }
     }
 
     fun updateHomeTeamName(name: String) {
-        _activeGame.update {
+        val updated = _activeGame.updateAndGet {
             it?.copy(
                 homeTeamName = name,
                 lastUpdated = System.currentTimeMillis()
             )
         }
+        updated?.let { viewModelScope.launch { gameStorage.addOrUpdateGame(it) } }
     }
 
     fun updateAwayTeamName(name: String) {
-        _activeGame.update {
+        val updated = _activeGame.updateAndGet {
             it?.copy(
                 awayTeamName = name,
                 lastUpdated = System.currentTimeMillis()
             )
         }
+        updated?.let { viewModelScope.launch { gameStorage.addOrUpdateGame(it) } }
     }
 
-    fun updateHomeTeamColor(color: Color) {
+    fun updateHomeTeamAbbr(abbr: String) {
+        val sanitizedAbbr = abbr
+            .uppercase(Locale.getDefault())
+            .filter { it.isLetterOrDigit() }
+            .take(4)
         _activeGame.update {
+            it?.copy(
+                homeTeamAbbr = sanitizedAbbr,
+                lastUpdated = System.currentTimeMillis()
+            )
+        }
+        _activeGame.value?.let { viewModelScope.launch { gameStorage.addOrUpdateGame(it) } }
+    }
+
+    fun updateAwayTeamAbbr(abbr: String) {
+        val sanitizedAbbr = abbr
+            .uppercase(Locale.getDefault())
+            .filter { it.isLetterOrDigit() }
+            .take(4)
+        _activeGame.update {
+            it?.copy(
+                awayTeamAbbr = sanitizedAbbr,
+                lastUpdated = System.currentTimeMillis()
+            )
+        }
+        _activeGame.value?.let { viewModelScope.launch { gameStorage.addOrUpdateGame(it) } }
+    }
+
+    fun updateHomeCaptainNumber(number: Int?) {
+        _activeGame.update {
+            it?.copy(
+                homeCaptainNumber = number,
+                lastUpdated = System.currentTimeMillis()
+            )
+        }
+        _activeGame.value?.let { viewModelScope.launch { gameStorage.addOrUpdateGame(it) } }
+    }
+
+    fun updateAwayCaptainNumber(number: Int?) {
+        _activeGame.update {
+            it?.copy(
+                awayCaptainNumber = number,
+                lastUpdated = System.currentTimeMillis()
+            )
+        }
+        _activeGame.value?.let { viewModelScope.launch { gameStorage.addOrUpdateGame(it) } }
+    }
+
+
+
+    fun updateHomeTeamColor(color: Color) {
+        val updated = _activeGame.updateAndGet {
             it?.copy(
                 homeTeamColorArgb = color.toArgb(),
                 lastUpdated = System.currentTimeMillis()
             )
         }
+        updated?.let { viewModelScope.launch { gameStorage.addOrUpdateGame(it) } }
     }
 
     fun updateAwayTeamColor(color: Color) {
-        _activeGame.update {
+        val updated = _activeGame.updateAndGet {
             it?.copy(
                 awayTeamColorArgb = color.toArgb(),
                 lastUpdated = System.currentTimeMillis()
             )
         }
+        updated?.let { viewModelScope.launch { gameStorage.addOrUpdateGame(it) } }
     }
+
+    fun updateMaxSubstitutions(max: Int) {
+        val updated = _activeGame.updateAndGet {
+            it?.copy(
+                maxSubstitutionsAllowed = max,
+                lastUpdated = System.currentTimeMillis()
+            )
+        }
+        updated?.let { viewModelScope.launch { gameStorage.addOrUpdateGame(it) } }
+    }
+
+    fun applySetupFromPhoneGame() {
+        val currentGame = _activeGame.value ?: return
+        val sourceGame = gamesList.value
+            .asSequence()
+            .filter { it.status == GameStatus.SCHEDULED && it.id != currentGame.id }
+            .sortedByDescending { it.lastUpdated }
+            .firstOrNull() ?: return
+
+        val updated = currentGame.copy(
+            gameNumber = sourceGame.gameNumber,
+            homeTeamName = sourceGame.homeTeamName,
+            awayTeamName = sourceGame.awayTeamName,
+            homeTeamAbbr = sourceGame.homeTeamAbbr,
+            awayTeamAbbr = sourceGame.awayTeamAbbr,
+            homeCaptainNumber = sourceGame.homeCaptainNumber,
+            awayCaptainNumber = sourceGame.awayCaptainNumber,
+            homeTeamColorArgb = sourceGame.homeTeamColorArgb,
+            awayTeamColorArgb = sourceGame.awayTeamColorArgb,
+            halfDurationMinutes = sourceGame.halfDurationMinutes,
+            halftimeDurationMinutes = sourceGame.halftimeDurationMinutes,
+            maxSubstitutionsAllowed = sourceGame.maxSubstitutionsAllowed,
+            kickOffTeam = sourceGame.kickOffTeam,
+            displayedTimeMillis = sourceGame.regulationPeriodDurationMillis(currentGame.currentPhase),
+            lastUpdated = System.currentTimeMillis()
+        )
+        _activeGame.value = updated
+        viewModelScope.launch { gameStorage.addOrUpdateGame(updated) }
+        Log.i(tag, "Applied setup from phone-synced game ${sourceGame.id} to active game ${currentGame.id}.")
+    }
+
+    fun logSubstitution(team: Team, outgoing: Int, incoming: Int) {
+        _activeGame.value?.let { game ->
+            val event = SubstitutionEvent(
+                team = team,
+                outgoingPlayerNumber = outgoing,
+                incomingPlayerNumber = incoming,
+                gameTimeMillis = game.actualTimeElapsedInPeriodMillis.toDouble()
+            )
+            _activeGame.update { it?.addEvent(event) }
+        }
+    }
+
+    fun getSubstitutionsCount(team: Team): Int {
+        return _activeGame.value?.events?.filterIsInstance<SubstitutionEvent>()?.count { it.team == team } ?: 0
+    }
+
 
     fun setHalfDuration(minutes: Int) {
         _activeGame.update { currentGame ->
@@ -842,7 +994,9 @@ class WearGameViewModel @Inject constructor(
                     halfDurationMinutes = minutes,
                     displayedTimeMillis = newDisplayedTime,
                     lastUpdated = System.currentTimeMillis()
-                )
+                ).also { updated ->
+                    viewModelScope.launch { gameStorage.addOrUpdateGame(updated) }
+                }
             }
         }
     }
@@ -861,7 +1015,9 @@ class WearGameViewModel @Inject constructor(
                     halftimeDurationMinutes = minutes,
                     displayedTimeMillis = newDisplayedTime,
                     lastUpdated = System.currentTimeMillis()
-                )
+                ).also { updated ->
+                    viewModelScope.launch { gameStorage.addOrUpdateGame(updated) }
+                }
             }
         }
     }
@@ -897,6 +1053,7 @@ class WearGameViewModel @Inject constructor(
                 currentPhase = GamePhase.NOT_STARTED,
             )
         _activeGame.value = resetGame
+        viewModelScope.launch { gameStorage.addOrUpdateGame(resetGame) }
     }
 
     fun resetTimer() {
@@ -1040,6 +1197,18 @@ class WearGameViewModel @Inject constructor(
 
     enum class VibrationPattern {
         ADDED_TIME_REMINDER, GOAL_SCORED, GENERIC_EVENT
+    }
+
+    private fun vibrateKickoffTick() {
+        if (vibrator?.hasVibrator() == true) {
+            vibrator.vibrate(VibrationEffect.createOneShot(90, 80))
+        }
+    }
+
+    private fun vibrateKickoffGo() {
+        if (vibrator?.hasVibrator() == true) {
+            vibrator.vibrate(VibrationEffect.createOneShot(320, VibrationEffect.DEFAULT_AMPLITUDE))
+        }
     }
 }
 

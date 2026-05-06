@@ -1,6 +1,5 @@
 package com.databelay.refwatch.wear.presentation.screens
 
-import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,12 +21,22 @@ import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.Text
+import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
+import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import com.databelay.refwatch.R
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.Team
@@ -38,19 +47,56 @@ import com.databelay.refwatch.common.isPlayablePhase
 import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.wear.presentation.components.ColorIndicator
+import com.databelay.refwatch.wear.presentation.utils.localizedName
 import java.text.SimpleDateFormat
 import java.util.Locale
-import androidx.compose.ui.graphics.Color as ComposeColor
-
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 
 @Composable
 fun MainGameDisplayScreen(
     game: Game,
-    onKickOff: () -> Unit, // New callback for kickoff button
-    modifier: Modifier = Modifier // General modifier
+    kickoffCountdownSeconds: Int? = null,
+    isPlayedTime: Boolean = false,
+    onToggleTimerDisplayMode: () -> Unit = {},
+    onKickOff: () -> Unit,
+    onToggleTimer: () -> Unit,
+    onToggleStoppageTimer: () -> Unit = {},
+    onOpenGameMenu: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
-    val tag = "MainGameDisplayScreen"
-    val regulationDuration = game.regulationPeriodDurationMillis() // From Game data class
+    var clickCount by remember { mutableStateOf(0) }
+    val DOUBLE_CLICK_TIME = 300L
+
+    LaunchedEffect(clickCount) {
+        if (clickCount == 1) {
+            delay(DOUBLE_CLICK_TIME)
+            if (clickCount == 1) {
+                // Single click logic: Start/Resume (not kick-off)
+                if (!game.isTimerRunning &&
+                    game.currentPhase.hasTimer() &&
+                    game.actualTimeElapsedInPeriodMillis > 0L
+                ) {
+                    onToggleTimer()
+                }
+                clickCount = 0
+            }
+        } else if (clickCount >= 2) {
+            // Double click logic on hardware action key
+            if (game.actualTimeElapsedInPeriodMillis == 0L && !game.isTimerRunning && game.currentPhase.isPlayablePhase()) {
+                onKickOff()
+            } else if (game.currentPhase.isPlayablePhase() && game.currentPhase.hasTimer()) {
+                onToggleStoppageTimer()
+            }
+            clickCount = 0
+        }
+    }
+
+    BackHandler {
+        clickCount++
+    }
+
+    val regulationDuration = game.regulationPeriodDurationMillis()
     // Determine if we are in "added time" for a playable phase
     val isPlayablePhaseAndInAddedTime = game.currentPhase.isPlayablePhase() &&
             game.actualTimeElapsedInPeriodMillis >= regulationDuration &&
@@ -62,13 +108,31 @@ fun MainGameDisplayScreen(
         lineHeight = MaterialTheme.typography.bodyMedium.lineHeight,
         textAlign = TextAlign.Center
     )
+    val stoppageColor = ComposeColor(0xFF00E676)
+
+    val onMainTimerTap: () -> Unit = {
+        if (game.isStoppageTimerRunning) {
+            onToggleStoppageTimer()
+            if (!game.isTimerRunning && game.currentPhase.hasTimer()) {
+                onToggleTimer()
+            }
+        }
+    }
+
+    val onStoppageTap: () -> Unit = {
+        if (game.currentPhase.isPlayablePhase() && game.currentPhase.hasTimer()) {
+            if (game.isTimerRunning) onToggleTimer()
+            if (!game.isStoppageTimerRunning) onToggleStoppageTimer()
+        }
+    }
+
     val mainTimerStyle = MaterialTheme.typography.displayLarge.toSpanStyle().copy(
         fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurface // Default/fallback color
+        color = if (game.isTimerRunning) ComposeColor.White else MaterialTheme.colorScheme.onSurface
     )
     val halfTimerStyle = MaterialTheme.typography.displaySmall.toSpanStyle().copy()
     val extraTimerStyle = MaterialTheme.typography.bodyLarge.toSpanStyle().copy(
-        color = ComposeColor.Red,
+        color = stoppageColor,
     )
     val displayTimerText = buildAnnotatedString {
         withStyle(parStyle) {
@@ -77,15 +141,17 @@ fun MainGameDisplayScreen(
                     withStyle(mainTimerStyle) {
                         append(regulationDuration.formatTime())
                     }
-                    append(" \n")
-                    withStyle(extraTimerStyle) {
-                        append("+ ${addedTime.formatTime()}")
-                    }
                 } else {
                     // In regulation
-                    val timeRemaining = regulationDuration - game.actualTimeElapsedInPeriodMillis
-                    withStyle(mainTimerStyle) {
-                        append(timeRemaining.formatTime())
+                    if (isPlayedTime) {
+                        withStyle(mainTimerStyle) {
+                            append(game.actualTimeElapsedInPeriodMillis.formatTime())
+                        }
+                    } else {
+                        val timeRemaining = regulationDuration - game.actualTimeElapsedInPeriodMillis
+                        withStyle(mainTimerStyle) {
+                            append(timeRemaining.formatTime())
+                        }
                     }
                 }
             } else if (game.currentPhase.isBreak()) {
@@ -128,15 +194,26 @@ fun MainGameDisplayScreen(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceEvenly,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
             ) {
                 // ... content of score row (ColorIndicator, Score Text) ...
                 val homeHasKickOff =
                     game.kickOffTeam == Team.HOME && game.currentPhase.isPlayablePhase()
-                ColorIndicator(
-                    color = game.homeTeamColor,
-                    hasKickOffBorder = homeHasKickOff,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    ColorIndicator(
+                        color = game.homeTeamColor,
+                        hasKickOffBorder = homeHasKickOff,
+                        indicatorSize = 18.dp
+                    )
+                    Text(
+                        game.homeTeamAbbr ?: game.homeTeamName.take(3).uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                
                 Text(
                     "${game.homeScore} - ${game.awayScore}",
                     style = MaterialTheme.typography.displayLarge,
@@ -145,20 +222,30 @@ fun MainGameDisplayScreen(
                 )
                 val awayHasKickOff =
                     game.kickOffTeam == Team.AWAY && game.currentPhase.isPlayablePhase()
-                ColorIndicator(
-                    color = game.awayTeamColor,
-                    hasKickOffBorder = awayHasKickOff
-                )
+                
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    ColorIndicator(
+                        color = game.awayTeamColor,
+                        hasKickOffBorder = awayHasKickOff,
+                        indicatorSize = 18.dp
+                    )
+                    Text(
+                        game.awayTeamAbbr ?: game.awayTeamName.take(3).uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             // Current Phase
             Text(
-                game.currentPhase.readable(),
+                game.currentPhase.localizedName(),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.secondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
             )
+            
             Spacer(modifier = Modifier.padding(1.dp))
 
             // Conditionally show Timer or Kickoff Button
@@ -169,14 +256,15 @@ fun MainGameDisplayScreen(
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                // --- DEBUG LOGGING ---
-                Log.d(tag, "KickOff Button Condition Check: " +
-                        "Phase: ${game.currentPhase}, " +
-                        "isPlayable: ${game.currentPhase.isPlayablePhase()}, " +
-                        "ElapsedMillis: ${game.actualTimeElapsedInPeriodMillis}, " +
-                        "isTimerRunning: ${game.isTimerRunning}")
-                // --- END DEBUG LOGGING ---
-                if (game.actualTimeElapsedInPeriodMillis == 0L && !game.isTimerRunning && game.currentPhase.isPlayablePhase()) {
+                if (kickoffCountdownSeconds != null && game.currentPhase.isPlayablePhase()) {
+                    Text(
+                        text = kickoffCountdownSeconds.toString(),
+                        style = MaterialTheme.typography.displayLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        textAlign = TextAlign.Center
+                    )
+                } else if (game.actualTimeElapsedInPeriodMillis == 0L && !game.isTimerRunning && game.currentPhase.isPlayablePhase()) {
                     Button(
                         onClick = onKickOff,
                         modifier = Modifier
@@ -184,7 +272,7 @@ fun MainGameDisplayScreen(
                             .padding(horizontal = 32.dp),
                     ) {
                         Text(
-                            "Kick Off",
+                            stringResource(R.string.kick_off),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
@@ -193,20 +281,70 @@ fun MainGameDisplayScreen(
 
                 } else {
                     if (game.currentPhase.hasTimer()) {
-                        Text(
-                            text = displayTimerText, // Your AnnotatedString for the timer
-                            style = TextStyle( // Apply base text style, specific spans override parts
-                                fontFamily = MaterialTheme.typography.displayLarge.fontFamily,
-                                textAlign = TextAlign.Center
-                                // Line height and font sizes are in your displayTimerText's ParagraphStyle/SpanStyles
-                            ),
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = displayTimerText,
+                                style = TextStyle(
+                                    fontFamily = MaterialTheme.typography.displayLarge.fontFamily,
+                                    textAlign = TextAlign.Center
+                                ),
+                                modifier = Modifier.pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onTap = { onMainTimerTap() },
+                                        onDoubleTap = { onToggleTimerDisplayMode() },
+                                        onLongPress = { onOpenGameMenu() }
+                                    )
+                                }
+                            )
+                            if (game.currentPhase.hasTimer()) {
+                                Text(
+                                    text = if (game.stoppageTimeMillis > 0 || game.isStoppageTimerRunning)
+                                        "+ ${game.stoppageTimeMillis.formatTime(false)}"
+                                    else if (game.isTimerRunning) "+ 00:00" else "",
+                                    color = if (game.isStoppageTimerRunning) stoppageColor else MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.displayMedium,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier
+                                        .padding(top = 8.dp)
+                                        .pointerInput(Unit) {
+                                            detectTapGestures(
+                                                onTap = { onStoppageTap() },
+                                                onLongPress = { onOpenGameMenu() }
+                                            )
+                                        }
+                                )
+                            }
+                        }
                     } else {
                         // Consistent placeholder height if no timer
                         Spacer(modifier = Modifier.height(50.dp)) // Adjust to match approx. timer height
                     }
                 }
             }
+
+            // Captain Numbers Row below Timer
+            if (game.homeCaptainNumber != null || game.awayCaptainNumber != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (game.homeCaptainNumber != null) "C: ${game.homeCaptainNumber}" else "",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = if (game.awayCaptainNumber != null) "C: ${game.awayCaptainNumber}" else "",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.padding(8.dp))
         }
     }
@@ -266,7 +404,8 @@ fun Preview_MainGameDisplay_RegulationTime() {
                 homeScore = 2,
                 isTimerRunningOverride = true
             ),
-            onKickOff = {}
+            onKickOff = {},
+            onToggleTimer = {}
         )
     }
 }
@@ -286,7 +425,8 @@ fun Preview_MainGameDisplay_AddedTime() {
                 homeScore = 2,
                 isTimerRunningOverride = true
             ),
-            onKickOff = {}
+            onKickOff = {},
+            onToggleTimer = {}
         )
     }
 }
@@ -307,7 +447,8 @@ fun Preview_MainGameDisplay_Halftime() {
                 awayTeamColorArgb = android.graphics.Color.RED,
                 isTimerRunningOverride = true // Assuming halftime timer runs
             ),
-            onKickOff = {}
+            onKickOff = {},
+            onToggleTimer = {}
         )
     }
 }
@@ -327,7 +468,8 @@ fun Preview_MainGameDisplay_Kickoff() {
                 awayScore = 0,
                 isTimerRunningOverride = false // Important: timer NOT running for kickoff button
             ),
-            onKickOff = {}
+            onKickOff = {},
+            onToggleTimer = {}
         )
     }
 }

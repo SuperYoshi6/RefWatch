@@ -1,8 +1,62 @@
 <resources>
     <string name="app_name">RefWatch</string>
-    <!--
-    This string is used for square devices and overridden by hello_world in
-    values-round/strings.xml for round devices.
-    -->
-    <string name="hello_world">From the Square world,\nHello, %1$s!</string>
+    <string name="match_setup">Spiel Setup</string>
+    <string name="edit_team_name">Team Name</string>
+    <string name="edit_team_abbr">Team Abk.</string>
+    <string name="edit_home_captain">Heim Captain</string>
+    <string name="edit_away_captain">Gast Captain</string>
+    <string name="half_duration">Halbzeitdaur</string>
+    <string name="halftime_duration">Pausendauer</string>
+    <string name="create_match">Neues Spiel</string>
+    <string name="kick_off">Anstoß</string>
+    <string name="goal_type">Tor Art</string>
+    <string name="goal_regular">Tor</string>
+    <string name="goal_penalty">Elfmeter</string>
+    <string name="goal_own_goal">Eigentor</string>
+    <string name="home">Heim</string>
+    <string name="away">Gast</string>
+    <string name="remaining">Restzeit</string>
+    <string name="played">Gesamt</string>
+    <string name="none">--</string>
+    <string name="upcoming_games">Anstehende Spiele</string>
+    <string name="past_games">Abgeschlossene Spiele</string>
+    <string name="new_game">Neues Spiel</string>
+    <string name="online">Online</string>
+    <string name="not_online">Offline</string>
+    <string name="no_time_set">--</string>
+    <string name="field_label">Feld: %1$s</string>
+    <string name="game_log">Spielprotokoll</string>
+    <string name="no_events">Keine Ereignisse.</string>
+    <string name="logged_at">%1$s protokolliert</string>
+    <string name="back">Zurück</string>
+    <string name="phase_not_started">Nicht angefangen</string>
+    <string name="phase_pre_game">Spielvorbereitung</string>
+    <string name="phase_kick_off_selection">Anstoss</string>
+    <string name="phase_first_half">1. Halbzeit</string>
+    <string name="phase_half_time">Halbzeit</string>
+    <string name="phase_second_half">2. Halbzeit</string>
+    <string name="phase_extra_time_first_half">1. Halbzeit (1. HVZ)</string>
+    <string name="phase_extra_time_half_time">Halbzeit (1. HVZ)</string>
+    <string name="phase_extra_time_second_half">2. Halbzeit (2. HVZ)</string>
+    <string name="phase_penalties">Elfmeterschiessen</string>
+    <string name="phase_game_ended">Spiel Ende</string>
+    <string name="home_away_teams">Teams</string>
+    <string name="log_card">Kartenprotokoll</string>
+    <string name="card_yellow">Gelb</string>
+    <string name="card_red">Rot</string>
+    <string name="card_yellow_red">Gelb-Rot</string>
+    <string name="card_event_template">%1$s Karte: %2$s Nr.%3$s</string>
+    <string name="goal_event_template">%1$s: %2$s (%3$d-%4$d)</string>
+    <string name="penalty_event_template">Elfmeter: %1$s %2$s</string>
+    <string name="scored">Tor</string>
+    <string name="missed_saved">Verworfen/Gehalten</string>
+    <string name="confirm">Bestätigen</string>
+    <string name="dismiss">Abbrechen</string>
+    <string name="team_color">Teamfarbe</string>
+    <string name="max_substitutions">Max Wechsel</string>
+    <string name="substitution">Wechsel</string>
+    <string name="outgoing_player">Ausspieler</string>
+    <string name="incoming_player">Einspieler</string>
+    <string name="select_kick_off_team">Anstoßteam wählen</string>
+    <string name="load_setup_from_phone">Setup vom Handy laden</string>
 </resources>

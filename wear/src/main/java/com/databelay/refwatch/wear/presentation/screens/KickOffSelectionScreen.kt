@@ -1,4 +1,4 @@
-package com.databelay.refwatch.wear.presentation.screens // Or your package
+package com.databelay.refwatch.wear.presentation.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -9,23 +9,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.wear.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.material.Text
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.Text
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
+import com.databelay.refwatch.R
 import com.databelay.refwatch.common.Game
-import com.databelay.refwatch.common.Team
-import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.PreviewTools.createFirstHalfSampleGame
+import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.wear.presentation.components.ColorIndicator
-
 
 @Composable
 fun KickOffSelectionScreen(
@@ -35,16 +36,16 @@ fun KickOffSelectionScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "${game.currentPhase.readable()} : Kick-Off",
+            text = stringResource(R.string.select_kick_off_team),
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center,
             modifier = Modifier
-                .fillMaxWidth(0.85f)
+                .fillMaxWidth(0.9f)
                 .padding(bottom = 8.dp)
         )
 
@@ -56,41 +57,54 @@ fun KickOffSelectionScreen(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .clip(MaterialTheme.shapes.medium) // Add clip for visual feedback if needed
+                    .clip(MaterialTheme.shapes.medium)
                     .clickable { onSetKickOffTeam(Team.HOME) }
-                    .padding(8.dp) // Add padding to increase clickable area and for visual spacing
+                    .padding(8.dp)
             ) {
-                Text("Home", style = MaterialTheme.typography.labelMedium)
+                val homeName = if (game.homeTeamName == "Home") stringResource(R.string.home) else game.homeTeamName
+                Text(
+                    text = homeName,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(0.42f),
+                    textAlign = TextAlign.Center
+                )
                 Spacer(Modifier.height(4.dp))
                 ColorIndicator(
                     color = game.homeTeamColor,
-                    indicatorSize = 60.dp,
+                    indicatorSize = 56.dp,
                     outlineWidth = 2.dp,
                 )
             }
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .clip(MaterialTheme.shapes.medium) // Add clip for visual feedback if needed
+                    .clip(MaterialTheme.shapes.medium)
                     .clickable { onSetKickOffTeam(Team.AWAY) }
-                    .padding(8.dp) // Add padding to increase clickable area and for visual spacing
+                    .padding(8.dp)
             ) {
-                Text("Away", style = MaterialTheme.typography.labelMedium)
+                val awayName = if (game.awayTeamName == "Away") stringResource(R.string.away) else game.awayTeamName
+                Text(
+                    text = awayName,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(0.42f),
+                    textAlign = TextAlign.Center
+                )
                 Spacer(Modifier.height(4.dp))
                 ColorIndicator(
                     color = game.awayTeamColor,
-                    indicatorSize = 60.dp,
+                    indicatorSize = 56.dp,
                     outlineWidth = 2.dp,
                 )
             }
         }
-
-        Spacer(Modifier.height(16.dp)) 
+        Spacer(Modifier.height(12.dp))
     }
 }
 
-
-// ------------------------ Previews -----------------------------
 @Preview(device = "id:wearos_small_round", name = "KickOffSelection SmRnd", showBackground = true)
 @Preview(device = "id:wearos_large_round", name = "KickOffSelection LrgRnd", showBackground = true)
 @Preview(device = "id:wearos_square", name = "KickOffSelection Sqr", showBackground = true)
@@ -100,7 +114,7 @@ fun KickOffSelectionScreenPreview_FirstHalf() {
     RefWatchWearTheme {
         KickOffSelectionScreen(
             game = createFirstHalfSampleGame(),
-            onSetKickOffTeam = {} // Empty lambda for preview
+            onSetKickOffTeam = {}
         )
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -39,6 +40,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.databelay.refwatch.R
+import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
@@ -57,27 +61,36 @@ import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.databelay.refwatch.common.Game
-import com.databelay.refwatch.common.theme.RefWatchWearTheme
 
 @Composable
 fun PreGameSetupScreen(
     game: Game?,
     onEditHomeTeamNameClick: () -> Unit,
     onEditAwayTeamNameClick: () -> Unit,
+    onEditHomeTeamAbbrClick: () -> Unit,
+    onEditAwayTeamAbbrClick: () -> Unit,
+    onEditHomeCaptainClick: () -> Unit,
+    onEditAwayCaptainClick: () -> Unit,
     onHomeColorPickerClick: () -> Unit,
     onAwayColorPickerClick: () -> Unit,
     onSetHalfDuration: (Int) -> Unit,
     onSetHalftimeDuration: (Int) -> Unit,
+    onSetMaxSubstitutions: (Int) -> Unit,
     onCreateMatchClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberScalingLazyListState()
-    val homeTeamName = game?.homeTeamName ?: "Home"
-    val awayTeamName = game?.awayTeamName ?: "Away"
+    val homeTeamName = game?.homeTeamName ?: stringResource(R.string.home)
+    val awayTeamName = game?.awayTeamName ?: stringResource(R.string.away)
+    val homeTeamAbbr = game?.homeTeamAbbr ?: "HOM"
+    val awayTeamAbbr = game?.awayTeamAbbr ?: "AWA"
+    val homeCaptain = game?.homeCaptainNumber?.toString() ?: stringResource(R.string.none)
+    val awayCaptain = game?.awayCaptainNumber?.toString() ?: stringResource(R.string.none)
     val homeTeamColor = game?.homeTeamColor ?: Color.Gray
     val awayTeamColor = game?.awayTeamColor ?: Color.LightGray
-    val halfDurationMinutes = game?.halfDurationMinutes ?: 30
-    val halftimeDurationMinutes = game?.halftimeDurationMinutes ?: 10
+    val halfDurationMinutes = game?.halfDurationMinutes ?: 45
+    val halftimeDurationMinutes = game?.halftimeDurationMinutes ?: 15
+    val maxSubstitutionsAllowed = game?.maxSubstitutionsAllowed ?: 5
 
     ScreenScaffold(
         scrollIndicator = {
@@ -99,14 +112,22 @@ fun PreGameSetupScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        "Match Setup",
+                        stringResource(R.string.match_setup),
                         style = MaterialTheme.typography.titleSmall,
                         textAlign = TextAlign.Center,
                     )
                 }
             }
 
-            // Team Name Editors
+            // Team Names Section
+            item {
+                Text(
+                    stringResource(R.string.home_away_teams),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
             item {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -128,7 +149,7 @@ fun PreGameSetupScreen(
                             Icon(
                                 Icons.Default.Edit,
                                 modifier = Modifier.size(12.dp),
-                                contentDescription = "Edit Home Team Name"
+                                contentDescription = stringResource(R.string.edit_team_name)
                             )
                         },
                         modifier = Modifier.weight(1f)
@@ -147,7 +168,103 @@ fun PreGameSetupScreen(
                             Icon(
                                 Icons.Default.Edit,
                                 modifier = Modifier.size(12.dp),
-                                contentDescription = "Edit Away Team Name"
+                                contentDescription = stringResource(R.string.edit_team_name)
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            // Team Abbr Editors
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                ) {
+                    OutlinedChip(
+                        onClick = onEditHomeTeamAbbrClick,
+                        label = {
+                            Text(
+                                homeTeamAbbr,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                Icons.Default.Edit,
+                                modifier = Modifier.size(12.dp),
+                                contentDescription = stringResource(R.string.edit_team_abbr)
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedChip(
+                        onClick = onEditAwayTeamAbbrClick,
+                        label = {
+                            Text(
+                                awayTeamAbbr,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                Icons.Default.Edit,
+                                modifier = Modifier.size(12.dp),
+                                contentDescription = stringResource(R.string.edit_team_abbr)
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            // Captain Editors
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                ) {
+                    OutlinedChip(
+                        onClick = onEditHomeCaptainClick,
+                        label = {
+                            Text(
+                                "C: $homeCaptain",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                Icons.Default.Edit,
+                                modifier = Modifier.size(12.dp),
+                                contentDescription = stringResource(R.string.edit_home_captain)
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedChip(
+                        onClick = onEditAwayCaptainClick,
+                        label = {
+                            Text(
+                                "C: $awayCaptain",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                Icons.Default.Edit,
+                                modifier = Modifier.size(12.dp),
+                                contentDescription = stringResource(R.string.edit_away_captain)
                             )
                         },
                         modifier = Modifier.weight(1f)
@@ -165,12 +282,12 @@ fun PreGameSetupScreen(
                         .padding(vertical = 8.dp)
                 ) {
                     ColorPickerButton(
-                        "Home",
+                        stringResource(R.string.home),
                         homeTeamColor,
                         onClick = onHomeColorPickerClick
                     )
                     ColorPickerButton(
-                        "Away",
+                        stringResource(R.string.away),
                         awayTeamColor,
                         onClick = onAwayColorPickerClick
                     )
@@ -180,23 +297,35 @@ fun PreGameSetupScreen(
             // Half Duration
             item {
                 DurationSettingStepper(
-                    label = "Half Duration",
+                    label = stringResource(R.string.half_duration),
                     currentValue = halfDurationMinutes,
                     onValueChange = onSetHalfDuration,
-                    valueRange = 15..60
+                    valueRange = 1..120,
+                    step = 1
                 )
             }
 
             // Halftime Duration
             item {
                 DurationSettingStepper(
-                    label = "Halftime Duration",
+                    label = stringResource(R.string.halftime_duration),
                     currentValue = halftimeDurationMinutes,
                     onValueChange = onSetHalftimeDuration,
-                    valueRange = 5..30
+                    valueRange = 1..60,
+                    step = 1
                 )
             }
 
+            // Max Substitutions
+            item {
+                DurationSettingStepper(
+                    label = stringResource(R.string.max_substitutions),
+                    currentValue = maxSubstitutionsAllowed,
+                    onValueChange = onSetMaxSubstitutions,
+                    valueRange = 1..11,
+                    step = 1
+                )
+            }
 
             // Create Match Button
             item {
@@ -206,7 +335,7 @@ fun PreGameSetupScreen(
                         containerColor = MaterialTheme.colorScheme.secondary
                     )
                 ) {
-                    Icon(Icons.Filled.Check, contentDescription = "Create Match")
+                    Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.create_match))
                 }
             }
         }
@@ -217,64 +346,145 @@ fun PreGameSetupScreen(
 @Composable
 fun TeamNameEditDialogContent(
     teamLabel: String,
-    initialValue: String,
+    text: String,
+    onTextChange: (String) -> Unit,
     onSave: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var text by remember { mutableStateOf(initialValue) }
-
-    val columnState = rememberScalingLazyListState()
-
-    ScalingLazyColumn(
-        state = columnState,
-        contentPadding = PaddingValues(vertical = 8.dp, horizontal = 2.dp),
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 8.dp, vertical = 12.dp)
+            .imePadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        item {
-            ListHeader(
-                modifier = Modifier
-                    .fillMaxWidth(),
-            ) {
-                Text(
-                    "Edit Team Name",
-                    style = MaterialTheme.typography.titleSmall,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-        item {
-            TextField(
-                value = text,
-                onValueChange = { text = it },
-//                label = { Text("Team Name") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions.Default.copy(
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        if (text.isNotBlank()) {
-                            onSave(text)
-                        }
+        Text(
+            teamLabel,
+            style = MaterialTheme.typography.titleSmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        TextField(
+            value = text,
+            onValueChange = onTextChange,
+            label = { Text(stringResource(R.string.edit_team_name)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = {
+                Icon(
+                    Icons.Filled.Check,
+                    contentDescription = "Save",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable {
+                        val cleaned = text.trim()
+                        if (cleaned.isNotBlank()) onSave(cleaned)
                     }
                 )
+            },
+            colors = androidx.compose.material3.TextFieldDefaults.colors(
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                cursorColor = MaterialTheme.colorScheme.primary,
+                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                unfocusedIndicatorColor = MaterialTheme.colorScheme.outline
+            ),
+            keyboardOptions = KeyboardOptions.Default.copy(
+                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    val cleaned = text.trim()
+                    if (cleaned.isNotBlank()) {
+                        onSave(cleaned)
+                    }
+                }
             )
-        }
-        item {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(
-                    8.dp,
-                    Alignment.CenterHorizontally
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                AlertDialogDefaults.DismissButton(onClick = onDismiss)
-                AlertDialogDefaults.ConfirmButton(onClick = { onSave(text) })
-            }
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            AlertDialogDefaults.DismissButton(onClick = onDismiss)
+            AlertDialogDefaults.ConfirmButton(
+                onClick = {
+                    val cleaned = text.trim()
+                    if (cleaned.isNotBlank()) onSave(cleaned)
+                }
+            )
         }
     }
 }
+
+@Composable
+fun NumberEditDialogContent(
+    label: String,
+    text: String,
+    onTextChange: (String) -> Unit,
+    onSave: (Int?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 8.dp, vertical = 12.dp)
+            .imePadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.titleSmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        TextField(
+            value = text,
+            onValueChange = { onTextChange(it.filter { char -> char.isDigit() }) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = androidx.compose.material3.TextFieldDefaults.colors(
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                cursorColor = MaterialTheme.colorScheme.primary,
+                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                unfocusedIndicatorColor = MaterialTheme.colorScheme.outline
+            ),
+            trailingIcon = {
+                Icon(
+                    Icons.Filled.Check,
+                    contentDescription = "Save",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { onSave(text.toIntOrNull()) }
+                )
+            },
+            keyboardOptions = KeyboardOptions.Default.copy(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    onSave(text.toIntOrNull())
+                }
+            )
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            AlertDialogDefaults.DismissButton(onClick = onDismiss)
+            AlertDialogDefaults.ConfirmButton(onClick = { onSave(text.toIntOrNull()) })
+        }
+    }
+}
+
 
 /**
  * A dialog Composable for editing a team's name.
@@ -287,15 +497,42 @@ fun TeamNameEditDialog(
     onSave: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    var text by remember(initialValue) { mutableStateOf(initialValue) }
     Dialog(
         visible = true,
         onDismissRequest = onDismiss,
     ) {
         TeamNameEditDialogContent(
-            teamLabel,
-            initialValue,
-            onSave,
-            onDismiss,
+            teamLabel = teamLabel,
+            text = text,
+            onTextChange = { text = it },
+            onSave = onSave,
+            onDismiss = onDismiss,
+        )
+    }
+}
+
+
+@Composable
+fun NumberEditDialog(
+    label: String,
+    initialValue: String,
+    onSave: (Int?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var text by remember(initialValue) { mutableStateOf(initialValue) }
+    Dialog(
+        visible = true,
+        onDismissRequest = {
+            onSave(text.toIntOrNull())
+        },
+    ) {
+        NumberEditDialogContent(
+            label = label,
+            text = text,
+            onTextChange = { text = it },
+            onSave = onSave,
+            onDismiss = onDismiss,
         )
     }
 }
@@ -386,7 +623,7 @@ fun SimpleColorPickerDialog(
             }
             Spacer(Modifier.height(12.dp))
             Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth(0.7f)) {
-                Text("Cancel")
+                Text(stringResource(R.string.dismiss))
             }
         }
     }
@@ -424,7 +661,7 @@ fun DurationSettingStepper(
             ) { Text("-", fontSize = 18.sp) }
 
             Text(
-                text = "$currentValue min",
+                text = "$currentValue",
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier
                     .padding(horizontal = 12.dp)
@@ -462,10 +699,15 @@ fun PreviewPreGameSetupScreen() {
             game = sampleGame,
             onEditHomeTeamNameClick = {},
             onEditAwayTeamNameClick = {},
+            onEditHomeTeamAbbrClick = {},
+            onEditAwayTeamAbbrClick = {},
+            onEditHomeCaptainClick = {},
+            onEditAwayCaptainClick = {},
             onHomeColorPickerClick = {},
             onAwayColorPickerClick = {},
             onSetHalfDuration = {},
             onSetHalftimeDuration = {},
+            onSetMaxSubstitutions = {},
             onCreateMatchClick = {}
         )
     }

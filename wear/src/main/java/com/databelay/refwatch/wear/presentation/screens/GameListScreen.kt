@@ -47,14 +47,16 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
-import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
-import androidx.wear.tooling.preview.devices.WearDevices
+import androidx.compose.ui.res.stringResource
+import com.databelay.refwatch.R
 import com.databelay.refwatch.BuildConfig
+import androidx.wear.tooling.preview.devices.WearDevices
+import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
+import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameStatus
 import com.databelay.refwatch.common.PreviewTools.createSampleGames
 import com.databelay.refwatch.common.getAppVersionName
-import com.databelay.refwatch.common.theme.RefWatchWearTheme
 
 // Assuming GameStatus.SCHEDULED and GameStatus.COMPLETED
 enum class GameListFilterState { UPCOMING, PAST }
@@ -81,8 +83,8 @@ fun CompactGameFilter(
         filters.forEach { (filterEnum, iconVector) ->
             val isSelected = selectedFilter == filterEnum
             val contentDescription = when (filterEnum) {
-                GameListFilterState.UPCOMING -> "Upcoming games ($upcomingCount)"
-                GameListFilterState.PAST -> "Past games ($pastCount)"
+                GameListFilterState.UPCOMING -> stringResource(R.string.upcoming_games) + " ($upcomingCount)"
+                GameListFilterState.PAST -> stringResource(R.string.past_games) + " ($pastCount)"
             }
 
             ToggleButton(
@@ -158,14 +160,14 @@ fun GameListScreen(
                             onClick = onNavigateToNewGame,
                             label = {
                                 Text(
-                                    "New Game",
+                                    stringResource(R.string.new_game),
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 )
                             },
                             icon = {
                                 Icon(
                                     Icons.Filled.Add,
-                                    contentDescription = "Start New Ad-Hoc Game"
+                                    contentDescription = stringResource(R.string.new_game)
                                 )
                             },
                             modifier = Modifier
@@ -197,7 +199,7 @@ fun GameListScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         val emptyMessage =
-                            if (isOnline) "Online." else "Not online."
+                            if (isOnline) stringResource(R.string.online) else stringResource(R.string.not_online)
                         Text(
                             text = emptyMessage,
                             color = MaterialTheme.colorScheme.onSecondary,
@@ -275,7 +277,7 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
         },
         secondaryLabel = {
             Column(horizontalAlignment = Alignment.Start) {
-                val dateTimeString = game.formattedGameDateTime ?: "No time set"
+                val dateTimeString = game.formattedGameDateTime ?: stringResource(R.string.no_time_set)
                 val venueString = game.venue?.takeIf { it.isNotBlank() }
                 val fieldNumberString = game.fieldNumber?.takeIf { it.isNotBlank() }
 
@@ -286,7 +288,7 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
 
                 val locationDetails = mutableListOf<String>()
                 venueString?.let { locationDetails.add(it) }
-                fieldNumberString?.let { locationDetails.add("Field: $it") }
+                fieldNumberString?.let { locationDetails.add(stringResource(R.string.field_label, it)) }
 
                 if (locationDetails.isNotEmpty()) {
                     Text(

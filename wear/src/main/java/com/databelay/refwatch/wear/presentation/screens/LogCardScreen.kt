@@ -46,6 +46,9 @@ import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.databelay.refwatch.common.CardType
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
+import com.databelay.refwatch.R
+import com.databelay.refwatch.wear.presentation.utils.localizedName
+import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.delay
 
 @Composable
@@ -81,10 +84,10 @@ fun LogCardScreen(
         ) {
             Spacer(modifier = Modifier.height(4.dp))
 
-            Text("Log Card", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.log_card), style = MaterialTheme.typography.titleSmall)
             preselectedTeam?.let {
                 Text(
-                    "For Team: ${it.name}",
+                    "${stringResource(R.string.field_label).replace("Field: %1\$s", "").replace(": %1\$s", "").trim()}: ${it.localizedName()}",
                     style = MaterialTheme.typography.bodySmall,
 //                    modifier = Modifier.padding(bottom = 4.dp)
                 )

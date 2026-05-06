@@ -107,17 +107,17 @@ fun GamePhase.usesHalfDuration(): Boolean {
 
 fun GamePhase.readable(): String {
     return when (this) {
-        GamePhase.FIRST_HALF -> "1st Half"
-        GamePhase.HALF_TIME -> "Halftime"
-        GamePhase.SECOND_HALF -> "2nd Half"
+        GamePhase.FIRST_HALF -> "1. Halbzeit"
+        GamePhase.HALF_TIME -> "Halbzeit"
+        GamePhase.SECOND_HALF -> "2. Halbzeit"
         GamePhase.GAME_ENDED -> "Full Time"
         GamePhase.PRE_GAME -> "Pre Game"
         GamePhase.KICK_OFF_SELECTION_FIRST_HALF -> "Kick-off Selection"
         GamePhase.KICK_OFF_SELECTION_EXTRA_TIME -> "ET Kick-off Selection"
         GamePhase.KICK_OFF_SELECTION_PENALTIES -> "Penalties Kick-off Selection"
-        GamePhase.EXTRA_TIME_FIRST_HALF -> "1st Half (ET)"
-        GamePhase.EXTRA_TIME_HALF_TIME -> "Halftime (ET)"
-        GamePhase.EXTRA_TIME_SECOND_HALF -> "2nd Half (ET)"
+        GamePhase.EXTRA_TIME_FIRST_HALF -> "1. Halbzeit (ET)"
+        GamePhase.EXTRA_TIME_HALF_TIME -> "Halbzeit (ET)"
+        GamePhase.EXTRA_TIME_SECOND_HALF -> "2. Halbzeit (ET)"
         GamePhase.PENALTIES -> "Penalties"
         GamePhase.NOT_STARTED -> "Not Started"
     }

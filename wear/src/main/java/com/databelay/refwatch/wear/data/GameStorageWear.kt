@@ -280,22 +280,21 @@ class GameStorageWear @Inject constructor(
             Log.w(tag, "Network unavailable. Saving game ${gameWithTimestamp.id} as pending sync for user $userId.")
             saveGameToPendingSync(gameWithTimestamp, userId)
             _dataFetchStatusFlow.value = DataFetchStatus.ERROR_NETWORK // Reflect that data is local due to network
-            return Result.failure(IllegalArgumentException("Game ID cannot be blank for addOrUpdateGame"))
+            return Result.success(Unit) // Return success as it's saved locally
         }
 
         if (game.id.isBlank()) {
             Log.e(tag, "addOrUpdateGame (Wear): game.id is blank for user $userId.")
-            // return Result.failure(IllegalArgumentException("Game ID cannot be blank")) // Adapt error handling
             return Result.failure(IllegalArgumentException("Game ID cannot be blank for addOrUpdateGame"))
         }
         return try {
             val gameDocumentRef = firestore.collection("users")
-                .document(userId!!) // userId is checked not to be blank above
+                .document(userId) // userId is checked not to be blank above
                 .collection("games")
                 .document(game.id)
 
-            // Use the extension function
-            val gameDataForFirestore = game.toFirestoreMap() // Pass AppJsonConfiguration if needed
+            // Use the extension function with the updated timestamped game
+            val gameDataForFirestore = gameWithTimestamp.toFirestoreMap() 
 
             Log.d(tag, "addOrUpdateGame (Wear): Saving game ${game.id} for user $userId with ${(gameDataForFirestore["events"] as? List<*>)?.size ?: 0} events.")
             Log.v(tag, "addOrUpdateGame (Wear): Data being sent to Firestore: $gameDataForFirestore")

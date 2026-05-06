@@ -55,6 +55,7 @@ import com.databelay.refwatch.wear.presentation.screens.GameLogScreen
 import com.databelay.refwatch.wear.presentation.screens.GameScreenWithPager
 import com.databelay.refwatch.wear.presentation.screens.KickOffSelectionScreen
 import com.databelay.refwatch.wear.presentation.screens.LogCardScreen
+import com.databelay.refwatch.wear.presentation.screens.LogSubstitutionScreen
 import com.databelay.refwatch.wear.presentation.screens.PreGameSetupRoute
 import kotlinx.coroutines.delay
 
@@ -67,6 +68,8 @@ fun NavigationRoutes() {
     val activeGame by gameViewModel.activeGame.collectAsStateWithLifecycle()
     val allGames by gameViewModel.gamesList.collectAsStateWithLifecycle() // Assuming gamesList is the correct source
     val isOnline by gameViewModel.isOnline.collectAsStateWithLifecycle()
+    val timerDisplayMode by gameViewModel.timerDisplayMode.collectAsStateWithLifecycle()
+    val kickoffCountdownSeconds by gameViewModel.kickoffCountdownSeconds.collectAsStateWithLifecycle()
     val context = LocalContext.current // Get the context
     // State to track if the permission has been explicitly denied by the user.
     var showPermissionDeniedDialog by remember { mutableStateOf(false) }
@@ -250,6 +253,9 @@ fun NavigationRoutes() {
                     GameScreenWithPager(
                         modifier = Modifier.fillMaxSize(),
                         game = activeGame!!,
+                        kickoffCountdownSeconds = kickoffCountdownSeconds,
+                        timerDisplayMode = timerDisplayMode,
+                        onToggleTimerDisplayMode = { gameViewModel.toggleTimerDisplayMode() },
                         horizontalPagerState = horizontalPagerState,
                         verticalPagerState = verticalPagerState,
                         onKickOff = { gameViewModel.kickOff() },
@@ -257,9 +263,15 @@ fun NavigationRoutes() {
                         onSetToHaveExtraTime = { gameViewModel.setToHaveExtraTime() },
                         onSetToHavePenalties = { gameViewModel.setToHavePenalties() },
                         onToggleTimer = { gameViewModel.toggleTimer() },
-                        onAddGoal = { team -> gameViewModel.addGoal(team) },
+                        onToggleStoppageTimer = { gameViewModel.toggleStoppageTimer() },
+                        onNavigateToLogGoal = { team, goalType ->
+                            navController.navigate(WearNavRoutes.logGoalRoute(team, goalType))
+                        },
                         onNavigateToLogCard = { team, cardType ->
                             navController.navigate(WearNavRoutes.logCardRoute(team, cardType))
+                        },
+                        onNavigateToLogSubstitution = { team ->
+                            navController.navigate(WearNavRoutes.logSubstitutionRoute(team))
                         },
                         onNavigateToGameLog = {
                             activeGame?.let { game ->
@@ -404,6 +416,70 @@ fun NavigationRoutes() {
                     }
                 }
             }
+            composable(
+                route = "${WearNavRoutes.LOG_GOAL_SCREEN}/{${WearNavRoutes.TEAM_ARG}}/{${WearNavRoutes.GOAL_TYPE_ARG}}",
+                arguments = listOf(
+                    navArgument(WearNavRoutes.TEAM_ARG) { type = NavType.StringType },
+                    navArgument(WearNavRoutes.GOAL_TYPE_ARG) { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val teamId = backStackEntry.arguments?.getString(WearNavRoutes.TEAM_ARG)
+                val goalTypeString = backStackEntry.arguments?.getString(WearNavRoutes.GOAL_TYPE_ARG)
+
+                val team = teamId?.let { Team.valueOf(it.uppercase()) }
+                val goalType = goalTypeString?.let { com.databelay.refwatch.common.GoalType.valueOf(it.uppercase()) }
+
+                if (team != null && goalType != null) {
+                    com.databelay.refwatch.wear.presentation.screens.LogGoalScreen(
+                        preselectedTeam = team,
+                        goalType = goalType,
+                        onLogGoal = { loggedTeam, playerNum, loggedGoalType ->
+                            gameViewModel.addGoal(loggedTeam, playerNum, loggedGoalType)
+                            navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
+                                popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        },
+                        onCancel = {
+                            navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
+                                popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+            }
+
+            composable(
+                route = "${WearNavRoutes.LOG_SUBSTITUTION_SCREEN}/{${WearNavRoutes.TEAM_ARG}}",
+                arguments = listOf(
+                    navArgument(WearNavRoutes.TEAM_ARG) { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val teamId = backStackEntry.arguments?.getString(WearNavRoutes.TEAM_ARG)
+                val team = teamId?.let { Team.valueOf(it.uppercase()) }
+
+                if (team != null) {
+                    LogSubstitutionScreen(
+                        team = team,
+                        onLogSubstitution = { outgoing, incoming ->
+                            gameViewModel.logSubstitution(team, outgoing, incoming)
+                            navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
+                                popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        },
+                        onCancel = {
+                            navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
+                                popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+            }
+
+
             composable(
                 "${WearNavRoutes.GAME_LOG_SCREEN}/{${WearNavRoutes.GAME_ID_ARG}}",
                 arguments = listOf(

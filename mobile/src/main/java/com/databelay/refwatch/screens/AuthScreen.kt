@@ -64,13 +64,13 @@ fun AuthScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = if (isLoginMode) "Welcome Back!" else "Create Account",
+            text = if (isLoginMode) "Willkommen zurück!" else "Account erstellen",
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(bottom = 8.dp)
         )
         Text(
-            text = if (isLoginMode) "Login to continue" else "Sign up to get started",
+            text = if (isLoginMode) "Anmelden" else "Registrieren",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(bottom = 24.dp)
@@ -79,16 +79,16 @@ fun AuthScreen(
         // Conditional "Terms and Privacy Policy" text for Sign Up mode
         if (!isLoginMode) {
             val annotatedText = buildAnnotatedString {
-                append("By signing up, you agree to our ")
+                append("Mit der Registrierung stimmst du unseren")
                 pushStringAnnotation(tag = "TERMS", annotation = "https://example.com/terms") // Replace with your URL
                 withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)) {
-                    append("Terms of Service")
+                    append("Nutzungsbedingungen")
                 }
                 pop()
-                append(" and ")
+                append(" und ")
                 pushStringAnnotation(tag = "PRIVACY", annotation = "https://example.com/privacy") // Replace with your URL
                 withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)) {
-                    append("Privacy Policy")
+                    append("Datenschutzerklärung")
                 }
                 pop()
                 append(".")
@@ -173,7 +173,7 @@ fun AuthScreen(
                     color = MaterialTheme.colorScheme.onPrimary
                 )
             } else {
-                Text(if (isLoginMode) "Login" else "Sign Up")
+                Text(if (isLoginMode) "Anmelden" else "Registrieren")
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -186,7 +186,7 @@ fun AuthScreen(
             },
             enabled = !isLoading
         ) {
-            Text(if (isLoginMode) "Need an account? Sign Up" else "Have an account? Login")
+            Text(if (isLoginMode) "Noch kein Konto? Registrieren" else "Schon ein Konto? Anmelden")
         }
     }
 }

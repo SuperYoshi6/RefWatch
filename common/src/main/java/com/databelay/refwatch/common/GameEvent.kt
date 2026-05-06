@@ -17,9 +17,17 @@ val gameEventModule = SerializersModule {
         subclass(GoalScoredEvent::class)
         subclass(PenaltyEvent::class)
         subclass(CardIssuedEvent::class)
+        subclass(SubstitutionEvent::class)
         subclass(PhaseChangedEvent::class)
         subclass(GenericLogEvent::class)
     }
+}
+
+@Serializable
+enum class GoalType {
+    REGULAR,
+    PENALTY,
+    OWN_GOAL
 }
 
 // --- Game Event data Class and its Subclasses ---
@@ -38,6 +46,8 @@ sealed class GameEvent : Parcelable {
 data class GoalScoredEvent( // ENSURE NO 'protected', 'private', or 'internal' MODIFIER HERE
     override val id: String = UUID.randomUUID().toString(),
     val team: Team,
+    val goalType: GoalType = GoalType.REGULAR,
+    val playerNumber: Int? = null,
     override val timestamp: Double = System.currentTimeMillis().toDouble(),
     override val gameTimeMillis: Double,
     val homeScoreAtTime: Int,
@@ -45,9 +55,17 @@ data class GoalScoredEvent( // ENSURE NO 'protected', 'private', or 'internal' M
 ) : GameEvent() {
     @get:Exclude // Exclude from Firebase automatic mapping
     override val displayString: String
-        get() = "Goal: ${team.name} ($homeScoreAtTime-$awayScoreAtTime) at ${
+    get() {
+        val typeStr = when (goalType) {
+            GoalType.REGULAR -> "Goal"
+            GoalType.PENALTY -> "Penalty Goal"
+            GoalType.OWN_GOAL -> "Own Goal"
+        }
+        val playerStr = if (playerNumber != null) " (Player #$playerNumber)" else ""
+        return "$typeStr$playerStr: ${team.name} ($homeScoreAtTime-$awayScoreAtTime) at ${
             gameTimeMillis.toLong().formatTime()
         }"
+    }
 }
 
 @Serializable
@@ -114,3 +132,20 @@ data class GenericLogEvent( // ENSURE NO 'protected', 'private', or 'internal' M
         get() = message
 }
 
+@Serializable
+@SerialName("SUBSTITUTION")
+@Parcelize
+data class SubstitutionEvent(
+    override val id: String = UUID.randomUUID().toString(),
+    val team: Team,
+    val outgoingPlayerNumber: Int,
+    val incomingPlayerNumber: Int,
+    override val timestamp: Double = System.currentTimeMillis().toDouble(),
+    override val gameTimeMillis: Double
+) : GameEvent() {
+    @get:Exclude
+    override val displayString: String
+        get() = "Wechsel: ${team.name}, #$outgoingPlayerNumber ➡️ #$incomingPlayerNumber at ${
+            gameTimeMillis.toLong().formatTime()
+        }"
+}

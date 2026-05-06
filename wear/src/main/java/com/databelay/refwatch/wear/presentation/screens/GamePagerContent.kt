@@ -36,19 +36,29 @@ import androidx.wear.compose.material3.VerticalPageIndicator
 import androidx.wear.tooling.preview.devices.WearDevices
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 
+import com.databelay.refwatch.common.GoalType
+import com.databelay.refwatch.wear.TimerDisplayMode
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GamePagerContent(
     // State Props
     game: Game, // Game object, non-null as per the logic snippet
+    kickoffCountdownSeconds: Int? = null,
+    timerDisplayMode: TimerDisplayMode = TimerDisplayMode.REMAINING,
     pagerState: PagerState, // For HorizontalPager
     pageIndicatorState: PageIndicatorState, // For HorizontalPageIndicator
 
     // Event Lambdas
     onKickOff: () -> Unit,
-    onAddGoal: (Team) -> Unit,
+    onToggleTimerDisplayMode: () -> Unit = {},
+    onNavigateToLogGoal: (Team, GoalType) -> Unit,
     onNavigateToLogCard: (Team, CardType) -> Unit,
+    onNavigateToLogSubstitution: (Team) -> Unit,
     onPenaltyAttemptRecorded: (Boolean) -> Unit,
+    onToggleTimer: () -> Unit,
+    onToggleStoppageTimer: () -> Unit = {},
+    onOpenGameMenu: () -> Unit = {},
 
     modifier: Modifier = Modifier // Standard modifier
 ) {
@@ -86,17 +96,24 @@ fun GamePagerContent(
                                 TeamActionsPage(
                                     team = Team.HOME,
                                     game = game,
-                                    onAddGoal = {
-                                        onAddGoal(Team.HOME)
+                                    onNavigateToLogGoal = { team, goalType ->
+                                        onNavigateToLogGoal(team, goalType)
                                         coroutineScope.launch { pagerState.animateScrollToPage(1) }
                                     },
-                                    onNavigateToLogCard = onNavigateToLogCard
+                                    onNavigateToLogCard = onNavigateToLogCard,
+                                    onNavigateToLogSubstitution = onNavigateToLogSubstitution
                                 )
                             }
                             1 -> AnimatedPage(pageIndex = page, pagerState = pagerState) {
                                 MainGameDisplayScreen(
                                     game = game,
-                                    onKickOff = onKickOff
+                                    kickoffCountdownSeconds = kickoffCountdownSeconds,
+                                    isPlayedTime = timerDisplayMode == TimerDisplayMode.PLAYED,
+                                    onToggleTimerDisplayMode = onToggleTimerDisplayMode,
+                                    onKickOff = onKickOff,
+                                    onToggleTimer = onToggleTimer,
+                                    onToggleStoppageTimer = onToggleStoppageTimer,
+                                    onOpenGameMenu = onOpenGameMenu
                                     // Modifier.fillMaxSize() is handled by Pager item implicitly
                                 )
                             }
@@ -104,11 +121,12 @@ fun GamePagerContent(
                                 TeamActionsPage(
                                     team = Team.AWAY,
                                     game = game,
-                                    onAddGoal = {
-                                        onAddGoal(Team.AWAY)
+                                    onNavigateToLogGoal = { team, goalType ->
+                                        onNavigateToLogGoal(team, goalType)
                                         coroutineScope.launch { pagerState.animateScrollToPage(1) }
                                     },
-                                    onNavigateToLogCard = onNavigateToLogCard
+                                    onNavigateToLogCard = onNavigateToLogCard,
+                                    onNavigateToLogSubstitution = onNavigateToLogSubstitution
                                 )
                             }
                         }
@@ -121,7 +139,13 @@ fun GamePagerContent(
                 // Show only the MainGameDisplayScreen
                 MainGameDisplayScreen(
                     game = game,
+                    kickoffCountdownSeconds = kickoffCountdownSeconds,
+                    isPlayedTime = timerDisplayMode == TimerDisplayMode.PLAYED,
+                    onToggleTimerDisplayMode = onToggleTimerDisplayMode,
                     onKickOff = onKickOff,
+                    onToggleTimer = onToggleTimer,
+                    onToggleStoppageTimer = onToggleStoppageTimer,
+                    onOpenGameMenu = onOpenGameMenu,
                     modifier = Modifier.fillMaxSize() // MainGameDisplayScreen takes the whole area
                 )
             }
@@ -164,9 +188,12 @@ fun GamePagerContentPreview_Playable() {
             pagerState = pagerState,
             pageIndicatorState = pageIndicatorState,
             onKickOff = {},
-            onAddGoal = {},
+            onNavigateToLogGoal = { _, _ -> },
             onNavigateToLogCard = { _, _ -> },
             onPenaltyAttemptRecorded = {},
+            onToggleTimer = {},
+            onToggleStoppageTimer = {},
+            onNavigateToLogSubstitution = {},
             modifier = Modifier.fillMaxSize()
         )
     }
@@ -192,9 +219,12 @@ fun GamePagerContentPreview_HalfTime() {
             pagerState = pagerState,
             pageIndicatorState = pageIndicatorState,
             onKickOff = {},
-            onAddGoal = {},
+            onNavigateToLogGoal = { _, _ -> },
             onNavigateToLogCard = { _, _ -> },
             onPenaltyAttemptRecorded = {},
+            onToggleTimer = {},
+            onToggleStoppageTimer = {},
+            onNavigateToLogSubstitution = {},
             modifier = Modifier.fillMaxSize()
         )
     }

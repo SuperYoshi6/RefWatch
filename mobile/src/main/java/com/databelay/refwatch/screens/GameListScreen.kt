@@ -129,11 +129,11 @@ fun GameListScreen(
                                         }
                                     }
                                 ) {
-                                    Text("Dismiss")
+                                    Text("Verstanden")
                                 }
                             }
                         ) {
-                            Text("This is the main content of the rich tooltip")
+                            Text("Die Ansicht zeigt alle geplanten Spiele an. Mit Klick auf ein Spiel kann dieses gestartet werden. Wenn ein Spiel gestartet wurde, erscheinen weitere Optionen in der Detailansicht.")
                         }
                     },
                     state = tooltipState
@@ -143,7 +143,7 @@ fun GameListScreen(
                             tooltipState.show()
                         }
                     }) {
-                        Text(text = "Show Rich Tooltip on Click")
+                        Text(text = "Spielübersicht")
                     }
                 }
             }
@@ -181,7 +181,7 @@ fun GameListScreen(
 
         topBar = {
             TopAppBar(
-                title = { Text("My Games") },
+                title = { Text("Meine Spiele") },
                 actions = {
                     // Conditionally display Settings Button based on AuthState
                     if (authStateValue is AuthState.Authenticated) {
@@ -211,7 +211,7 @@ fun GameListScreen(
                         IconButton(onClick = onSignOut) {
                             Icon(
                                 Icons.AutoMirrored.Filled.ExitToApp,
-                                contentDescription = "Sign Out"
+                                contentDescription = "Abmelden"
                             )
                         }
                     }
@@ -226,7 +226,7 @@ fun GameListScreen(
                 onDismiss = onDismissTooltip
             ) {
                 FloatingActionButton(onClick = onAddGame) {
-                    Icon(Icons.Filled.Add, "Add Game")
+                    Icon(Icons.Filled.Add, "Neues Spiel")
                 }
             }
         }
@@ -263,18 +263,18 @@ fun GameListScreen(
                 Tab(
                     selected = selectedTab == GameStatus.SCHEDULED,
                     onClick = { onTabSelected(GameStatus.SCHEDULED) },
-                    text = { Text("Upcoming (${upcomingGames.size})") }
+                    text = { Text("Anstehend (${upcomingGames.size})") }
                 )
                 Tab(
                     selected = selectedTab == GameStatus.COMPLETED,
                     onClick = { onTabSelected(GameStatus.COMPLETED) },
-                    text = { Text("Past (${pastGames.size})") }
+                    text = { Text("Vergangen (${pastGames.size})") }
                 )
             }
             // --- GAME LIST or EMPTY MESSAGE ---
             if (gamesToDisplay.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No games scheduled. Add one or import ICS.")
+                    Text("Keine Spiele eingetragen. Füge eins hinzu oder importiere eine ICS-Datei.")
                 }
             } else {
                 LazyColumn(
@@ -341,7 +341,7 @@ fun GameListItem(
                         .padding(end = 8.dp) // Optional: Add some padding between text and button
                 ) {
                     Text(
-                        "${game.homeTeamName} vs ${game.awayTeamName}",
+                        "${game.homeTeamName} - ${game.awayTeamName}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.error
@@ -352,13 +352,13 @@ fun GameListItem(
                     )
                     game.ageGroup?.let {
                         Text(
-                            "Age Group: ${it.displayName}",
+                            "${it.displayName}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.tertiary
                         )
                     }
                     game.formattedGameDateTime?.let {
-                        Text("Time: $it", style = MaterialTheme.typography.bodyMedium)
+                        Text("Uhrzeit: $it", style = MaterialTheme.typography.bodyMedium)
                     }
                     // --- Display Venue and/or Field Number ---
                     val locationDetails = mutableListOf<String>()
@@ -425,7 +425,7 @@ fun GameListItem(
                                     } catch (e: Exception) {
                                         Log.e(
                                             "MapLink",
-                                            "No map app found to handle: $fullLocationQuery",
+                                            "Keine Karten-App zum Öffnen von $fullLocationQuery gefunden",
                                             e
                                         )
                                     }
@@ -455,7 +455,7 @@ fun GameListItem(
                     ) {
                         Icon(
                             Icons.Filled.Delete,
-                            "Delete Game",
+                            "Spiel löschen",
                             tint = MaterialTheme.colorScheme.error
                         )
                     }
@@ -469,23 +469,23 @@ fun GameListItem(
             remember(game.status) { // Re-calculate if available actions change based on game status
                 Log.d(
                     "GameListItem",
-                    "Defining context menu actions for game: ${game.id}, status: ${game.status}"
+                    "Definieren der Kontextmenüaktionen für Spiel: ${game.id}, Status: ${game.status}"
                 )
                 listOfNotNull(
-                    ContextMenuItemAction("Edit Game") { gameParam ->
+                    ContextMenuItemAction("Spiel bearbeiten") { gameParam ->
                         Log.d(
                             "GameListItem",
-                            "Action 'Edit Game' invoked for game: ${gameParam.id}"
+                            "Action 'Spiel bearbeiten' invoked for game: ${gameParam.id}"
                         )
                         onEditGame(gameParam)
                     },
                     // Conditionally add "View Log" if applicable
-                    ContextMenuItemAction("View Log") { gameParam ->
-                        Log.d("GameListItem", "Action 'View Log' invoked for game: ${gameParam.id}")
+                    ContextMenuItemAction("Spielprotokoll") { gameParam ->
+                        Log.d("GameListItem", "Action 'Spielprotokoll' invoked for game: ${gameParam.id}")
                         onViewLog(gameParam)
                     },
-                    ContextMenuItemAction("Delete Game") { gameParam -> //
-                        Log.d("GameListItem", "Action 'Delete Game' invoked")
+                    ContextMenuItemAction("Spiel löschen") { gameParam -> //
+                        Log.d("GameListItem", "Action 'Spiel löschen' invoked")
                         onDeleteGame(gameParam)
                     }
                 )

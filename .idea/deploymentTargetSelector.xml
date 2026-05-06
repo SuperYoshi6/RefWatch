@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="mobile">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2025-08-25T12:07:37.379290500Z">
+        <DropdownSelection timestamp="2026-05-05T18:18:04.187045200Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="PhysicalDevice" identifier="serial=H631104000078F2T02AU" />
+              <DeviceId pluginId="PhysicalDevice" identifier="serial=RFAT31RKNBJ" />
             </handle>
           </Target>
         </DropdownSelection>
@@ -15,17 +15,14 @@
       </SelectionState>
       <SelectionState runConfigName="wear">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2025-09-18T11:27:18.893333700Z">
+        <DropdownSelection timestamp="2026-05-05T18:16:54.913979600Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\oleyk\.android\avd\Wear_OS_Large_Round.avd" />
+              <DeviceId pluginId="PhysicalDevice" identifier="serial=RZCW30ASBLY" />
             </handle>
           </Target>
         </DropdownSelection>
         <DialogSelection />
-      </SelectionState>
-      <SelectionState runConfigName="PreGameSetupScreen Preview - PreviewTeamNameEditDialog_Home">
-        <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
     </selectionStates>
   </component>

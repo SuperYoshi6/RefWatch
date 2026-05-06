@@ -38,6 +38,10 @@ import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
+import androidx.compose.ui.res.stringResource
+import com.databelay.refwatch.R
+import com.databelay.refwatch.wear.presentation.utils.localizedDisplayString
+import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameEvent
 import com.databelay.refwatch.common.PreviewTools.createFirstHalfSampleGame
@@ -92,7 +96,7 @@ fun GameLogScreen(
             item {
                 ListHeader {
                     Text(
-                        "Game Log",
+                        stringResource(R.string.game_log),
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(vertical = 8.dp), // Added vertical padding
                         textAlign = TextAlign.Center
@@ -103,7 +107,7 @@ fun GameLogScreen(
             if (game.events.isEmpty()) {
                 item {
                     Text(
-                        "No events yet.",
+                        stringResource(R.string.no_events),
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(16.dp)
@@ -132,7 +136,7 @@ fun GameLogScreen(
                         .padding(top = 10.dp, bottom = 10.dp) // Added bottom padding
                         .fillMaxWidth(0.7f)
                 ) {
-                    Text("Back",
+                    Text(stringResource(R.string.back),
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth())
                 }
@@ -176,12 +180,12 @@ fun EventLogItem(
                 .padding(all = 8.dp)
         ) {
             Text(
-                text = event.displayString,
+                text = event.localizedDisplayString(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimary // Ensure text is visible on Card
             )
             Text(
-                text = "Logged: $wallTimestampStr",
+                text = stringResource(R.string.logged_at, wallTimestampStr),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
             )

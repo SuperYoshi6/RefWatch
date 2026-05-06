@@ -15,6 +15,7 @@ object WearNavRoutes {
     const val GAME_ID_ARG = "gameId"
     const val TEAM_ARG = "team"
     const val CARD_TYPE_ARG = "cardType"
+    const val GOAL_TYPE_ARG = "goalType"
 
     // --- Route Definitions ---
     // Base routes are simple constants
@@ -24,6 +25,8 @@ object WearNavRoutes {
     const val GAME_IN_PROGRESS_SCREEN = "game_in_progress"
     const val GAME_LOG_SCREEN = "game_log"
     const val LOG_CARD_SCREEN = "log_card"
+    const val LOG_GOAL_SCREEN = "log_goal"
+    const val LOG_SUBSTITUTION_SCREEN = "log_substitution"
     // --- Route Helper Functions ---
 
     /**
@@ -49,6 +52,14 @@ object WearNavRoutes {
      */
     fun logCardRoute(team: Team, cardType: CardType): String {
         return "$LOG_CARD_SCREEN/${team.name}/${cardType.name}" // Use path segments
+    }
+
+    fun logGoalRoute(team: Team, goalType: com.databelay.refwatch.common.GoalType): String {
+        return "$LOG_GOAL_SCREEN/${team.name}/${goalType.name}"
+    }
+
+    fun logSubstitutionRoute(team: Team): String {
+        return "$LOG_SUBSTITUTION_SCREEN/${team.name}"
     }
 
 }

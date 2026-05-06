@@ -14,6 +14,8 @@ import androidx.wear.compose.material3.ConfirmationDialog
 import com.databelay.refwatch.common.theme.PredefinedJerseyColors
 import com.databelay.refwatch.wear.WearGameViewModel
 import com.databelay.refwatch.wear.navigation.WearNavRoutes
+import androidx.compose.ui.res.stringResource
+import com.databelay.refwatch.R
 
 private const val TAG = "PreGameSetupRoute"
 
@@ -26,6 +28,10 @@ fun PreGameSetupRoute(
 
     var showHomeTeamEditDialog by remember { mutableStateOf(false) }
     var showAwayTeamEditDialog by remember { mutableStateOf(false) }
+    var showHomeTeamAbbrEditDialog by remember { mutableStateOf(false) }
+    var showAwayTeamAbbrEditDialog by remember { mutableStateOf(false) }
+    var showHomeCaptainEditDialog by remember { mutableStateOf(false) }
+    var showAwayCaptainEditDialog by remember { mutableStateOf(false) }
     var showHomeColorPickerDialog by remember { mutableStateOf(false) }
     var showAwayColorPickerDialog by remember { mutableStateOf(false) }
 
@@ -33,10 +39,15 @@ fun PreGameSetupRoute(
         game = activeGame,
         onEditHomeTeamNameClick = { showHomeTeamEditDialog = true },
         onEditAwayTeamNameClick = { showAwayTeamEditDialog = true },
+        onEditHomeTeamAbbrClick = { showHomeTeamAbbrEditDialog = true },
+        onEditAwayTeamAbbrClick = { showAwayTeamAbbrEditDialog = true },
+        onEditHomeCaptainClick = { showHomeCaptainEditDialog = true },
+        onEditAwayCaptainClick = { showAwayCaptainEditDialog = true },
         onHomeColorPickerClick = { showHomeColorPickerDialog = true },
         onAwayColorPickerClick = { showAwayColorPickerDialog = true },
         onSetHalfDuration = { duration -> gameViewModel.setHalfDuration(duration) },
         onSetHalftimeDuration = { duration -> gameViewModel.setHalftimeDuration(duration) },
+        onSetMaxSubstitutions = { max -> gameViewModel.updateMaxSubstitutions(max) },
         onCreateMatchClick = {
             gameViewModel.activeGame.value?.let { game ->
                 gameViewModel.proceedToNextPhaseManager(game.copy())
@@ -50,8 +61,8 @@ fun PreGameSetupRoute(
 
     if (showHomeTeamEditDialog) {
         TeamNameEditDialog(
-            teamLabel = "Home",
-            initialValue = activeGame?.homeTeamName ?: "Home",
+            teamLabel = stringResource(R.string.edit_team_name) + " (${stringResource(R.string.home)})",
+            initialValue = activeGame?.homeTeamName?.takeIf { it != "Home" && it != "Heim" } ?: "",
             onSave = {
                 gameViewModel.updateHomeTeamName(it)
                 showHomeTeamEditDialog = false
@@ -62,8 +73,8 @@ fun PreGameSetupRoute(
 
     if (showAwayTeamEditDialog) {
         TeamNameEditDialog(
-            teamLabel = "Away",
-            initialValue = activeGame?.awayTeamName ?: "Away",
+            teamLabel = stringResource(R.string.edit_team_name) + " (${stringResource(R.string.away)})",
+            initialValue = activeGame?.awayTeamName?.takeIf { it != "Away" && it != "Gast" } ?: "",
             onSave = {
                 gameViewModel.updateAwayTeamName(it)
                 showAwayTeamEditDialog = false
@@ -72,9 +83,57 @@ fun PreGameSetupRoute(
         )
     }
 
+    if (showHomeTeamAbbrEditDialog) {
+        TeamNameEditDialog(
+            teamLabel = stringResource(R.string.edit_team_abbr) + " (${stringResource(R.string.home)})",
+            initialValue = activeGame?.homeTeamAbbr ?: "HEIM",
+            onSave = {
+                gameViewModel.updateHomeTeamAbbr(it)
+                showHomeTeamAbbrEditDialog = false
+            },
+            onDismiss = { showHomeTeamAbbrEditDialog = false }
+        )
+    }
+
+    if (showAwayTeamAbbrEditDialog) {
+        TeamNameEditDialog(
+            teamLabel = stringResource(R.string.edit_team_abbr) + " (${stringResource(R.string.away)})",
+            initialValue = activeGame?.awayTeamAbbr ?: "GAST",
+            onSave = {
+                gameViewModel.updateAwayTeamAbbr(it)
+                showAwayTeamAbbrEditDialog = false
+            },
+            onDismiss = { showAwayTeamAbbrEditDialog = false }
+        )
+    }
+
+    if (showHomeCaptainEditDialog) {
+        NumberEditDialog(
+            label = stringResource(R.string.edit_home_captain),
+            initialValue = activeGame?.homeCaptainNumber?.toString() ?: "",
+            onSave = {
+                gameViewModel.updateHomeCaptainNumber(it)
+                showHomeCaptainEditDialog = false
+            },
+            onDismiss = { showHomeCaptainEditDialog = false }
+        )
+    }
+
+    if (showAwayCaptainEditDialog) {
+        NumberEditDialog(
+            label = stringResource(R.string.edit_away_captain),
+            initialValue = activeGame?.awayCaptainNumber?.toString() ?: "",
+            onSave = {
+                gameViewModel.updateAwayCaptainNumber(it)
+                showAwayCaptainEditDialog = false
+            },
+            onDismiss = { showAwayCaptainEditDialog = false }
+        )
+    }
+
     if (showHomeColorPickerDialog) {
         SimpleColorPickerDialog(
-            title = "Home Color",
+            title = stringResource(R.string.home) + " " + stringResource(R.string.team_color),
             availableColors = PredefinedJerseyColors,
             onColorSelected = {
                 gameViewModel.updateHomeTeamColor(it)
@@ -86,7 +145,7 @@ fun PreGameSetupRoute(
 
     if (showAwayColorPickerDialog) {
         SimpleColorPickerDialog(
-            title = "Away Color",
+            title = stringResource(R.string.away) + " " + stringResource(R.string.team_color),
             availableColors = PredefinedJerseyColors,
             onColorSelected = {
                 gameViewModel.updateAwayTeamColor(it)
@@ -95,4 +154,5 @@ fun PreGameSetupRoute(
             onDismiss = { showAwayColorPickerDialog = false }
         )
     }
+
 }
