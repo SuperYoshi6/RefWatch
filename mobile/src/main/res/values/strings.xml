@@ -6,6 +6,8 @@
     <string name="save_game">Spiel speichern</string>
     <string name="home_team_name">Heimteam Name</string>
     <string name="away_team_name">Gastteam Name</string>
+    <string name="home_abbr">Heim Kürzel</string>
+    <string name="away_abbr">Gast Kürzel</string>
     <string name="home_score">Heimtore</string>
     <string name="away_score">Gasttore</string>
     <string name="assignment">Ansetzung</string>
@@ -16,6 +18,7 @@
     <string name="game_date_time">Spiel Datum &amp; Uhrzeit</string>
     <string name="half_minutes">Halbzeit</string>
     <string name="halftime_minutes">Pause</string>
+    <string name="max_substitutions_mobile">Max. Wechsel</string>
     <string name="home_color">Heimfarbe</string>
     <string name="away_color">Gastfarbe</string>
     <string name="ok">OK</string>

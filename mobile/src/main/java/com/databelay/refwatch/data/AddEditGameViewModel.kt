@@ -30,27 +30,32 @@ data class AddEditGameUiState(
     val fieldNumber: String = "",
     val homeTeamName: String = "Home",
     val awayTeamName: String = "Away",
+    val homeTeamAbbr: String = "",
+    val awayTeamAbbr: String = "",
+    val homeCaptainNumber: String = "",
+    val awayCaptainNumber: String = "",
     val refereeAssignment: String = "",
     val venue: String = "",
     val competition: String = "",
     val gameDateTimeEpochMillis: Long? = null,
     val halfDurationMinutes: Int = 45,
     val halftimeDurationMinutes: Int = 15,
+    val maxSubstitutionsAllowed: Int = 5,
     val homeTeamColorArgb: Int = DefaultHomeJerseyColor.toArgb(),
     val awayTeamColorArgb: Int = DefaultAwayJerseyColor.toArgb(),
     val kickOffTeam: Team = Team.HOME,
     val notes: String = "",
     val ageGroup: AgeGroup? = null,
-    val homeScore: String = "0", // New field for home score
-    val awayScore: String = "0", // New field for away score
+    val homeScore: String = "0",
+    val awayScore: String = "0",
     val errorMessage: String? = null,
     val isEditing: Boolean = false
 )
 
 @HiltViewModel
 class AddEditGameViewModel @Inject constructor(
-    private val authRepository: AuthRepository,      // Inject AuthRepository
-    private val firestore: FirebaseFirestore,        // Inject Firestore (for GameStorageMobile)
+    private val authRepository: AuthRepository,
+    private val firestore: FirebaseFirestore,
 ) : ViewModel() {
     private val gameRepository: GameStorageMobile = GameStorageMobile(firestore)
     private val _uiState = MutableStateFlow(AddEditGameUiState())
@@ -64,9 +69,6 @@ class AddEditGameViewModel @Inject constructor(
      */
     fun initializeForm(gameId: String?) {
         viewModelScope.launch {
-            // Get currentUserId from AuthViewModel's StateFlow
-            // Using .value here assumes AuthViewModel has already initialized and has a value.
-            // For more complex scenarios, you might collect or combine flows.
             val currentUserId = authRepository.getCurrentUserId()
             if (currentUserId == null) {
                 Log.e(
@@ -80,7 +82,7 @@ class AddEditGameViewModel @Inject constructor(
             if (gameId != null) {
                 _uiState.update { it.copy(gameId = gameId, errorMessage = null) }
                 val gameToEdit = gameRepository.getGamesFlow(currentUserId).firstOrNull()
-                    ?.find { it.id == gameId } // Get the first emitted list (or current if StateFlow)
+                    ?.find { it.id == gameId }
 
                 if (gameToEdit != null) {
                     Log.i(tag, "Game found: ${gameToEdit.homeTeamName} for user $currentUserId")
@@ -89,9 +91,13 @@ class AddEditGameViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             gameId = gameToEdit.id,
-                            gameNumber = gameToEdit.gameNumber, // Assuming gameNumber is present
+                            gameNumber = gameToEdit.gameNumber,
                             homeTeamName = gameToEdit.homeTeamName,
                             awayTeamName = gameToEdit.awayTeamName,
+                            homeTeamAbbr = gameToEdit.homeTeamAbbr ?: "",
+                            awayTeamAbbr = gameToEdit.awayTeamAbbr ?: "",
+                            homeCaptainNumber = gameToEdit.homeCaptainNumber?.toString() ?: "",
+                            awayCaptainNumber = gameToEdit.awayCaptainNumber?.toString() ?: "",
                             fieldNumber = gameToEdit.fieldNumber ?: "",
                             refereeAssignment = gameToEdit.refereeAssignment ?: "",
                             venue = gameToEdit.venue ?: "",
@@ -99,6 +105,7 @@ class AddEditGameViewModel @Inject constructor(
                             gameDateTimeEpochMillis = gameToEdit.gameDateTimeEpochMillis,
                             halfDurationMinutes = gameToEdit.halfDurationMinutes,
                             halftimeDurationMinutes = gameToEdit.halftimeDurationMinutes,
+                            maxSubstitutionsAllowed = gameToEdit.maxSubstitutionsAllowed,
                             homeTeamColorArgb = gameToEdit.homeTeamColorArgb,
                             awayTeamColorArgb = gameToEdit.awayTeamColorArgb,
                             kickOffTeam = gameToEdit.kickOffTeam,
@@ -115,14 +122,17 @@ class AddEditGameViewModel @Inject constructor(
                         it.copy(
                             errorMessage = "Game not found.",
                             isEditing = false,
-                            gameId = gameId // Keep gameId so UI knows it was an attempt to edit
+                            gameId = gameId
                         )
                     }
                 }
             } else {
                 Log.d(tag, "Initializing for a new game for user $currentUserId.")
-                _uiState.value = AddEditGameUiState(isEditing = false, gameId = null,
-                    gameDateTimeEpochMillis = System.currentTimeMillis())
+                _uiState.value = AddEditGameUiState(
+                    isEditing = false,
+                    gameId = null,
+                    gameDateTimeEpochMillis = System.currentTimeMillis()
+                )
             }
         }
     }
@@ -134,6 +144,24 @@ class AddEditGameViewModel @Inject constructor(
 
     fun onAwayTeamNameChange(name: String) {
         _uiState.value = _uiState.value.copy(awayTeamName = name)
+    }
+
+    fun onHomeTeamAbbrChange(abbr: String) {
+        val sanitized = abbr.uppercase().filter { it.isLetterOrDigit() }.take(4)
+        _uiState.value = _uiState.value.copy(homeTeamAbbr = sanitized)
+    }
+
+    fun onAwayTeamAbbrChange(abbr: String) {
+        val sanitized = abbr.uppercase().filter { it.isLetterOrDigit() }.take(4)
+        _uiState.value = _uiState.value.copy(awayTeamAbbr = sanitized)
+    }
+
+    fun onHomeCaptainNumberChange(number: String) {
+        _uiState.value = _uiState.value.copy(homeCaptainNumber = number)
+    }
+
+    fun onAwayCaptainNumberChange(number: String) {
+        _uiState.value = _uiState.value.copy(awayCaptainNumber = number)
     }
 
     fun onFieldNumberChange(newFieldNumber: String) {
@@ -165,6 +193,11 @@ class AddEditGameViewModel @Inject constructor(
             _uiState.value.copy(halftimeDurationMinutes = minutes.toIntOrNull() ?: 15)
     }
 
+    fun onMaxSubstitutionsChange(max: String) {
+        _uiState.value =
+            _uiState.value.copy(maxSubstitutionsAllowed = max.toIntOrNull()?.coerceIn(1, 20) ?: 5)
+    }
+
     fun onHomeColorSelected(color: Color) {
         _uiState.value = _uiState.value.copy(homeTeamColorArgb = color.toArgb())
     }
@@ -194,10 +227,9 @@ class AddEditGameViewModel @Inject constructor(
      * Validates the current UI state and constructs a Game object,
      * then passes it to the onGameSaved callback.
      */
-
     fun onSaveGame() {
         val currentState = _uiState.value
-        viewModelScope.launch { // Launch coroutine for fetching existing game if needed
+        viewModelScope.launch {
             val currentUserId = authRepository.getCurrentUserId()
 
             if (currentUserId == null) {
@@ -217,25 +249,27 @@ class AddEditGameViewModel @Inject constructor(
             if (currentState.gameId != null && currentState.isEditing) {
                 // --- EDITING AN EXISTING GAME ---
                 Log.d(tag, "Attempting to save changes to existing game: ${currentState.gameId}")
-                // Fetch the existing game from the repository
-                // It's better to have a suspend fun getGameById(userId: String, gameId: String): Game? in GameStorageMobile
                 val existingGame = gameRepository.getGamesFlow(currentUserId)
-                    .firstOrNull() // Get the current list
+                    .firstOrNull()
                     ?.find { it.id == currentState.gameId }
 
                 if (existingGame == null) {
-                    Log.e(tag, "Failed to fetch existing game (${currentState.gameId}) for update. Cannot save.")
+                    Log.e(
+                        tag,
+                        "Failed to fetch existing game (${currentState.gameId}) for update. Cannot save."
+                    )
                     _uiState.update { it.copy(errorMessage = "Error: Original game not found. Cannot save.") }
                     return@launch
                 }
 
-                // Create the updated game object by copying the existing one
-                // and then applying changes from the UI state.
                 gameToSave = existingGame.copy(
-                    // Fields from AddEditGameUiState that are editable
                     gameNumber = currentState.gameNumber,
                     homeTeamName = currentState.homeTeamName,
                     awayTeamName = currentState.awayTeamName,
+                    homeTeamAbbr = currentState.homeTeamAbbr.ifBlank { null },
+                    awayTeamAbbr = currentState.awayTeamAbbr.ifBlank { null },
+                    homeCaptainNumber = currentState.homeCaptainNumber.toIntOrNull(),
+                    awayCaptainNumber = currentState.awayCaptainNumber.toIntOrNull(),
                     fieldNumber = currentState.fieldNumber.takeIf { it.isNotBlank() },
                     refereeAssignment = currentState.refereeAssignment.takeIf { it.isNotBlank() },
                     venue = currentState.venue.takeIf { it.isNotBlank() },
@@ -243,16 +277,15 @@ class AddEditGameViewModel @Inject constructor(
                     gameDateTimeEpochMillis = currentState.gameDateTimeEpochMillis,
                     halfDurationMinutes = currentState.halfDurationMinutes,
                     halftimeDurationMinutes = currentState.halftimeDurationMinutes,
+                    maxSubstitutionsAllowed = currentState.maxSubstitutionsAllowed,
                     homeTeamColorArgb = currentState.homeTeamColorArgb,
                     awayTeamColorArgb = currentState.awayTeamColorArgb,
                     kickOffTeam = currentState.kickOffTeam,
                     notes = currentState.notes.takeIf { it.isNotBlank() },
                     ageGroup = currentState.ageGroup,
-                    homeScore = currentState.homeScore.toIntOrNull() ?: existingGame.homeScore, // Use existing if invalid
-                    awayScore = currentState.awayScore.toIntOrNull() ?: existingGame.awayScore, // Use existing if invalid
+                    homeScore = currentState.homeScore.toIntOrNull() ?: existingGame.homeScore,
+                    awayScore = currentState.awayScore.toIntOrNull() ?: existingGame.awayScore,
                     lastUpdated = System.currentTimeMillis()
-                    // IMPORTANT: Any fields NOT in AddEditGameUiState (like 'events', 'currentPhase')
-                    // will be preserved from 'existingGame' due to the .copy() method.
                 )
                 Log.d(tag, "Updated game object prepared: $gameToSave")
 
@@ -265,6 +298,10 @@ class AddEditGameViewModel @Inject constructor(
                     gameNumber = currentState.gameNumber,
                     homeTeamName = currentState.homeTeamName,
                     awayTeamName = currentState.awayTeamName,
+                    homeTeamAbbr = currentState.homeTeamAbbr.ifBlank { null },
+                    awayTeamAbbr = currentState.awayTeamAbbr.ifBlank { null },
+                    homeCaptainNumber = currentState.homeCaptainNumber.toIntOrNull(),
+                    awayCaptainNumber = currentState.awayCaptainNumber.toIntOrNull(),
                     fieldNumber = currentState.fieldNumber.takeIf { it.isNotBlank() },
                     refereeAssignment = currentState.refereeAssignment.takeIf { it.isNotBlank() },
                     venue = currentState.venue.takeIf { it.isNotBlank() },
@@ -272,6 +309,7 @@ class AddEditGameViewModel @Inject constructor(
                     gameDateTimeEpochMillis = currentState.gameDateTimeEpochMillis,
                     halfDurationMinutes = currentState.halfDurationMinutes,
                     halftimeDurationMinutes = currentState.halftimeDurationMinutes,
+                    maxSubstitutionsAllowed = currentState.maxSubstitutionsAllowed,
                     homeTeamColorArgb = currentState.homeTeamColorArgb,
                     awayTeamColorArgb = currentState.awayTeamColorArgb,
                     kickOffTeam = currentState.kickOffTeam,
@@ -280,18 +318,24 @@ class AddEditGameViewModel @Inject constructor(
                     homeScore = currentState.homeScore.toIntOrNull() ?: 0,
                     awayScore = currentState.awayScore.toIntOrNull() ?: 0,
                     lastUpdated = System.currentTimeMillis()
-                    // Other fields not in uiState will get their default values from the Game data class constructor
                 )
                 Log.d(tag, "New game object prepared: $gameToSave")
             }
 
-            // Now, save `gameToSave` using your repository
             val result = gameRepository.addOrUpdateGame(currentUserId, gameToSave)
             if (result.isSuccess) {
-                Log.i(tag, "Game saved/updated successfully for user $currentUserId. Game ID: ${gameToSave.id}")
+                Log.i(
+                    tag,
+                    "Game saved/updated successfully for user $currentUserId. Game ID: ${gameToSave.id}"
+                )
             } else {
-                Log.e(tag, "Failed to save game for user $currentUserId: ${result.exceptionOrNull()?.message}")
-                _uiState.update { it.copy(errorMessage = "Failed to save game: ${result.exceptionOrNull()?.localizedMessage}") }
+                Log.e(
+                    tag,
+                    "Failed to save game for user $currentUserId: ${result.exceptionOrNull()?.message}"
+                )
+                _uiState.update {
+                    it.copy(errorMessage = "Failed to save game: ${result.exceptionOrNull()?.localizedMessage}")
+                }
             }
         }
     }

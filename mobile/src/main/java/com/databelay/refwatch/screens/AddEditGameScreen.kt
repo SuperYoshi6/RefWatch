@@ -1,4 +1,4 @@
-package com.databelay.refwatch.screens
+﻿package com.databelay.refwatch.screens
 
 import android.content.res.Configuration
 import android.util.Log
@@ -78,6 +78,10 @@ fun AddEditGameScreen(
     onNavigateBack: () -> Unit,
     onHomeTeamNameChange: (String) -> Unit,
     onAwayTeamNameChange: (String) -> Unit,
+    onHomeTeamAbbrChange: (String) -> Unit,
+    onAwayTeamAbbrChange: (String) -> Unit,
+    onHomeCaptainNumberChange: (String) -> Unit,
+    onAwayCaptainNumberChange: (String) -> Unit,
     onFieldNumberChange: (String) -> Unit,
     onRefereeAssignmentChange: (String) -> Unit,
     onVenueChange: (String) -> Unit,
@@ -85,6 +89,7 @@ fun AddEditGameScreen(
     onGameDateTimeChange: (Long) -> Unit,
     onHalfDurationChange: (String) -> Unit,
     onHalftimeDurationChange: (String) -> Unit,
+    onMaxSubstitutionsChange: (String) -> Unit,
     onHomeColorSelected: (Color) -> Unit,
     onAwayColorSelected: (Color) -> Unit,
     onNotesChanged: (String) -> Unit,
@@ -150,7 +155,44 @@ fun AddEditGameScreen(
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 singleLine = true
             )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = uiState.homeTeamAbbr,
+                    onValueChange = onHomeTeamAbbrChange,
+                    label = { Text(stringResource(R.string.home_abbr)) },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = uiState.awayTeamAbbr,
+                    onValueChange = onAwayTeamAbbrChange,
+                    label = { Text(stringResource(R.string.away_abbr)) },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
 
+            // Captain Numbers Row
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = uiState.homeCaptainNumber,
+                    onValueChange = onHomeCaptainNumberChange,
+                    label = { Text("Heim-Kapitän Nr.") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = uiState.awayCaptainNumber,
+                    onValueChange = onAwayCaptainNumberChange,
+                    label = { Text("Gast-Kapitän Nr.") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
             // Scores Row
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
@@ -306,6 +348,14 @@ fun AddEditGameScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
+            OutlinedTextField(
+                value = uiState.maxSubstitutionsAllowed.toString(),
+                onValueChange = onMaxSubstitutionsChange,
+                label = { Text(stringResource(R.string.max_substitutions_mobile)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
 
             Row(
                 Modifier.fillMaxWidth(),
@@ -413,6 +463,10 @@ fun AddEditGameRoute(
         onNavigateBack = { navController.popBackStack() },
         onHomeTeamNameChange = addEditViewModel::onHomeTeamNameChange,
         onAwayTeamNameChange = addEditViewModel::onAwayTeamNameChange,
+        onHomeTeamAbbrChange = addEditViewModel::onHomeTeamAbbrChange,
+        onAwayTeamAbbrChange = addEditViewModel::onAwayTeamAbbrChange,
+        onHomeCaptainNumberChange = addEditViewModel::onHomeCaptainNumberChange,
+        onAwayCaptainNumberChange = addEditViewModel::onAwayCaptainNumberChange,
         onFieldNumberChange = addEditViewModel::onFieldNumberChange,
         onRefereeAssignmentChange = addEditViewModel::onRefereeAssignmentChange,
         onVenueChange = addEditViewModel::onVenueChange,
@@ -420,6 +474,7 @@ fun AddEditGameRoute(
         onGameDateTimeChange = addEditViewModel::onGameDateTimeChange,
         onHalfDurationChange = addEditViewModel::onHalfDurationChange,
         onHalftimeDurationChange = addEditViewModel::onHalftimeDurationChange,
+        onMaxSubstitutionsChange = addEditViewModel::onMaxSubstitutionsChange,
         onHomeColorSelected = addEditViewModel::onHomeColorSelected,
         onAwayColorSelected = addEditViewModel::onAwayColorSelected,
         onNotesChanged = addEditViewModel::onNotesChanged,
@@ -466,12 +521,17 @@ fun AddEditGameScreen_AddNewPreview() {
             onNavigateBack = {},
             onHomeTeamNameChange = {},
             onAwayTeamNameChange = {},
+            onHomeTeamAbbrChange = {},
+            onAwayTeamAbbrChange = {},
+            onHomeCaptainNumberChange = {},
+            onAwayCaptainNumberChange = {},
             onFieldNumberChange = {},
             onVenueChange = {},
             onCompetitionChange = {},
             onGameDateTimeChange = {},
             onHalfDurationChange = {},
             onHalftimeDurationChange = {},
+            onMaxSubstitutionsChange = {},
             onHomeColorSelected = {},
             onAwayColorSelected = {},
             onNotesChanged = {},
@@ -511,6 +571,10 @@ fun AddEditGameScreen_EditPreview() {
             onNavigateBack = {},
             onHomeTeamNameChange = {},
             onAwayTeamNameChange = {},
+            onHomeTeamAbbrChange = {},
+            onAwayTeamAbbrChange = {},
+            onHomeCaptainNumberChange = {},
+            onAwayCaptainNumberChange = {},
             onFieldNumberChange = {},
             onRefereeAssignmentChange = {}, // Add dummy handler
             onVenueChange = {},
@@ -518,6 +582,7 @@ fun AddEditGameScreen_EditPreview() {
             onGameDateTimeChange = {},
             onHalfDurationChange = {},
             onHalftimeDurationChange = {},
+            onMaxSubstitutionsChange = {},
             onHomeColorSelected = {},
             onAwayColorSelected = {},
             onNotesChanged = {},

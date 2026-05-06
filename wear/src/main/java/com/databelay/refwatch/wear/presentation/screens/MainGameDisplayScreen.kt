@@ -1,4 +1,4 @@
-package com.databelay.refwatch.wear.presentation.screens
+﻿package com.databelay.refwatch.wear.presentation.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.ParagraphStyle
@@ -25,6 +26,7 @@ import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.MaterialTheme
@@ -65,8 +67,17 @@ fun MainGameDisplayScreen(
     onOpenGameMenu: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val view = LocalView.current
+    val keepScreenOn = game.currentPhase.hasTimer() || game.isTimerRunning || game.isStoppageTimerRunning
+    DisposableEffect(view, keepScreenOn) {
+        view.keepScreenOn = keepScreenOn
+        onDispose {
+            view.keepScreenOn = false
+        }
+    }
+
     var clickCount by remember { mutableStateOf(0) }
-    val DOUBLE_CLICK_TIME = 300L
+    val DOUBLE_CLICK_TIME = 500L // Increased: verhindert versehentliches Auslösen der Nachspielzeit
 
     LaunchedEffect(clickCount) {
         if (clickCount == 1) {
@@ -82,12 +93,11 @@ fun MainGameDisplayScreen(
                 clickCount = 0
             }
         } else if (clickCount >= 2) {
-            // Double click logic on hardware action key
+            // Doppelklick Hardware-Taste: nur für Anstoß am Periodenanfang
             if (game.actualTimeElapsedInPeriodMillis == 0L && !game.isTimerRunning && game.currentPhase.isPlayablePhase()) {
                 onKickOff()
-            } else if (game.currentPhase.isPlayablePhase() && game.currentPhase.hasTimer()) {
-                onToggleStoppageTimer()
             }
+            // Nachspielzeit wird nur über den On-Screen-Tap auf die +Zeit-Anzeige ausgelöst
             clickCount = 0
         }
     }
@@ -177,7 +187,12 @@ fun MainGameDisplayScreen(
     ScreenScaffold() {
         Column(
             modifier = modifier // Use the passed modifier
-                .fillMaxSize(),
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onLongPress = { onOpenGameMenu() }
+                    )
+                },
             // Add your own general horizontal padding for the content
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceAround
@@ -196,7 +211,7 @@ fun MainGameDisplayScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
+                    .padding(horizontal = 16.dp)
             ) {
                 // ... content of score row (ColorIndicator, Score Text) ...
                 val homeHasKickOff =
@@ -205,7 +220,7 @@ fun MainGameDisplayScreen(
                     ColorIndicator(
                         color = game.homeTeamColor,
                         hasKickOffBorder = homeHasKickOff,
-                        indicatorSize = 18.dp
+                        indicatorSize = 16.dp
                     )
                     Text(
                         game.homeTeamAbbr ?: game.homeTeamName.take(3).uppercase(),
@@ -216,7 +231,7 @@ fun MainGameDisplayScreen(
                 
                 Text(
                     "${game.homeScore} - ${game.awayScore}",
-                    style = MaterialTheme.typography.displayLarge,
+                    style = MaterialTheme.typography.displayMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
@@ -227,7 +242,7 @@ fun MainGameDisplayScreen(
                     ColorIndicator(
                         color = game.awayTeamColor,
                         hasKickOffBorder = awayHasKickOff,
-                        indicatorSize = 18.dp
+                        indicatorSize = 16.dp
                     )
                     Text(
                         game.awayTeamAbbr ?: game.awayTeamName.take(3).uppercase(),

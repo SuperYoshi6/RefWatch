@@ -1,43 +1,410 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>RefWatch – Download</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>RefWatch – Schiedsrichter-App für Wear OS & Android</title>
+  <meta name="description" content="RefWatch – Die professionelle Schiedsrichter-App für Wear OS und Android. Spielzeit, Tore, Karten, Wechsel – alles am Handgelenk."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; background: #0b0d12; color: #fff; }
-    .wrap { max-width: 860px; margin: 0 auto; padding: 40px 20px; }
-    .card { background: #151a24; border: 1px solid #2d3446; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
-    h1 { margin: 0 0 8px; }
-    h2 { margin: 0 0 10px; font-size: 1.1rem; color: #6fe3ff; }
-    p { color: #d7deeb; line-height: 1.5; }
-    .btn { display: inline-block; margin: 6px 8px 0 0; padding: 10px 14px; border-radius: 10px; background: #23b7ff; color: #04111a; text-decoration: none; font-weight: 700; }
-    .btn.alt { background: #4be07a; color: #04210f; }
-    code { background: #0f131d; padding: 2px 6px; border-radius: 6px; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080b12;
+      --surface: #0f1420;
+      --surface2: #151d2e;
+      --border: #1e2a3f;
+      --accent: #3b82f6;
+      --accent2: #06d6a0;
+      --accent3: #f59e0b;
+      --text: #e2e8f0;
+      --muted: #7c91b0;
+      --danger: #ef4444;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ── LANG TOGGLE ── */
+    .lang-bar {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(8,11,18,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 24px;
+    }
+    .lang-bar .logo { font-weight: 800; font-size: 1.1rem; letter-spacing: -0.5px; }
+    .lang-bar .logo span { color: var(--accent); }
+    .lang-btns { display: flex; gap: 8px; }
+    .lang-btn {
+      padding: 4px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 600;
+      border: 1px solid var(--border); background: transparent; color: var(--muted);
+      cursor: pointer; transition: all .2s;
+    }
+    .lang-btn.active, .lang-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ── HERO ── */
+    .hero {
+      text-align: center;
+      padding: 96px 24px 72px;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(59,130,246,0.15) 0%, transparent 70%);
+    }
+    .badge {
+      display: inline-block; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.4);
+      color: var(--accent); border-radius: 20px; font-size: 0.78rem; font-weight: 700;
+      padding: 4px 14px; letter-spacing: 0.5px; margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+    .hero h1 {
+      font-size: clamp(2.2rem, 6vw, 4rem); font-weight: 800;
+      line-height: 1.1; letter-spacing: -1px; margin-bottom: 18px;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p { font-size: 1.15rem; color: var(--muted); max-width: 560px; margin: 0 auto 36px; }
+
+    .btn-group { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 13px 24px; border-radius: 12px; font-weight: 700; font-size: 0.95rem;
+      text-decoration: none; transition: transform .15s, box-shadow .15s;
+      border: none; cursor: pointer;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-green  { background: var(--accent2); color: #04211a; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
+    /* ── PLATFORMS ── */
+    .platforms {
+      display: flex; justify-content: center; gap: 32px; flex-wrap: wrap;
+      padding: 0 24px 64px;
+    }
+    .platform-pill {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px 20px; font-size: 0.9rem; font-weight: 600;
+    }
+    .platform-pill .icon { font-size: 1.5rem; }
+
+    /* ── SECTIONS ── */
+    .section { padding: 72px 24px; max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--accent); margin-bottom: 10px;
+    }
+    .section h2 {
+      font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 800;
+      letter-spacing: -0.5px; margin-bottom: 14px;
+    }
+    .section .sub { color: var(--muted); max-width: 580px; margin-bottom: 48px; font-size: 1rem; }
+
+    /* ── FEATURE GRID ── */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      transition: border-color .2s, transform .2s;
+    }
+    .feature-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+    .feature-icon { font-size: 2rem; margin-bottom: 14px; }
+    .feature-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { font-size: 0.88rem; color: var(--muted); }
+
+    /* ── INSTALL SECTION ── */
+    .install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 640px) { .install-grid { grid-template-columns: 1fr; } }
+
+    .install-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px;
+    }
+    .install-card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .install-card ol { padding-left: 18px; }
+    .install-card li { margin-bottom: 10px; font-size: 0.9rem; color: var(--muted); }
+    .install-card li strong { color: var(--text); }
+
+    .note-box {
+      background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.35);
+      border-radius: 12px; padding: 16px 20px; margin-top: 24px; font-size: 0.88rem; color: #fbbf24;
+    }
+    .note-box strong { display: block; margin-bottom: 4px; }
+
+    code {
+      background: var(--bg); border: 1px solid var(--border);
+      padding: 2px 7px; border-radius: 6px; font-size: 0.83rem; color: var(--accent2);
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    /* ── DIVIDER ── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: 48px 24px; text-align: center;
+    }
+    footer .footer-logo { font-size: 1.3rem; font-weight: 800; margin-bottom: 8px; }
+    footer .footer-logo span { color: var(--accent); }
+    footer .footer-sub { color: var(--muted); font-size: 0.88rem; margin-bottom: 28px; }
+    .github-links { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin-bottom: 32px; }
+    .gh-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 18px; text-decoration: none; color: var(--text);
+      font-size: 0.88rem; font-weight: 600; transition: border-color .2s, transform .2s;
+    }
+    .gh-btn:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .gh-icon { font-size: 1.1rem; }
+    .footer-legal { color: var(--muted); font-size: 0.78rem; }
+    .footer-legal a { color: var(--muted); }
+
+    /* ── LANG VISIBILITY ── */
+    .de, .en { transition: opacity .2s; }
+    body.lang-en .de { display: none; }
+    body.lang-de .en { display: none; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 500px) {
+      .hero { padding: 72px 16px 48px; }
+      .section { padding: 48px 16px; }
+    }
   </style>
 </head>
-<body>
-  <main class="wrap">
-    <h1>RefWatch</h1>
-    <p>Schiedsrichter-App für Wear OS + Android.</p>
+<body class="lang-de">
 
-    <section class="card">
-      <h2>Downloads</h2>
-      <p>Trage hier deine echten Download-Links ein:</p>
-      <a class="btn alt" href="#" target="_blank" rel="noopener">Wear OS APK/AAB</a>
-      <a class="btn" href="#" target="_blank" rel="noopener">Android APK/AAB</a>
-    </section>
+<!-- ── NAVBAR ── -->
+<nav class="lang-bar">
+  <div class="logo">Ref<span>Watch</span></div>
+  <div class="lang-btns">
+    <button class="lang-btn active" id="btn-de" onclick="setLang('de')">🇩🇪 DE</button>
+    <button class="lang-btn" id="btn-en" onclick="setLang('en')">🇬🇧 EN</button>
+  </div>
+</nav>
 
-    <section class="card">
-      <h2>GitHub</h2>
-      <p>Projekt-Repo: <a href="#" target="_blank" rel="noopener">Dein GitHub-Link</a></p>
-      <p>Original-Repo: <a href="#" target="_blank" rel="noopener">Original GitHub-Link</a></p>
-    </section>
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="badge">⌚ Wear OS + Android</div>
+  <h1 class="de">Die App für<br/><span>Fußball-Schiedsrichter</span></h1>
+  <h1 class="en">The App for<br/><span>Football Referees</span></h1>
+  <p class="de">RefWatch bringt alles Wichtige direkt ans Handgelenk – Spielzeit, Tore, Karten, Wechsel und das vollständige Spielprotokoll.</p>
+  <p class="en">RefWatch brings everything you need to your wrist – match timer, goals, cards, substitutions and the full match log.</p>
+  <div class="btn-group">
+    <a href="#install" class="btn btn-primary">
+      <span>📲</span>
+      <span class="de">App installieren</span>
+      <span class="en">Install the App</span>
+    </a>
+    <a href="#features" class="btn btn-outline">
+      <span class="de">Funktionen ansehen</span>
+      <span class="en">View Features</span>
+    </a>
+  </div>
+</section>
 
-    <section class="card">
-      <h2>Build-Hinweis</h2>
-      <p>Build lokal mit <code>./gradlew assembleDebug</code> und veröffentliche die Artefakte.</p>
-    </section>
-  </main>
+<!-- ── PLATFORM PILLS ── -->
+<div class="platforms">
+  <div class="platform-pill"><span class="icon">⌚</span> Wear OS (Galaxy Watch 4+)</div>
+  <div class="platform-pill"><span class="icon">📱</span> Android 8.0+</div>
+  <div class="platform-pill"><span class="icon">☁️</span> Firebase Sync</div>
+  <div class="platform-pill"><span class="icon">⚽</span> <span class="de">Fußball-optimiert</span><span class="en">Football-focused</span></div>
+</div>
+
+<hr class="divider"/>
+
+<!-- ── FEATURES ── -->
+<section class="section" id="features">
+  <div class="section-label de">Funktionen</div>
+  <div class="section-label en">Features</div>
+  <h2 class="de">Alles was du brauchst,<br/>direkt am Handgelenk</h2>
+  <h2 class="en">Everything you need,<br/>right on your wrist</h2>
+  <p class="sub de">Entwickelt für den Spielbetrieb – schnell, intuitiv, ohne Ablenkung.</p>
+  <p class="sub en">Built for live matches – fast, intuitive, distraction-free.</p>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon">⏱️</div>
+      <h3 class="de">Spieluhr mit Doppel-Modus</h3>
+      <h3 class="en">Match Timer – Dual Mode</h3>
+      <p class="de">Umschalten zwischen Restzeit und gespielter Zeit per Doppeltipp auf die Zeitanzeige.</p>
+      <p class="en">Switch between remaining time and played time with a double-tap on the display.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🟢</div>
+      <h3 class="de">Nachspielzeit-Timer</h3>
+      <h3 class="en">Stoppage Time Timer</h3>
+      <p class="de">Eigener grüner Nachspielzeit-Timer – unabhängig start- und stoppbar per Tap auf die +Zeit-Anzeige.</p>
+      <p class="en">Separate green stoppage-time timer – start/stop independently by tapping the +time display.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📣</div>
+      <h3 class="de">Anstoß-Countdown</h3>
+      <h3 class="en">Kickoff Countdown</h3>
+      <p class="de">5-Sekunden-Countdown mit Vibrationsfeedback für einen professionellen Anstoß.</p>
+      <p class="en">5-second countdown with vibration feedback for a professional kickoff.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🃏</div>
+      <h3 class="de">Karten & Ereignisse</h3>
+      <h3 class="en">Cards & Events</h3>
+      <p class="de">Tore, Gelbe, Rote, Gelb-Rote Karten und Wechsel – direkt aus dem Spielmenü protokolliert.</p>
+      <p class="en">Goals, yellow, red, yellow-red cards and substitutions – logged directly from the match menu.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📋</div>
+      <h3 class="de">Vollständiges Spielprotokoll</h3>
+      <h3 class="en">Full Match Log</h3>
+      <p class="de">Alle Ereignisse mit Zeitstempel werden auf der Uhr und in der Handy-App gespeichert.</p>
+      <p class="en">All events with timestamps are saved on the watch and synced to the phone app.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔁</div>
+      <h3 class="de">Auswechslungs-Tracking</h3>
+      <h3 class="en">Substitution Tracking</h3>
+      <p class="de">Verbleibende Wechsel werden live gezählt – konfigurierbar über die Handy-App.</p>
+      <p class="en">Remaining substitutions tracked live – configurable via the phone app.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🎨</div>
+      <h3 class="de">Team-Setup in der Handy-App</h3>
+      <h3 class="en">Team Setup in Phone App</h3>
+      <p class="de">Teamnamen, Kürzel, Farben, Kapitänsnummer, Halbzeitdauer und Spielnummer komfortabel auf dem Handy eingeben.</p>
+      <p class="en">Enter team names, abbreviations, colors, captain number, half duration and game number comfortably on the phone.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">☁️</div>
+      <h3 class="de">Firebase-Synchronisation</h3>
+      <h3 class="en">Firebase Synchronisation</h3>
+      <p class="de">Spielstände und Protokoll werden über Firebase in Echtzeit zwischen Uhr und Handy synchronisiert.</p>
+      <p class="en">Scores and match log sync in real-time between watch and phone via Firebase.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📅</div>
+      <h3 class="de">ICS-Import</h3>
+      <h3 class="en">ICS Import</h3>
+      <p class="de">Spielplan per ICS-Datei importieren – automatisch werden Teamnamen, Anstoßzeit und Spielnummer übernommen.</p>
+      <p class="en">Import your schedule via ICS file – team names, kickoff time and match number are auto-filled.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ── INSTALL ── -->
+<section class="section" id="install">
+  <div class="section-label de">Installation</div>
+  <div class="section-label en">Installation</div>
+  <h2 class="de">Kein PC nötig –<br/>einfach sideloaden</h2>
+  <h2 class="en">No PC required –<br/>just sideload it</h2>
+  <p class="sub de">Lade die APKs direkt herunter und installiere sie ohne Store. Für die Smartwatch benötigst du einen einmaligen Schritt über die Begleit-App.</p>
+  <p class="sub en">Download the APKs directly and install them without a store. For the smartwatch you need one extra step via the companion app.</p>
+
+  <div class="install-grid">
+    <!-- ANDROID -->
+    <div class="install-card">
+      <h3>📱 <span class="de">Android (Handy-App)</span><span class="en">Android (Phone App)</span></h3>
+      <ol>
+        <li class="de"><strong>APK herunterladen</strong> (Link unten)</li>
+        <li class="en"><strong>Download APK</strong> (link below)</li>
+        <li class="de">Einstellungen → <strong>Unbekannte Quellen</strong> erlauben</li>
+        <li class="en">Settings → allow <strong>Unknown Sources</strong></li>
+        <li class="de">APK öffnen und <strong>Installieren</strong> tippen</li>
+        <li class="en">Open APK and tap <strong>Install</strong></li>
+        <li class="de">Mit Google-Konto anmelden und Spiele anlegen</li>
+        <li class="en">Sign in with your Google account and create matches</li>
+      </ol>
+      <div style="margin-top:20px;">
+        <a href="https://github.com/SuperYoshi6/RefWatch/releases/latest" class="btn btn-primary" target="_blank" rel="noopener">
+          📥 <span class="de">Mobile APK laden</span><span class="en">Download Mobile APK</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- WEAR OS -->
+    <div class="install-card">
+      <h3>⌚ <span class="de">Wear OS (Smartwatch)</span><span class="en">Wear OS (Smartwatch)</span></h3>
+      <ol>
+        <li class="de"><strong>Wear Installer 2</strong> aus dem Play Store auf deinem Handy installieren</li>
+        <li class="en">Install <strong>Wear Installer 2</strong> from the Play Store on your phone</li>
+        <li class="de">Auf der Uhr: Entwickleroptionen aktivieren (Buildnummer 7× tippen)</li>
+        <li class="en">On watch: enable Developer Options (tap Build Number 7 times)</li>
+        <li class="de"><strong>Wear APK</strong> herunterladen und in Wear Installer 2 öffnen</li>
+        <li class="en"><strong>Download Wear APK</strong> and open it in Wear Installer 2</li>
+        <li class="de">Uhr auswählen → <strong>Install</strong> tippen – fertig!</li>
+        <li class="en">Select watch → tap <strong>Install</strong> – done!</li>
+      </ol>
+      <div style="margin-top:20px;">
+        <a href="https://github.com/SuperYoshi6/RefWatch/releases/latest" class="btn btn-green" target="_blank" rel="noopener">
+          📥 <span class="de">Wear APK laden</span><span class="en">Download Wear APK</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong class="de">💡 Hinweis zu den APK-Links</strong>
+    <strong class="en">💡 Note on APK links</strong>
+    <span class="de">Die Download-Links zeigen auf die Releases-Seite des GitHub-Repos. Sobald du dort eine Release veröffentlichst, können andere die APKs direkt herunterladen – ganz ohne Klonen oder PC.</span>
+    <span class="en">Download links point to the GitHub Releases page. Once you publish a release there, others can download the APKs directly – no cloning or PC needed.</span>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-logo">Ref<span>Watch</span></div>
+  <div class="footer-sub de">Schiedsrichter-App für Wear OS & Android · Open Source</div>
+  <div class="footer-sub en">Referee App for Wear OS & Android · Open Source</div>
+
+  <div class="github-links">
+    <a class="gh-btn" href="https://github.com/SuperYoshi6/RefWatch" target="_blank" rel="noopener">
+      <span class="gh-icon">🐙</span>
+      <div>
+        <div style="font-size:0.75rem;color:var(--muted);" class="de">Ersteller</div>
+        <div style="font-size:0.75rem;color:var(--muted);" class="en">Creator</div>
+        <div>SuperYoshi6 / RefWatch</div>
+      </div>
+    </a>
+    <a class="gh-btn" href="https://github.com/githubbar/RefWatch" target="_blank" rel="noopener">
+      <span class="gh-icon">🐙</span>
+      <div>
+        <div style="font-size:0.75rem;color:var(--muted);" class="de">Mitwirkender</div>
+        <div style="font-size:0.75rem;color:var(--muted);" class="en">Contributor</div>
+        <div>githubbar / RefWatch</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="footer-legal">
+    <a href="../PRIVACY POLICY.html">Privacy Policy</a> &nbsp;·&nbsp;
+    <a href="../TERMS OF USE.html">Terms of Use</a> &nbsp;·&nbsp;
+    <span class="de">Lizenz: GPL-3.0</span><span class="en">License: GPL-3.0</span>
+  </div>
+</footer>
+
+<script>
+  function setLang(lang) {
+    document.body.className = 'lang-' + lang;
+    document.getElementById('btn-de').classList.toggle('active', lang === 'de');
+    document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+    localStorage.setItem('rw-lang', lang);
+  }
+  // Restore preference
+  const saved = localStorage.getItem('rw-lang');
+  if (saved) setLang(saved);
+</script>
 </body>
 </html>

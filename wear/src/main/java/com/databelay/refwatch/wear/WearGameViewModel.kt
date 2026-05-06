@@ -141,7 +141,9 @@ class WearGameViewModel @Inject constructor(
                     oldState.isTimerRunning == newState.isTimerRunning &&
                             oldState.displayedMillis == newState.displayedMillis && // Also check displayedMillis
                             oldState.actualTimeElapsedInPeriodMillis == newState.actualTimeElapsedInPeriodMillis &&
-                            oldState.inAddedTime == newState.inAddedTime
+                            oldState.inAddedTime == newState.inAddedTime &&
+                            oldState.stoppageTimeMillis == newState.stoppageTimeMillis &&
+                            oldState.isStoppageTimerRunning == newState.isStoppageTimerRunning
                 }
                 ?.onEach { serviceState ->
 //                    Log.d(

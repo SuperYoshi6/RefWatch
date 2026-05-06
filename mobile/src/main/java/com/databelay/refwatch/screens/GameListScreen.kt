@@ -36,7 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTooltipState
@@ -259,7 +259,7 @@ fun GameListScreen(
             verticalArrangement = Arrangement.SpaceEvenly,
         ) {
             // --- TABS FOR FILTERING ---
-            TabRow(selectedTabIndex = if (selectedTab == GameStatus.SCHEDULED) 0 else 1) { // Determine index based on selectedTab
+            PrimaryTabRow(selectedTabIndex = if (selectedTab == GameStatus.SCHEDULED) 0 else 1) {
                 Tab(
                     selected = selectedTab == GameStatus.SCHEDULED,
                     onClick = { onTabSelected(GameStatus.SCHEDULED) },

@@ -198,9 +198,12 @@ class GameTimerService : Service() {
                     actualTimeElapsedInPeriodMillis = initialElapsedForThisConfig,
                     inAddedTime = isAddedTimeForThisConfig,
                     regulationPeriodDurationMillis = currentRegulationDuration,
-                    displayedMillis = displayedMillisForThisConfig
+                    displayedMillis = displayedMillisForThisConfig,
+                    stoppageTimeMillis = game.stoppageTimeMillis,
+                    isStoppageTimerRunning = false
                 )
             }
+            stopStoppageTimer()
             Log.d(TAG, "Service _timerStateFlow updated: running=${_timerStateFlow.value.isTimerRunning}, elapsed=${_timerStateFlow.value.actualTimeElapsedInPeriodMillis}")
 
 
@@ -325,11 +328,9 @@ class GameTimerService : Service() {
                     }
 
                     _timerStateFlow.update { currentState ->
-                        val newStoppage = if (currentState.isStoppageTimerRunning) currentState.stoppageTimeMillis + COUNTDOWN_INTERVAL_MS else currentState.stoppageTimeMillis
                         currentState.copy(
                             actualTimeElapsedInPeriodMillis = newActualElapsed,
-                            displayedMillis = newDisplayedMillis,
-                            stoppageTimeMillis = newStoppage
+                            displayedMillis = newDisplayedMillis
                             // inAddedTime is managed by phase transitions or explicit setting
                         )
                     }
@@ -370,6 +371,7 @@ class GameTimerService : Service() {
                     onTimerFinishActions(finishedState.currentPhase)
                 }
             }.start()
+            _timerStateFlow.update { it.copy(isStoppageTimerRunning = false) }
             stopStoppageTimer()
         }
     }
@@ -539,9 +541,6 @@ class GameTimerService : Service() {
         _timerStateFlow.update { it.copy(isTimerRunning = false) }
         gameCountDownTimer?.cancel() 
         updateNotificationAndOngoingActivity(notificationText, isOngoing = false) 
-        if (currentInternalGame?.currentPhase?.isPlayablePhase() == true) {
-            startStoppageTimer()
-        }
         Log.d(TAG, "Timer paused internally. Notification: $notificationText")
         Log.i(TAG, "Timer paused. State after update: isRunning=${_timerStateFlow.value.isTimerRunning}, Elapsed=${_timerStateFlow.value.actualTimeElapsedInPeriodMillis}") // <<< ADD THIS LOG
     }

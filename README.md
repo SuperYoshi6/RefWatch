@@ -1,181 +1,97 @@
-# RefWatch: Wear OS Soccer Referee Assistant
+# RefWatch – Wear OS Schiedsrichter-App
 
-![RefWatch App Icon/Screenshot (Optional)](./ic_launcher-playstore.png) 
+![RefWatch Icon](./ic_launcher-playstore.png)
 
-Short description: RefWatch - manage soccer matches directly from your wrist.
+RefWatch ist eine Wear-OS- und Android-App zur Unterstützung von Fußball-Schiedsrichtern direkt am Handgelenk.
 
-Description: RefWatch Wear is an app designed to assist soccer referees in managing matches efficiently directly from their wrist. It provides essential tools for importing games from your calendar, timekeeping, score tracking, and disciplinary actions, ensuring referees can focus on the game.
-## Features
+## Deutsch
 
-*   **Pre-Game Setup:**
-    *   Designate **Home** or **Away** team for the initial kick-off.
-    *   Select distinct **jersey colors** for each team for easy visual identification.
-    *   Configure **half duration** (e.g., 45 minutes) and **halftime break duration** (e.g., 15 minutes).
-*   **Match Timekeeping:**
-    *   Accurate countdown timers for **first half, halftime, and second half**.
-    *   **Play/Pause** functionality for the match timer, accessible via a long-press menu.
-    *   (Optional: Add "Added Time" if implemented)
-    *   Vibration alerts for period endings.
-*   **Score & Event Logging:**
-    *   **Main Game Screen:** Displays current score, period, and match timer.
-    *   **Swipe-to-Action Screens:**
-        *   Swipe Left (from main game screen): Access actions for the **Home Team** (log goal, log card).
-        *   Swipe Right (from main game screen): Access actions for the **Away Team** (log goal, log card).
-    *   Goals are automatically timestamped with the game clock time.
-*   **Discipline Management:**
-    *   Log **Yellow** and **Red cards**.
-    *   Record the **player number** associated with each card.
-    *   Cards are automatically timestamped with the game clock time.
-*   **In-Game Menu (Long Press on Main Game Screen):**
-    *   Access **Play/Pause** for the match timer.
-    *   View **Game Log**: A chronological list of all significant events (goals, cards, period changes) with timestamps.
-    *   **Reset Current Period Timer**: Resets the timer for the current active period to its full duration (e.g., if stopped incorrectly).
-    *   **End Game & Reset / New Game**: Option to conclude the current match and prepare for a new one.
-*   **User-Friendly Interface:**
-    *   Designed for quick glances and easy interaction on small Wear OS screens.
-    *   Clear visual indicators and intuitive navigation.
+### Funktionen
+- Match-Setup mit Teamnamen, Teamkürzeln, Farben, Kapitänsnummern, Halbzeitdauer, Pausendauer und max. Wechseln.
+- Spieluhr mit Umschaltung zwischen Restzeit und gespielter Zeit.
+- Nachspielzeit-Timer (grün), der separat gestartet/gestoppt werden kann.
+- 5-Sekunden-Anstoß-Countdown mit Vibrationsfeedback.
+- Ereignis-Erfassung: Tore, Karten, Wechsel, Spielprotokoll.
+- Aktionsmenü per Long-Press im Hauptscreen (z. B. Protokoll, Halbzeit beenden, Timer-Aktionen).
 
-## Screenshots (Optional but Recommended)
+### Projektstruktur
+- `wear/` – Wear OS App (Hauptspielbetrieb auf der Uhr)
+- `mobile/` – Android Begleit-App (komfortables Setup/Verwaltung)
+- `common/` – Gemeinsame Modelle und Logik
+- `functions/` – Firebase Functions
+- `landingpage/` – einfache Download-Landingpage
 
-<!-- Add 2-4 key screenshots here. You can use HTML for layout if needed. -->
-<!-- Example:
-<p float="left">
-  <img src="./path/to/screenshot1.png" width="200" />
-  <img src="./path/to/screenshot2.png" width="200" />
-  <img src="./path/to/screenshot3.png" width="200" />
-</p>
--->
+### Build & Start
+1. Repository klonen:
+   ```bash
+   git clone https://github.com/SuperYoshi6/RefWatch.git
+   cd RefWatch
+   ```
+2. In Android Studio öffnen.
+3. Build ausführen:
+   ```bash
+   ./gradlew :wear:assembleDebug :mobile:assembleDebug
+   ```
+4. Uhr/Emulator auswählen und Wear-App starten.
 
-## Getting Started
+### Firebase (optional)
+```bash
+firebase login
+firebase init functions
+cd functions
+firebase deploy --only functions
+```
 
-### Prerequisites
-
-*   An Android device running Wear OS [Specify minimum Wear OS version, e.g., Wear OS 3.0 (API 30) or higher].
-*   Android Studio [Specify version, e.g., Giraffe | 2022.3.1 or newer] to build and install.
-
-### Building and Installation
-
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/your-repo-name.git
-    cd your-repo-name
-    ```
-2.  **Open in Android Studio:**
-    Open the cloned project directory in Android Studio.
-3.  **Build the project:**
-    Let Gradle sync and then build the project (`Build > Make Project`).
-4.  **Install on Emulator/Device:**
-    *   Connect your Wear OS device or start a Wear OS emulator.
-    *   Select the device/emulator from the deployment target dropdown in Android Studio.
-    *   Click the "Run 'wear-app'" button (green play icon).
-### Developer setup
-1. Configure firebase:
-   - Use Firebase CLI within Android Studio's terminal (`View > Tool Windows > Terminal`).
-   - 'firebase login'
-   - 'firebase init functions'
-   - Navigate to your `functions` directory: `cd functions`
-   - Deploy: `firebase deploy --only functions`
-   - Test locally: `firebase emulators:start --only functions`
-   - View logs: `firebase functions:log`
- 
-## Technologies Used
-
-*   **Kotlin:** Primary programming language.
-*   **Jetpack Compose for Wear OS:** Modern UI toolkit for building native Wear OS interfaces.
-*   **Wear OS Material Components:** UI elements designed for Wear OS.
-*   **StateFlow & ViewModel:** For reactive state management following MVVM architecture.
-*   **HorizontalPager:** For swipeable action screens.
-*   **SavedStateHandle:** For persisting game state across process death.
-*   **CountDownTimer:** For match timekeeping.
-*   **Vibrator API:** For haptic feedback.
-
-## Project Structure (Brief Overview)
-
-*   `data/`: Contains data models (`GameState`, `GameSettings`, `GameEvent`, Enums).
-*   `navigation/`: Defines navigation routes (`Screen.kt`) and potentially the `NavHost` setup.
-*   `presentation/`: UI-related code.
-    *   `components/`: Reusable UI components (e.g., `ColorIndicator`, `PagerIndicator`, `ConfirmationDialog`).
-    *   `dialogs/`: Dialog composables (e.g., `GameSettingsDialogWithPlayPause`).
-    *   `screens/`: Composable functions for each screen of the app (e.g., `PreGameSetupScreen`, `SimplifiedGameScreen`, `HomeTeamActionScreen`).
-    *   `theme/`: Theme definitions (`Color.kt`, `Theme.kt`, `Type.kt`).
-*   `GameViewModel.kt`: The central ViewModel managing game logic and state.
-*   `MainActivity.kt`: The main entry point activité for the Wear OS app, hosting the navigation.
-
-## How to Use
-
-1.  **Launch the App:** Open RefWatch on your Wear OS device.
-2.  **Pre-Game Setup:**
-    *   You'll be greeted by the "Match Setup" screen.
-    *   Tap "Set Kick-off" to choose which team starts.
-    *   Tap "Home Jersey" / "Away Jersey" to select team colors using the color picker.
-    *   Adjust "Half Duration" and "Halftime Duration" using the steppers.
-    *   Tap "Start Game."
-3.  **Main Game Screen:**
-    *   The timer will begin (or await your first Play action if not auto-started).
-    *   View current score, period, and time.
-    *   **Swipe left** to access Home team actions (Add Goal, Log Card).
-    *   **Swipe right** to access Away team actions.
-    *   **Long press** anywhere on the screen to open the in-game menu.
-4.  **In-Game Menu (Long Press):**
-    *   **Play/Pause Timer:** Control the match clock.
-    *   **View Game Log:** See a history of events.
-    *   **Reset Period Timer:** If you need to correct the current period's timer.
-    *   **End Game & Reset / New Game:** Finalize the current match or start fresh.
-5.  **Logging Events:**
-    *   On the team-specific action screens, tap "Add Goal" or "Log Card."
-    *   If logging a card, you will be prompted to enter the player number and select the card type.
-
-## Future Enhancements (Roadmap)
-
-*   [ ] Track added/stoppage time.
-*   [ ] Option to log player names for cards/goals (complex input, maybe via voice or companion).
-*   [ ] Substitution tracking.
-*   [ ] Customizable vibration patterns/sound alerts.
-*   [ ] Save and review past match summaries.
-*   [ ] Settings screen for more persistent app preferences (e.g., default half duration).
-*   [ ] Companion phone app for easier setup or data review.
-
-## Contributing
-
-Contributions are welcome! If you'd like to contribute, please follow these steps:
-
-1.  Fork the repository.
-2.  Create a new branch (`git checkout -b feature/your-feature-name`).
-3.  Make your changes.
-4.  Commit your changes (`git commit -m 'Add some feature'`).
-5.  Push to the branch (`git push origin feature/your-feature-name`).
-6.  Open a Pull Request.
-
-Please make sure to update tests as appropriate.
-
-## Known Issues / Limitations
-
-*   [List any known issues, e.g., "Player number input for cards is currently basic numeric only."]
-*   [e.g., "Added time is not yet implemented."]
-
-## License
-
-This project is licensed under the [Your Chosen License, e.g., MIT License or Apache 2.0] - see the [LICENSE.md](LICENSE.md) file for details.
+### Hinweise
+- Für beste Eingabe-Erfahrung Teamdaten in der Mobile-App pflegen und auf der Uhr nutzen.
+- Das Aktionsmenü ist für den Spielbetrieb auf Long-Press ausgelegt.
 
 ---
 
-**Fill in the Blanks:**
+# RefWatch – Wear OS Referee App
 
-*   **`![RefWatch App Icon/Screenshot]`**: Replace `./path/to/your/screenshot_or_icon.png` with an actual path if you add an image.
-*   **Prerequisites**: Adjust Wear OS version and Android Studio version if necessary.
-*   **`git clone https://github.com/your-username/your-repo-name.git`**: Update with your actual GitHub username and repository name.
-*   **Screenshots**: Add actual screenshots.
-*   **Project Structure**: Fine-tune if your structure is slightly different.
-*   **Future Enhancements**: Customize this list based on your actual plans.
-*   **Known Issues**: Be honest about current limitations.
-*   **License**: Choose a license (e.g., MIT, Apache 2.0) and add a `LICENSE.md` file to your repository. If you don't have one, you can easily find templates online.
+![RefWatch Icon](./ic_launcher-playstore.png)
 
-**Tips for a Good README:**
+RefWatch is a Wear OS + Android app that helps football referees manage matches directly from the wrist.
 
-*   **Concise and Clear:** Get straight to the point.
-*   **Visuals:** Screenshots or a GIF can greatly enhance understanding.
-*   **Easy to Follow Instructions:** Make it simple for someone else to build and run your project.
-*   **Well-Structured:** Use Markdown headings, lists, and code blocks effectively.
-*   **Up-to-Date:** Keep it current as your project evolves.
+## English
 
-This template should give you a very solid starting point! Remember to replace placeholders and tailor it to the specifics of your RefWatch app.
+### Features
+- Match setup with team names, abbreviations, colors, captain numbers, half-time duration, break duration, and max substitutions.
+- Main timer with toggle between remaining time and played time.
+- Separate stoppage-time timer (green), start/stop independently.
+- 5-second kickoff countdown with vibration feedback.
+- Event logging: goals, cards, substitutions, and full match log.
+- Long-press action menu on the main screen (e.g., log view, end half, timer actions).
+
+### Project Structure
+- `wear/` – Wear OS app (main in-match experience)
+- `mobile/` – Android companion app (easier setup/management)
+- `common/` – shared models and logic
+- `functions/` – Firebase Functions
+- `landingpage/` – simple download landing page
+
+### Build & Run
+1. Clone repository:
+   ```bash
+   git clone https://github.com/SuperYoshi6/RefWatch.git
+   cd RefWatch
+   ```
+2. Open in Android Studio.
+3. Build:
+   ```bash
+   ./gradlew :wear:assembleDebug :mobile:assembleDebug
+   ```
+4. Select watch/emulator and run the Wear app.
+
+### Firebase (optional)
+```bash
+firebase login
+firebase init functions
+cd functions
+firebase deploy --only functions
+```
+
+### Notes
+- For faster setup, edit team data in the mobile app and use it on the watch.
+- The action menu is intentionally optimized for long-press during live matches.

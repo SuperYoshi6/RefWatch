@@ -49,7 +49,6 @@ import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
 import androidx.compose.ui.res.stringResource
 import com.databelay.refwatch.R
-import com.databelay.refwatch.BuildConfig
 import androidx.wear.tooling.preview.devices.WearDevices
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
@@ -121,7 +120,6 @@ fun GameListScreen(
     }
     var selectedFilterState by remember { mutableStateOf(GameListFilterState.UPCOMING) }
     var appVersionName by remember { mutableStateOf("Loading...") }
-    val buildDateString = BuildConfig.BUILD_TIME
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -212,7 +210,7 @@ fun GameListScreen(
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Version: $appVersionName $buildDateString",
+                        text = "Version: $appVersionName",
                         color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,

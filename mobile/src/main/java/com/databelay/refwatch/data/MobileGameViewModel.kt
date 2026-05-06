@@ -50,7 +50,7 @@ class MobileGameViewModel @Inject constructor(
     // Hilt injects the following:
     application: Application,
     private val gameRepository: GameStorageMobile,
-    @UserIdFlow private val userIdFlow: Flow<String?>,
+    @param:UserIdFlow private val userIdFlow: Flow<String?>,
 //    val onboardingViewModel: OnboardingViewModel // <-- ADD THIS LINE
 ) : AndroidViewModel(application), IMobileGameViewModel {
 

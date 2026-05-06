@@ -54,8 +54,8 @@ import kotlinx.coroutines.launch
 sealed class ConfirmationDialogInfo(
     val title: String,
     val text: String? = null,
-    val confirmButtonText: String = "Confirm",
-    val dismissButtonText: String = "Dismiss",
+    val confirmButtonText: String = "Bestätigen",
+    val dismissButtonText: String = "Abbrechen",
     val onConfirmAction: () -> Unit, // Action for confirm button
     val onDismissDialogAction: () -> Unit // Action for dismiss button AND onDismissRequest
 ) {

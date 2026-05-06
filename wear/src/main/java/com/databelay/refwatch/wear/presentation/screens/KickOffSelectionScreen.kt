@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,10 +62,14 @@ fun KickOffSelectionScreen(
                     .clickable { onSetKickOffTeam(Team.HOME) }
                     .padding(8.dp)
             ) {
-                val homeName = if (game.homeTeamName == "Home") stringResource(R.string.home) else game.homeTeamName
+                val homeName = (game.homeTeamAbbr?.takeIf { it.isNotBlank() } ?: game.homeTeamName)
+                    .uppercase()
+                    .filter { it.isLetterOrDigit() }
+                    .take(3)
+                    .ifBlank { stringResource(R.string.home).take(3).uppercase() }
                 Text(
                     text = homeName,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(0.42f),
@@ -84,10 +89,14 @@ fun KickOffSelectionScreen(
                     .clickable { onSetKickOffTeam(Team.AWAY) }
                     .padding(8.dp)
             ) {
-                val awayName = if (game.awayTeamName == "Away") stringResource(R.string.away) else game.awayTeamName
+                val awayName = (game.awayTeamAbbr?.takeIf { it.isNotBlank() } ?: game.awayTeamName)
+                    .uppercase()
+                    .filter { it.isLetterOrDigit() }
+                    .take(3)
+                    .ifBlank { stringResource(R.string.away).take(3).uppercase() }
                 Text(
                     text = awayName,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(0.42f),
