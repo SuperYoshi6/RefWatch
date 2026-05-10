@@ -8,8 +8,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
 import java.util.UUID
-import kotlinx.serialization.modules.polymorphic
-import kotlinx.serialization.modules.subclass
 import kotlinx.serialization.modules.SerializersModule
 
 val gameEventModule = SerializersModule {
@@ -37,13 +35,13 @@ sealed class GameEvent : Parcelable {
     abstract val timestamp: Double // Wall-clock time of event logging
     abstract val gameTimeMillis: Double // Game clock time when event occurred
     abstract val displayString: String // User-friendly string for the log
-    // No 'eventType' or 'type' abstract val here
+    abstract val phase: GamePhase? // The phase during which the event occurred
 }
 
 @Serializable
-@SerialName("GOAL") // Value for the class discriminator "eventType"
+@SerialName("GOAL")
 @Parcelize
-data class GoalScoredEvent( // ENSURE NO 'protected', 'private', or 'internal' MODIFIER HERE
+data class GoalScoredEvent(
     override val id: String = UUID.randomUUID().toString(),
     val team: Team,
     val goalType: GoalType = GoalType.REGULAR,
@@ -51,9 +49,10 @@ data class GoalScoredEvent( // ENSURE NO 'protected', 'private', or 'internal' M
     override val timestamp: Double = System.currentTimeMillis().toDouble(),
     override val gameTimeMillis: Double,
     val homeScoreAtTime: Int,
-    val awayScoreAtTime: Int
+    val awayScoreAtTime: Int,
+    override val phase: GamePhase? = null
 ) : GameEvent() {
-    @get:Exclude // Exclude from Firebase automatic mapping
+    @get:Exclude
     override val displayString: String
     get() {
         val typeStr = when (goalType) {
@@ -69,33 +68,35 @@ data class GoalScoredEvent( // ENSURE NO 'protected', 'private', or 'internal' M
 }
 
 @Serializable
-@SerialName("PENALTY") // Value for the class discriminator "eventType"
+@SerialName("PENALTY")
 @Parcelize
-data class PenaltyEvent( // ENSURE NO 'protected', 'private', or 'internal' MODIFIER HERE
+data class PenaltyEvent(
     override val id: String = UUID.randomUUID().toString(),
     val team: Team,
     override val timestamp: Double = System.currentTimeMillis().toDouble(),
     override val gameTimeMillis: Double,
     val homeScoreAtTime: Int,
     val awayScoreAtTime: Int,
-    val scored: Boolean
+    val scored: Boolean,
+    override val phase: GamePhase? = null
 ) : GameEvent() {
-    @get:Exclude // Exclude from Firebase automatic mapping
+    @get:Exclude
     override val displayString: String
         get() = "Penalty: ${team.name} ${if (scored) "SCORED" else "MISSED/SAVED"}"
 }
 
 
 @Serializable
-@SerialName("CARD") // Value for the class discriminator "eventType"
+@SerialName("CARD")
 @Parcelize
-data class CardIssuedEvent( // ENSURE NO 'protected', 'private', or 'internal' MODIFIER HERE
+data class CardIssuedEvent(
     override val id: String = UUID.randomUUID().toString(),
     val team: Team,
     val playerNumber: Int,
     val cardType: CardType,
     override val timestamp: Double = System.currentTimeMillis().toDouble(),
-    override val gameTimeMillis: Double
+    override val gameTimeMillis: Double,
+    override val phase: GamePhase? = null
 ) : GameEvent() {
     @get:Exclude
     override val displayString: String
@@ -105,13 +106,14 @@ data class CardIssuedEvent( // ENSURE NO 'protected', 'private', or 'internal' M
 }
 
 @Serializable
-@SerialName("PHASE_CHANGE") // Value for the class discriminator "eventType"
+@SerialName("PHASE_CHANGE")
 @Parcelize
-data class PhaseChangedEvent( // ENSURE NO 'protected', 'private', or 'internal' MODIFIER HERE
+data class PhaseChangedEvent(
     override val id: String = UUID.randomUUID().toString(),
     val newPhase: GamePhase,
     override val timestamp: Double = System.currentTimeMillis().toDouble(),
-    override val gameTimeMillis: Double
+    override val gameTimeMillis: Double,
+    override val phase: GamePhase? = null
 ) : GameEvent() {
     @get:Exclude
     override val displayString: String
@@ -119,13 +121,14 @@ data class PhaseChangedEvent( // ENSURE NO 'protected', 'private', or 'internal'
 }
 
 @Serializable
-@SerialName("GENERIC_LOG") // Value for the class discriminator "eventType"
+@SerialName("GENERIC_LOG")
 @Parcelize
-data class GenericLogEvent( // ENSURE NO 'protected', 'private', or 'internal' MODIFIER HERE
+data class GenericLogEvent(
     override val id: String = UUID.randomUUID().toString(),
     val message: String,
     override val timestamp: Double = System.currentTimeMillis().toDouble(),
-    override val gameTimeMillis: Double = 0.0
+    override val gameTimeMillis: Double = 0.0,
+    override val phase: GamePhase? = null
 ) : GameEvent() {
     @get:Exclude
     override val displayString: String
@@ -141,7 +144,8 @@ data class SubstitutionEvent(
     val outgoingPlayerNumber: Int,
     val incomingPlayerNumber: Int,
     override val timestamp: Double = System.currentTimeMillis().toDouble(),
-    override val gameTimeMillis: Double
+    override val gameTimeMillis: Double,
+    override val phase: GamePhase? = null
 ) : GameEvent() {
     @get:Exclude
     override val displayString: String

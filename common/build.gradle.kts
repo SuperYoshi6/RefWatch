@@ -9,7 +9,6 @@ plugins {
 android {
     namespace = "com.databelay.common"
     compileSdk = 36
-    experimentalProperties["android.experimental.enableScreenshotTest"] = true
 
     defaultConfig {
         minSdk = 31

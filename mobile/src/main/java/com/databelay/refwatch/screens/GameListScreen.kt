@@ -79,6 +79,7 @@ fun GameListScreen(
     onEditGame: (com.databelay.refwatch.common.Game) -> kotlin.Unit,
     onViewLog: (com.databelay.refwatch.common.Game) -> kotlin.Unit, // <-- Ensure this is passed
     onDeleteGame: (com.databelay.refwatch.common.Game) -> kotlin.Unit,
+    onStartMatch: (com.databelay.refwatch.common.Game) -> kotlin.Unit, // New callback for starting match
     onSignOut: () -> kotlin.Unit, // This might be handled by the calling composable via AuthViewModel
     onImportGames: () -> kotlin.Unit, // Callback for importing
     onNavigateToSettings: () -> kotlin.Unit,
@@ -287,7 +288,8 @@ fun GameListScreen(
                             game = game,
                             onEditGame = { onEditGame(game) },
                             onViewLog = onViewLog, // <-- Pass it down to the item
-                            onDeleteGame = { onDeleteGame(game) }
+                            onDeleteGame = { onDeleteGame(game) },
+                            onStartMatch = { onStartMatch(game) }
                         )
                     }
                 }
@@ -302,7 +304,8 @@ fun GameListItem(
     game: Game,
     onEditGame: (Game) -> Unit,
     onViewLog: (Game) -> Unit,
-    onDeleteGame: (Game) -> Unit
+    onDeleteGame: (Game) -> Unit,
+    onStartMatch: (Game) -> Unit
 ) {
     val dateFormat =
         remember { SimpleDateFormat("EEE, MMM d, yyyy 'at' HH:mm", Locale.getDefault()) }
@@ -318,7 +321,7 @@ fun GameListItem(
                     onClick = {
                         showContextMenu = false // Dismiss context menu on click
                         if (game.status == GameStatus.SCHEDULED) {
-                            onEditGame(game)
+                            onStartMatch(game)
                         } else {
                             onViewLog(game)
                         }
@@ -472,6 +475,12 @@ fun GameListItem(
                     "Definieren der Kontextmenüaktionen für Spiel: ${game.id}, Status: ${game.status}"
                 )
                 listOfNotNull(
+                    if (game.status == GameStatus.SCHEDULED) {
+                        ContextMenuItemAction("Spiel starten") { gameParam ->
+                            Log.d("GameListItem", "Action 'Spiel starten' invoked for game: ${gameParam.id}")
+                            onStartMatch(gameParam)
+                        }
+                    } else null,
                     ContextMenuItemAction("Spiel bearbeiten") { gameParam ->
                         Log.d(
                             "GameListItem",
@@ -480,10 +489,12 @@ fun GameListItem(
                         onEditGame(gameParam)
                     },
                     // Conditionally add "View Log" if applicable
-                    ContextMenuItemAction("Spielprotokoll") { gameParam ->
-                        Log.d("GameListItem", "Action 'Spielprotokoll' invoked for game: ${gameParam.id}")
-                        onViewLog(gameParam)
-                    },
+                    if (game.status == GameStatus.COMPLETED) {
+                        ContextMenuItemAction("Spielprotokoll") { gameParam ->
+                            Log.d("GameListItem", "Action 'Spielprotokoll' invoked for game: ${gameParam.id}")
+                            onViewLog(gameParam)
+                        }
+                    } else null,
                     ContextMenuItemAction("Spiel löschen") { gameParam -> //
                         Log.d("GameListItem", "Action 'Spiel löschen' invoked")
                         onDeleteGame(gameParam)
@@ -547,6 +558,7 @@ fun GameListScreenPreview_Unauthenticated() {
             onEditGame = {},
             onViewLog = {},
             onDeleteGame = {},
+            onStartMatch = {},
             onSignOut = {},
             onImportGames = {},
             onNavigateToSettings = {},
@@ -578,6 +590,7 @@ fun GameListScreenPreview_Loading() {
             onEditGame = {},
             onViewLog = {},
             onDeleteGame = {},
+            onStartMatch = {},
             onSignOut = {},
             onImportGames = {},
             onNavigateToSettings = {},

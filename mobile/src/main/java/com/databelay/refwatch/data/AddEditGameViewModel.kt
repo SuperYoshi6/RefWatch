@@ -28,8 +28,8 @@ data class AddEditGameUiState(
     val gameId: String? = null, // To know if editing or adding
     val gameNumber: String = "XXXX",
     val fieldNumber: String = "",
-    val homeTeamName: String = "Home",
-    val awayTeamName: String = "Away",
+    val homeTeamName: String = "",
+    val awayTeamName: String = "",
     val homeTeamAbbr: String = "",
     val awayTeamAbbr: String = "",
     val homeCaptainNumber: String = "",
@@ -39,7 +39,8 @@ data class AddEditGameUiState(
     val competition: String = "",
     val gameDateTimeEpochMillis: Long? = null,
     val halfDurationMinutes: Int = 45,
-    val halftimeDurationMinutes: Int = 15,
+    val halftimeDurationMinutes: Int = 0,
+    val extraTimeHalfDurationMinutes: Int = 15,
     val maxSubstitutionsAllowed: Int = 5,
     val homeTeamColorArgb: Int = DefaultHomeJerseyColor.toArgb(),
     val awayTeamColorArgb: Int = DefaultAwayJerseyColor.toArgb(),
@@ -105,6 +106,7 @@ class AddEditGameViewModel @Inject constructor(
                             gameDateTimeEpochMillis = gameToEdit.gameDateTimeEpochMillis,
                             halfDurationMinutes = gameToEdit.halfDurationMinutes,
                             halftimeDurationMinutes = gameToEdit.halftimeDurationMinutes,
+                            extraTimeHalfDurationMinutes = gameToEdit.extraTimeHalfDurationMinutes,
                             maxSubstitutionsAllowed = gameToEdit.maxSubstitutionsAllowed,
                             homeTeamColorArgb = gameToEdit.homeTeamColorArgb,
                             awayTeamColorArgb = gameToEdit.awayTeamColorArgb,
@@ -147,12 +149,12 @@ class AddEditGameViewModel @Inject constructor(
     }
 
     fun onHomeTeamAbbrChange(abbr: String) {
-        val sanitized = abbr.uppercase().filter { it.isLetterOrDigit() }.take(4)
+        val sanitized = abbr.take(6) // Allow up to 6 chars, no forced uppercase or filtering
         _uiState.value = _uiState.value.copy(homeTeamAbbr = sanitized)
     }
 
     fun onAwayTeamAbbrChange(abbr: String) {
-        val sanitized = abbr.uppercase().filter { it.isLetterOrDigit() }.take(4)
+        val sanitized = abbr.take(6) // Allow up to 6 chars, no forced uppercase or filtering
         _uiState.value = _uiState.value.copy(awayTeamAbbr = sanitized)
     }
 
@@ -190,12 +192,17 @@ class AddEditGameViewModel @Inject constructor(
 
     fun onHalftimeDurationChange(minutes: String) {
         _uiState.value =
-            _uiState.value.copy(halftimeDurationMinutes = minutes.toIntOrNull() ?: 15)
+            _uiState.value.copy(halftimeDurationMinutes = minutes.toIntOrNull() ?: 0)
+    }
+
+    fun onExtraTimeHalfDurationChange(minutes: String) {
+        _uiState.value =
+            _uiState.value.copy(extraTimeHalfDurationMinutes = minutes.toIntOrNull() ?: 15)
     }
 
     fun onMaxSubstitutionsChange(max: String) {
         _uiState.value =
-            _uiState.value.copy(maxSubstitutionsAllowed = max.toIntOrNull()?.coerceIn(1, 20) ?: 5)
+            _uiState.value.copy(maxSubstitutionsAllowed = max.toIntOrNull()?.coerceIn(0, 20) ?: 5)
     }
 
     fun onHomeColorSelected(color: Color) {
@@ -238,10 +245,6 @@ class AddEditGameViewModel @Inject constructor(
                 return@launch
             }
 
-            if (currentState.homeTeamName.isBlank() || currentState.awayTeamName.isBlank()) {
-                _uiState.update { it.copy(errorMessage = "Team names cannot be empty.") }
-                return@launch
-            }
             _uiState.update { it.copy(errorMessage = null) }
 
             val gameToSave: Game
@@ -277,6 +280,7 @@ class AddEditGameViewModel @Inject constructor(
                     gameDateTimeEpochMillis = currentState.gameDateTimeEpochMillis,
                     halfDurationMinutes = currentState.halfDurationMinutes,
                     halftimeDurationMinutes = currentState.halftimeDurationMinutes,
+                    extraTimeHalfDurationMinutes = currentState.extraTimeHalfDurationMinutes,
                     maxSubstitutionsAllowed = currentState.maxSubstitutionsAllowed,
                     homeTeamColorArgb = currentState.homeTeamColorArgb,
                     awayTeamColorArgb = currentState.awayTeamColorArgb,
@@ -309,6 +313,7 @@ class AddEditGameViewModel @Inject constructor(
                     gameDateTimeEpochMillis = currentState.gameDateTimeEpochMillis,
                     halfDurationMinutes = currentState.halfDurationMinutes,
                     halftimeDurationMinutes = currentState.halftimeDurationMinutes,
+                    extraTimeHalfDurationMinutes = currentState.extraTimeHalfDurationMinutes,
                     maxSubstitutionsAllowed = currentState.maxSubstitutionsAllowed,
                     homeTeamColorArgb = currentState.homeTeamColorArgb,
                     awayTeamColorArgb = currentState.awayTeamColorArgb,

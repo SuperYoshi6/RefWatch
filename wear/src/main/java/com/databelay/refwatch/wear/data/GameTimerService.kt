@@ -1,4 +1,4 @@
-package com.databelay.refwatch.wear.data // Or your correct package
+package com.databelay.refwatch.wear.data
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -44,18 +44,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import com.databelay.refwatch.wear.MainActivity
 
-// Define your constants for notification
-private const val ONGOING_NOTIFICATION_ID_SERVICE = 2 // Different from OngoingActivity's ID
-private const val ONGOING_NOTIFICATION_CHANNEL_ID = "RefWatchGameTimerChannel" // Ensure this channel is created
+private const val ONGOING_NOTIFICATION_ID_SERVICE = 2
+private const val ONGOING_NOTIFICATION_CHANNEL_ID = "RefWatchGameTimerChannel"
 const val ONGOING_NOTIFICATION_CHANNEL_NAME = "RefWatch Timer"
 
-const val ONGOING_NOTIFICATION_ID_VM = 123 // ID for the notification that drives OngoingActivity
+const val ONGOING_NOTIFICATION_ID_VM = 123
 const val COUNTDOWN_INTERVAL_MS = 1000L
-const val MAX_ADDED_TIME_COUNTUP_DURATION = 1000L*60*60 // one hour in milliseconds
-// Data class for timer updates
+const val MAX_ADDED_TIME_COUNTUP_DURATION = 1000L*60*60
+
 data class TimerState(
     val actualTimeElapsedInPeriodMillis: Long = 0L,
-    val isTimerRunning: Boolean = false, // Service's knowledge: is the CountDownTimer ticking?
+    val isTimerRunning: Boolean = false,
     val currentPhase: GamePhase = GamePhase.NOT_STARTED,
     val regulationPeriodDurationMillis: Long = 0L,
     val displayedMillis: Long = 0L,
@@ -72,20 +71,17 @@ class GameTimerService : Service() {
     private lateinit var vibrator: Vibrator
 
     private var wakeLock: PowerManager.WakeLock? = null
-
     private var gameCountDownTimer: CountDownTimer? = null
     private var stoppageCountUpTimer: Job? = null
     private val serviceJob = SupervisorJob()
-    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob) // Use Dispatchers.Main for CountDownTimer
+    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
 
-    // --- StateFlow for communication with ViewModel ---
     private val _timerStateFlow = MutableStateFlow(TimerState())
     val timerStateFlow: StateFlow<TimerState> = _timerStateFlow.asStateFlow()
 
-    // To hold the full game state or relevant parts passed from ViewModel
     private var currentInternalGame: Game? = null
-    private var timeTickerStartedSystemTime = 0L // SystemClock.elapsedRealtime() when a ticker starts
-    private var initialMillisForCurrentTicker = 0L // The millisInFuture the current ticker was started with
+    private var hasWarnedForCurrentPeriod = false
+    private var timerStartTimeRealtime: Long = 0L
 
     inner class LocalBinder : Binder() {
         fun getService(): GameTimerService = this@GameTimerService
@@ -94,11 +90,11 @@ class GameTimerService : Service() {
     override fun onCreate() {
         super.onCreate()
         powerManager = getSystemService(POWER_SERVICE) as PowerManager
-        notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager // Initialize here
+        notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
         createNotificationChannel()
-        Log.d(TAG, "Service Created.")
     }
+
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             ONGOING_NOTIFICATION_CHANNEL_ID,
@@ -110,12 +106,9 @@ class GameTimerService : Service() {
             enableVibration(false)
         }
         notificationManager.createNotificationChannel(channel)
-        Log.d(TAG, "Notification channel created: $ONGOING_NOTIFICATION_CHANNEL_ID")
-    }
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_NOT_STICKY
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
     override fun onBind(intent: Intent?): IBinder = binder
 
     @SuppressLint("WakelockTimeout")
@@ -129,246 +122,105 @@ class GameTimerService : Service() {
     }
 
     private fun releaseWakeLock() {
-        wakeLock?.let {
-            if (it.isHeld) {
-                it.release()
-            }
-        }
+        wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
     }
 
     fun configureTimerForGame(game: Game, startImmediately: Boolean) {
         serviceScope.launch { 
-/*            Log.d(TAG, "Service configuring for game: ${game.id}, phase: ${game.currentPhase}, startImmediately: $startImmediately")
             currentInternalGame = game
-            val initialElapsed = game.actualTimeElapsedInPeriodMillis
-            val regulationDuration = game.regulationPeriodDurationMillis()
-            val isAdded = game.currentPhase.hasTimer() && initialElapsed >= regulationDuration
-            val displayedMillis = if (isAdded) {initialElapsed - regulationDuration} else {regulationDuration - initialElapsed}
-            val initialIsTimerRunning = startImmediately && (game.currentPhase.hasTimer())
-
-            _timerStateFlow.update {
-                it.copy(
-                    currentPhase = game.currentPhase,
-                    isTimerRunning = initialIsTimerRunning,
-                    displayedMillis = displayedMillis,
-                    actualTimeElapsedInPeriodMillis = initialElapsed,
-                    inAddedTime = isAdded,
-                    regulationPeriodDurationMillis = game.regulationPeriodDurationMillis(),
-                )
-            }*/
-            Log.d(TAG, "Service configuring for game: ${game.id}, phase: ${game.currentPhase}, startImmediately: $startImmediately, incomingElapsed: ${game.actualTimeElapsedInPeriodMillis}")
-            currentInternalGame = game // Store the game state from ViewModel
-
-            val initialElapsedForThisConfig: Long
-            val isAddedTimeForThisConfig: Boolean
-            val displayedMillisForThisConfig: Long
             val currentRegulationDuration = game.regulationPeriodDurationMillis()
+            val initialElapsed: Long
 
             if (startImmediately) {
-                // Logic for when timer should start or resume
-                initialElapsedForThisConfig = game.actualTimeElapsedInPeriodMillis // Use what VM says
-                isAddedTimeForThisConfig = game.currentPhase.hasTimer() && initialElapsedForThisConfig >= currentRegulationDuration
-                displayedMillisForThisConfig = if (isAddedTimeForThisConfig) {
-                    initialElapsedForThisConfig - currentRegulationDuration
-                } else {
-                    currentRegulationDuration - initialElapsedForThisConfig
-                }
-                // Ensure timer starts if startImmediately is true
+                initialElapsed = game.actualTimeElapsedInPeriodMillis
                 if (game.currentPhase.hasTimer()) {
-                    startGameTimer(game, initialElapsedForThisConfig, isAddedTimeForThisConfig)
+                    startGameTimer(game, initialElapsed, initialElapsed >= currentRegulationDuration)
                 }
             } else {
-                // Timer SHOULD NOT be running. Reset elapsed time for this new period.
-                // This is crucial for phases like SECOND_HALF starting.
-                Log.d(TAG, "configureTimerForGame: Timer not starting immediately for ${game.currentPhase}. Resetting elapsed time for service state.")
-                initialElapsedForThisConfig = 0L // <<<< RESETTING SERVICE'S VIEW
-                isAddedTimeForThisConfig = false
-                displayedMillisForThisConfig = currentRegulationDuration // Show full duration remaining
-
-                // Explicitly stop any existing countdown timer in the service
+                initialElapsed = 0L
                 gameCountDownTimer?.cancel()
-                // The isTimerRunning in the flow will be updated by the _timerStateFlow.update below
             }
+
+            if (initialElapsed == 0L) hasWarnedForCurrentPeriod = false
 
             _timerStateFlow.update {
                 it.copy(
                     currentPhase = game.currentPhase,
-                    isTimerRunning = startImmediately && game.currentPhase.hasTimer(), // Service's knowledge
-                    actualTimeElapsedInPeriodMillis = initialElapsedForThisConfig,
-                    inAddedTime = isAddedTimeForThisConfig,
+                    isTimerRunning = startImmediately && game.currentPhase.hasTimer(),
+                    actualTimeElapsedInPeriodMillis = initialElapsed,
+                    inAddedTime = initialElapsed >= currentRegulationDuration,
                     regulationPeriodDurationMillis = currentRegulationDuration,
-                    displayedMillis = displayedMillisForThisConfig,
+                    displayedMillis = if (initialElapsed >= currentRegulationDuration) initialElapsed - currentRegulationDuration else currentRegulationDuration - initialElapsed,
                     stoppageTimeMillis = game.stoppageTimeMillis,
                     isStoppageTimerRunning = false
                 )
             }
             stopStoppageTimer()
-            Log.d(TAG, "Service _timerStateFlow updated: running=${_timerStateFlow.value.isTimerRunning}, elapsed=${_timerStateFlow.value.actualTimeElapsedInPeriodMillis}")
 
-
-            // ------------ Ongoing Activity update logic ---------------
-            val ongoingActivityText: String
-            val makeOngoing: Boolean
-
-            if (game.currentPhase == GamePhase.PRE_GAME) {
-                ongoingActivityText = "Pre-Game: ${game.homeTeamName} vs ${game.awayTeamName}"
-                makeOngoing = true 
-                // Ensure service is foreground for PRE_GAME ongoing activity
+            val ongoingActivityText = if (game.currentPhase == GamePhase.PRE_GAME) {
                 if (canPostNotifications()) {
-                     startForeground(
-                         ONGOING_NOTIFICATION_ID_SERVICE,
-                         createServiceNotification("Pre-Game Setup"),
-                         FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-                         )
-                     Log.d(TAG, "Service brought to foreground for PRE_GAME.")
-                } else {
-                    Log.w(TAG, "Cannot start foreground for PRE_GAME, notifications disabled.")
+                    startForeground(ONGOING_NOTIFICATION_ID_SERVICE, createServiceNotification("Pre-Game Setup"), FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
                 }
+                "Pre-Game: ${game.homeTeamName} vs ${game.awayTeamName}"
             } else if (startImmediately && game.currentPhase.hasTimer()) {
-                ongoingActivityText = _timerStateFlow.value.displayedMillis.formatTime(_timerStateFlow.value.inAddedTime)
-                makeOngoing = true
+                _timerStateFlow.value.displayedMillis.formatTime()
             } else {
-                ongoingActivityText = "Ready: ${game.currentPhase.readable()}"
-                makeOngoing = _timerStateFlow.value.isTimerRunning // Only ongoing if timer was already running and we are reconfiguring
+                "Ready: ${game.currentPhase.readable()}"
             }
-            updateNotificationAndOngoingActivity(ongoingActivityText, isOngoing = makeOngoing)
-
-            if (startImmediately && game.currentPhase.hasTimer()) {
-                startGameTimer(game, _timerStateFlow.value.actualTimeElapsedInPeriodMillis, _timerStateFlow.value.inAddedTime)
-            } else if (_timerStateFlow.value.isTimerRunning && !(startImmediately && (game.currentPhase.hasTimer()))) {
-                // This case handles if the service was running a timer for a previous configuration,
-                // and the new configuration does not start immediately.
-                Log.w(TAG, "Configuring for new game/phase, but timer was running and new config not starting immediately. Pausing timer.")
-                pauseGameTimerInternally("Timer Stopped")
-            }
+            updateNotificationAndOngoingActivity(ongoingActivityText, isOngoing = _timerStateFlow.value.isTimerRunning || game.currentPhase == GamePhase.PRE_GAME)
         }
     }
 
+    private fun canPostNotifications(): Boolean = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
-    private fun canPostNotifications(): Boolean {
-        return ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-    }
-
-    fun startGameTimer(
-        game: Game,
-        elapsedMillisAtActivation: Long = 0L, // How much time had ALREADY elapsed in this period (or reg duration if starting added time)
-        isInAddedTimeInitially: Boolean = false
-
-    ) {
-        Log.d(TAG, "SERVICE startGameTimer: Phase: ${game.currentPhase}, " +
-                "elapsedMillisAtActivation: $elapsedMillisAtActivation, " + // <<< THIS IS THE CRITICAL VALUE
-                "isInAddedTimeInitially: $isInAddedTimeInitially")
+    fun startGameTimer(game: Game, elapsedMillisAtActivation: Long = 0L, isInAddedTimeInitially: Boolean = false, shouldVibrate: Boolean = true) {
         serviceScope.launch {
-            // ... (acquireWakeLock, startForeground) ...
-
-            val currentStateBeforeStart = _timerStateFlow.value
-            val currentRegulationDuration = game.regulationPeriodDurationMillis(currentStateBeforeStart.currentPhase) // Use phase from viewmodel if more current
-
-            _timerStateFlow.update {
-                it.copy(
-                    isTimerRunning = true,
-                    currentPhase = game.currentPhase, // Ensure phase is updated
-                    regulationPeriodDurationMillis = currentRegulationDuration,
-                    // actualTimeElapsedInPeriodMillis will be updated in onTick.
-                    // displayedMillis will be updated in onTick.
-                    inAddedTime = isInAddedTimeInitially
-                )
-            }
-
-            // Cancel any existing timer defensively
+            acquireWakeLock()
+            val currentRegulationDuration = game.regulationPeriodDurationMillis()
+            _timerStateFlow.update { it.copy(isTimerRunning = true, currentPhase = game.currentPhase, inAddedTime = isInAddedTimeInitially) }
             gameCountDownTimer?.cancel()
+            timerStartTimeRealtime = SystemClock.elapsedRealtime()
 
-            initialMillisForCurrentTicker = if (isInAddedTimeInitially) {
-                MAX_ADDED_TIME_COUNTUP_DURATION // Ticker counts "up" by counting down from a large number
-            } else {
-                // Time remaining in the regulation period
-                val remainingInRegulation = currentRegulationDuration - elapsedMillisAtActivation
-                if (remainingInRegulation <= 0) { // Should not happen if logic is correct, but handle
-                    Log.w(TAG, "Attempting to start timer with 0 or negative time remaining in regulation. Finishing period.")
-                    // For now, just don't start the timer and update state.
+            val initialMillis = if (isInAddedTimeInitially) MAX_ADDED_TIME_COUNTUP_DURATION else {
+                val remaining = currentRegulationDuration - elapsedMillisAtActivation
+                if (remaining <= 0) {
                     _timerStateFlow.update { it.copy(isTimerRunning = false, actualTimeElapsedInPeriodMillis = currentRegulationDuration, displayedMillis = 0) }
-                    onTimerFinishActions(game.currentPhase) // Call a method that handles transitions
+                    onTimerFinishActions(game.currentPhase)
                     return@launch
                 }
-                remainingInRegulation
+                remaining
             }
 
-            if (initialMillisForCurrentTicker <= 0 && !isInAddedTimeInitially) {
-                Log.e(TAG, "Error: initialMillisForCurrentTicker is zero or negative for regulation time. Cannot start timer.")
-                _timerStateFlow.update { it.copy(isTimerRunning = false) }
-                releaseWakeLock()
-                stopForegroundSafely("Timer Error")
-                return@launch
-            }
-
-
-            Log.d(TAG, "Starting CountdownTimer. For Phase: ${game.currentPhase}, Initial Ticker ms: $initialMillisForCurrentTicker, ElapsedAtActivation: $elapsedMillisAtActivation, IsInAddedTime: $isInAddedTimeInitially, RegDuration: $currentRegulationDuration")
-
-            timeTickerStartedSystemTime = SystemClock.elapsedRealtime()
-
-            hasWarnedForCurrentPeriod = false
-            vibratePeriodStart()
-            gameCountDownTimer = object : CountDownTimer(initialMillisForCurrentTicker, COUNTDOWN_INTERVAL_MS) {
+            if (shouldVibrate) vibratePeriodStart()
+            gameCountDownTimer = object : CountDownTimer(initialMillis, COUNTDOWN_INTERVAL_MS) {
                 override fun onTick(millisUntilFinished: Long) {
-                    val currentTimerState = _timerStateFlow.value // Get latest state
-                    val timeThisTickerHasRun = initialMillisForCurrentTicker - millisUntilFinished
+                    val currentTimerState = _timerStateFlow.value
+                    val timeThisTickerHasRun = SystemClock.elapsedRealtime() - timerStartTimeRealtime
+                    val newActualElapsed = elapsedMillisAtActivation + timeThisTickerHasRun
+                    val newDisplayedMillis = if (currentTimerState.inAddedTime) timeThisTickerHasRun else currentRegulationDuration - newActualElapsed
 
-                    val newActualElapsed: Long
-                    val newDisplayedMillis: Long
+                    _timerStateFlow.update { it.copy(actualTimeElapsedInPeriodMillis = newActualElapsed, displayedMillis = newDisplayedMillis) }
 
-                    if (currentTimerState.inAddedTime) {
-                        // elapsedMillisAtActivation should be currentRegulationDuration when added time starts
-                        newActualElapsed = elapsedMillisAtActivation + timeThisTickerHasRun
-                        newDisplayedMillis = timeThisTickerHasRun // Display shows time *into* added time
-                    } else {
-                        // In regulation time
-                        newActualElapsed = elapsedMillisAtActivation + timeThisTickerHasRun
-                        newDisplayedMillis = currentRegulationDuration - newActualElapsed // Display shows time remaining in regulation
-                    }
-
-                    _timerStateFlow.update { currentState ->
-                        currentState.copy(
-                            actualTimeElapsedInPeriodMillis = newActualElapsed,
-                            displayedMillis = newDisplayedMillis
-                            // inAddedTime is managed by phase transitions or explicit setting
-                        )
-                    }
-
-                    // Warning vibration: 1 minute before regulation ends
                     if (!currentTimerState.inAddedTime && !hasWarnedForCurrentPeriod) {
-                        val oneMinuteBeforeEnd = currentRegulationDuration - 60_000L
-                        if (newActualElapsed >= oneMinuteBeforeEnd) {
+                        if (newActualElapsed >= currentRegulationDuration - 60_000L) {
                             vibratePeriodWarning()
                             hasWarnedForCurrentPeriod = true
                         }
                     }
-
-                    updateNotificationAndOngoingActivity(_timerStateFlow.value.displayedMillis.formatTime(currentTimerState.inAddedTime), isOngoing = true)
+                    updateNotificationAndOngoingActivity(_timerStateFlow.value.displayedMillis.formatTime(), isOngoing = true)
                 }
 
                 override fun onFinish() {
-                    Log.d(TAG, "CountDownTimer finished. Phase was: ${_timerStateFlow.value.currentPhase}")
                     val finishedState = _timerStateFlow.value
-                    // Ensure actualTimeElapsed is set to the full duration if it was regulation time finishing
                     if (!finishedState.inAddedTime) {
-                        _timerStateFlow.update {
-                            it.copy(
-                                actualTimeElapsedInPeriodMillis = finishedState.regulationPeriodDurationMillis,
-                                displayedMillis = 0L, // Show 0 when regulation period finishes
-                                isTimerRunning = false // Will be set true if next phase has timer
-                            )
-                        }
+                        _timerStateFlow.update { it.copy(actualTimeElapsedInPeriodMillis = currentRegulationDuration, displayedMillis = 0L, isTimerRunning = false) }
+                        vibratePeriodEnd(finishedState.currentPhase)
+                        onTimerFinishActions(finishedState.currentPhase)
                     } else {
-                        // If added time ticker finishes (e.g. if MAX_ADDED_TIME_COUNTUP_DURATION wasn't Long.MAX_VALUE)
-                        // The actualTimeElapsed and displayedMillis would be based on the last tick.
-                        // This scenario (added time ticker actually finishing) needs careful thought
-                        // if you don't use Long.MAX_VALUE. For now, assume it runs "forever".
                         _timerStateFlow.update { it.copy(isTimerRunning = false) }
+                        vibratePeriodEnd(finishedState.currentPhase)
                     }
-                    vibratePeriodEnd()
-                    // Call a method to handle phase transitions, etc.
-                    onTimerFinishActions(finishedState.currentPhase)
                 }
             }.start()
             _timerStateFlow.update { it.copy(isStoppageTimerRunning = false) }
@@ -381,13 +233,7 @@ class GameTimerService : Service() {
         stoppageCountUpTimer = serviceScope.launch {
             while (isActive && _timerStateFlow.value.isStoppageTimerRunning) {
                 delay(COUNTDOWN_INTERVAL_MS)
-                _timerStateFlow.update { current ->
-                    if (current.isStoppageTimerRunning) {
-                        current.copy(stoppageTimeMillis = current.stoppageTimeMillis + COUNTDOWN_INTERVAL_MS)
-                    } else {
-                        current
-                    }
-                }
+                _timerStateFlow.update { it.copy(stoppageTimeMillis = it.stoppageTimeMillis + COUNTDOWN_INTERVAL_MS) }
             }
         }
     }
@@ -396,429 +242,163 @@ class GameTimerService : Service() {
         stoppageCountUpTimer?.cancel()
         stoppageCountUpTimer = null
     }
-/*
-    fun startGameTimer(game: Game, initialElapsedMillis: Long = 0L, isAddedTimeInitially: Boolean = false) {
-        serviceScope.launch {
-            if (_timerStateFlow.value.isTimerRunning && gameCountDownTimer != null) {
-                // If configuring for a new phase/game and timer is already running for the current game, let it continue or be reconfigured by new call.
-                // If it's for a genuinely different game instance, it should have been stopped before.
-                // This check is more about avoiding multiple concurrent countdown timers for the same logical session.
-                if (currentInternalGame?.id != game.id || currentInternalGame?.currentPhase != game.currentPhase) {
-                    gameCountDownTimer?.cancel()
-                }
-            } else if (_timerStateFlow.value.isTimerRunning) {
-                 gameCountDownTimer?.cancel() // Cancel if running without a timer object reference (should not happen)
-            }
-
-            currentInternalGame = game
-            acquireWakeLock()
-            val regulationDuration = game.regulationPeriodDurationMillis()
-
-            _timerStateFlow.update {
-                it.copy(
-                    currentPhase = game.currentPhase,
-                    isTimerRunning = true,
-                    actualTimeElapsedInPeriodMillis = initialElapsedMillis,
-                    inAddedTime = isAddedTimeInitially,
-                    displayedMillis = if (isAddedTimeInitially) initialElapsedMillis else regulationDuration - initialElapsedMillis,
-                    regulationPeriodDurationMillis = regulationDuration,
-                )
-            }
-            val notificationText = _timerStateFlow.value.displayedMillis.formatTime()
-            startForeground(ONGOING_NOTIFICATION_ID_SERVICE, createServiceNotification(notificationText))
-            updateNotificationAndOngoingActivity(notificationText, isOngoing = true)
-            Log.d(TAG, "GameTimerService brought to foreground explicitly for timer start.")
-
-            val timeToCountFrom = Long.MAX_VALUE
-            gameCountDownTimer = object : CountDownTimer(timeToCountFrom, COUNTDOWN_INTERVAL_MS) {
-                override fun onTick(millisUntilFinished_unused: Long) {
-                    if (!(_timerStateFlow.value.isTimerRunning)) {
-                        this.cancel()
-                        return
-                    }
-                    _timerStateFlow.update { currentState ->
-                        val newElapsed = currentState.actualTimeElapsedInPeriodMillis + COUNTDOWN_INTERVAL_MS
-                        val currentRegulationDuration = currentState.regulationPeriodDurationMillis
-                        val isInAddedTimeNow = newElapsed >= currentRegulationDuration
-                        val displayValue = if (isInAddedTimeNow) {
-                            newElapsed - currentRegulationDuration
-                        } else {
-                            currentRegulationDuration - newElapsed
-                        }
-                        currentState.copy(
-                            actualTimeElapsedInPeriodMillis = newElapsed,
-                            displayedMillis = displayValue,
-                            inAddedTime = isInAddedTimeNow
-                        )
-                    }
-                    updateNotificationAndOngoingActivity(_timerStateFlow.value.displayedMillis.formatTime(), isOngoing = true)
-                }
-
-                override fun onFinish() {
-                    Log.w(TAG, "CountDownTimer finished unexpectedly!")
-                    _timerStateFlow.update { it.copy(isTimerRunning = false) }
-                    releaseWakeLock()
-                    stopForegroundSafely("Timer Finished Unexpectedly")
-                }
-            }.start()
-        }
-    }
-*/
-
-
 
     private fun onTimerFinishActions(finishedPhase: GamePhase) {
         serviceScope.launch {
-            Log.d(TAG, "onTimerFinishActions for phase: ${finishedPhase.readable()}")
-
-            val gameBeforeTransition = currentInternalGame // Get the game state before any changes
-            if (gameBeforeTransition == null) {
-                Log.e(TAG, "onTimerFinishActions: currentInternalGame is null. Cannot proceed.")
-                _timerStateFlow.update { it.copy(isTimerRunning = false) } // Ensure timer is marked as stopped
-                updateNotificationAndOngoingActivity("Error", isOngoing = false)
-                releaseWakeLock()
-                stopForegroundSafely("Error: No game state")
-                return@launch
-            }
-
-            val regulationDurationOfFinishedPhase = gameBeforeTransition.regulationPeriodDurationMillis(finishedPhase)
-
-            // Determine if we should transition to added time for this phase
-            val shouldTransitionToAddedTime = finishedPhase.hasTimer()
-            if (shouldTransitionToAddedTime) {
-                Log.i(TAG, "Regulation time for ${finishedPhase.readable()} ended. Transitioning to ADDED TIME.")
-                // No explicit phase change needed in 'Game' object for 'inAddedTime' state.
-                // The 'inAddedTime' flag in TimerState and Game object will handle this.
-                // currentInternalGame is already up-to-date.
-
-                // Ensure the state reflects that regulation is fully elapsed.
-                _timerStateFlow.update {
-                    it.copy(
-                        isTimerRunning = true, // Will be set by startGameTimer
-                        // currentPhase remains the same (e.g. FIRST_HALF), but inAddedTime becomes true
-                        actualTimeElapsedInPeriodMillis = regulationDurationOfFinishedPhase,
-                        inAddedTime = true,
-                        // displayedMillis will be 0 for start of added time, handled by startGameTimer's onTick
-                        regulationPeriodDurationMillis = regulationDurationOfFinishedPhase // Keep this consistent
-                    )
-                }
-                // Now start the timer for added time.
-                // For added time, elapsedMillisAtActivation should be the full duration of the regulation period that just ended.
-                startGameTimer(
-                    gameBeforeTransition,
-                    regulationDurationOfFinishedPhase,
-                    true // isInAddedTimeInitially = true
-                )
+            val game = currentInternalGame ?: return@launch
+            if (finishedPhase.hasTimer() && !(_timerStateFlow.value.inAddedTime)) {
+                val regDur = game.regulationPeriodDurationMillis(finishedPhase)
+                _timerStateFlow.update { it.copy(isTimerRunning = true, actualTimeElapsedInPeriodMillis = regDur, inAddedTime = true) }
+                startGameTimer(game, regDur, true)
             } else {
-                // This phase does not transition to added time (e.g., a half-time countdown finished, or added time itself finished)
-                // Or it's a phase that doesn't have a timer that leads to added time.
-                Log.i(TAG, "${finishedPhase.readable()} timer finished. No transition to added time for this phase. Determining next logical phase.")
-
-                // For now, just stop the timer and update UI as "finished" or "paused" for the current phase.
-                // The _timerStateFlow was already updated in onFinish to set isTimerRunning = false.
-                val finalState = _timerStateFlow.value
-                updateNotificationAndOngoingActivity(
-                    finalState.displayedMillis.formatTime(finalState.inAddedTime),
-                    // isOngoing should be true if the game session is still active (e.g. waiting for user to start next half)
-                    // or if it's a break phase like HALF_TIME that has its own ongoing presence.
-                    isOngoing = gameBeforeTransition.status == GameStatus.IN_PROGRESS // A simple check
-                )
-
-                // If no timer auto-starts for a next phase, and current phase doesn't keep service alive on its own when timer is off
-                if (!finalState.isTimerRunning && gameBeforeTransition.status != GameStatus.IN_PROGRESS) {
-                    Log.d(TAG, "onTimerFinishActions: Releasing wakelock and stopping foreground as phase ${finalState.currentPhase} is not keeping service alive without a timer.")
+                val state = _timerStateFlow.value
+                updateNotificationAndOngoingActivity(state.displayedMillis.formatTime(), isOngoing = game.status == GameStatus.IN_PROGRESS)
+                if (!state.isTimerRunning && game.status != GameStatus.IN_PROGRESS) {
                     releaseWakeLock()
-                    stopForegroundSafely("Timer Finished for ${finalState.currentPhase.readable()}")
-                } else {
-                    Log.d(TAG, "onTimerFinishActions: Timer finished for ${finalState.currentPhase}. State: isRunning=${finalState.isTimerRunning}, isOngoing set based on game status.")
+                    stopForegroundSafely("Timer Finished")
                 }
             }
         }
     }
 
     private fun pauseGameTimerInternally(notificationText: String) {
-        Log.i(TAG, "Pausing timer. Current elapsed before pause: ${_timerStateFlow.value.actualTimeElapsedInPeriodMillis}") // <<< ADD THIS LOG
         _timerStateFlow.update { it.copy(isTimerRunning = false) }
         gameCountDownTimer?.cancel() 
         updateNotificationAndOngoingActivity(notificationText, isOngoing = false) 
-        Log.d(TAG, "Timer paused internally. Notification: $notificationText")
-        Log.i(TAG, "Timer paused. State after update: isRunning=${_timerStateFlow.value.isTimerRunning}, Elapsed=${_timerStateFlow.value.actualTimeElapsedInPeriodMillis}") // <<< ADD THIS LOG
     }
 
     fun toggleStoppageTimer() {
-        _timerStateFlow.update { it.copy(isStoppageTimerRunning = !it.isStoppageTimerRunning) }
-        if (_timerStateFlow.value.isStoppageTimerRunning) {
+        val newState = !_timerStateFlow.value.isStoppageTimerRunning
+        _timerStateFlow.update { it.copy(isStoppageTimerRunning = newState) }
+        
+        if (newState) {
+            // Starting stoppage tracking: pause main timer if it's running
+            if (_timerStateFlow.value.isTimerRunning) {
+                pauseGameTimerInternally("Tracking Stoppage") 
+            }
             startStoppageTimer()
         } else {
+            // Stopping stoppage tracking: resume main timer if we have a game
             stopStoppageTimer()
+            currentInternalGame?.let { game ->
+                if (game.currentPhase.hasTimer()) {
+                     // Update the game object with current elapsed time from state
+                     val gameToResume = game.copy(
+                         actualTimeElapsedInPeriodMillis = _timerStateFlow.value.actualTimeElapsedInPeriodMillis
+                     )
+                     resumeGameTimer(gameToResume, shouldVibrate = false)
+                }
+            }
         }
     }
 
     fun pauseGameTimer(updateNotificationText: String? = null) {
         serviceScope.launch {
-            if (!_timerStateFlow.value.isTimerRunning) {
-                Log.d(TAG, "pauseGameTimer called, but timer was not running.")
-                return@launch
-            }
-            val textForNotification = updateNotificationText ?: "Paused: ${_timerStateFlow.value.displayedMillis.formatTime(_timerStateFlow.value.inAddedTime)}"
-            pauseGameTimerInternally(textForNotification)
+            if (!_timerStateFlow.value.isTimerRunning) return@launch
+            pauseGameTimerInternally(updateNotificationText ?: "Paused")
         }
     }
 
-    private fun vibrate(effect: VibrationEffect) {
-        if (vibrator.hasVibrator()) {
-            vibrator.vibrate(effect)
+    private fun vibrate(effect: VibrationEffect) { if (vibrator.hasVibrator()) vibrator.vibrate(effect) }
+    private fun vibratePeriodStart() = vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
+    
+    private fun vibratePeriodEnd(phase: GamePhase) {
+        if (phase == GamePhase.SECOND_HALF || phase == GamePhase.EXTRA_TIME_SECOND_HALF) {
+            // Spielende: 3 Mal stark wie eine Pfeife
+            vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 300, 500, 300, 500), -1))
+        } else {
+            // Halbzeit (Ende 1. Halbzeit): zweimal stark
+            vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 300, 500), -1))
         }
-    }
-
-    private fun vibratePeriodStart() {
-        vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
-    }
-
-    private fun vibratePeriodEnd() {
-        vibrate(VibrationEffect.createWaveform(longArrayOf(0, 600, 200, 600), -1))
     }
 
     private fun vibratePeriodWarning() {
-        vibrate(VibrationEffect.createWaveform(longArrayOf(0, 150, 100, 150), -1))
+        // 1 Minute vor Ablauf: leichte Vibration
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            vibrate(VibrationEffect.createOneShot(200, 80)) 
+        } else {
+            vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+        }
     }
 
-    private var hasWarnedForCurrentPeriod = false
-
-    fun resumeGameTimer(game: Game) {
-        Log.d(TAG, "resumeGameTimer called.")
+    fun resumeGameTimer(game: Game, shouldVibrate: Boolean = true) {
         serviceScope.launch {
-            Log.i(TAG, "SERVICE resumeGameTimer: Received Game from VM. Phase: ${game.currentPhase}, " +
-                    "VM's Elapsed: ${game.actualTimeElapsedInPeriodMillis}, VM's InAddedTime: ${game.inAddedTime}")
-
-            val currentState = _timerStateFlow.value
-            if (currentState.isTimerRunning) {
-                Log.w(TAG, "resumeGameTimer called, but timer is already running.")
-                return@launch
-            }
-            if (!game.currentPhase.hasTimer()) {
-                Log.w(TAG, "Attempted to resume timer in non-timed phase: ${game.currentPhase}. Not resuming.")
-                _timerStateFlow.update { it.copy(isTimerRunning = false, currentPhase = game.currentPhase,
-                    actualTimeElapsedInPeriodMillis = game.actualTimeElapsedInPeriodMillis) } // Keep elapsed consistent with VM
-                if (currentState.currentPhase == GamePhase.PRE_GAME) {
-                     updateNotificationAndOngoingActivity("${game.currentPhase.readable()}: Ready", isOngoing = true)
-                } else {
-                     updateNotificationAndOngoingActivity("${game.currentPhase.readable()}: Paused", isOngoing = false)
-                }
-                return@launch
-            }
-            // --- Critical Decision Point ---
-            // The ViewModel is explicitly asking to resume. It provides the 'gameFromViewModel'
-            // which includes the elapsed time it believes is correct for resuming.
-            // We should trust the elapsed time from gameFromViewModel for the resume operation.
-
-            currentInternalGame = game // Update the service's idea of the game
-
-            // Before calling startGameTimer, ensure the service's _timerStateFlow
-            // reflects the state we are about to resume from, especially if startGameTimer
-            // or its onTick reads from _timerStateFlow.value for things like regulationDuration.
-            // This is a "pre-synchronization" step.
-            val regulationDuration = game.regulationPeriodDurationMillis(game.currentPhase)
-            val isInAddedTime = game.actualTimeElapsedInPeriodMillis >= regulationDuration && game.currentPhase.hasTimer() // Re-evaluate based on VM data
-
-            _timerStateFlow.update {
-                it.copy(
-                    currentPhase = game.currentPhase,
-                    isTimerRunning = false, // Will be set to true by startGameTimer
-                    actualTimeElapsedInPeriodMillis = game.actualTimeElapsedInPeriodMillis,
-                    inAddedTime = isInAddedTime,
-                    regulationPeriodDurationMillis = regulationDuration,
-                    // displayedMillis will be recalculated by startGameTimer or its first tick
-                    displayedMillis = if (isInAddedTime) game.actualTimeElapsedInPeriodMillis - regulationDuration else regulationDuration - game.actualTimeElapsedInPeriodMillis
-                )
-            }
-            Log.i(TAG, "SERVICE resumeGameTimer: Pre-synchronized _timerStateFlow with VM data. Effective elapsed for timer: ${game.actualTimeElapsedInPeriodMillis}")
-
-            startGameTimer(
-                game, // Pass the authoritative game object from VM
-                game.actualTimeElapsedInPeriodMillis, // <<< USE THE CORRECT VALUE FROM THE VM
-                isInAddedTime // Use the re-evaluated inAddedTime based on VM data
-            )
-            Log.d(TAG, "Timer instructed to resume for ${game.currentPhase} from VM's elapsed time.")
-
+            if (_timerStateFlow.value.isTimerRunning || !game.currentPhase.hasTimer()) return@launch
+            currentInternalGame = game
+            val regDur = game.regulationPeriodDurationMillis(game.currentPhase)
+            val isInAdded = game.actualTimeElapsedInPeriodMillis >= regDur
+            _timerStateFlow.update { it.copy(currentPhase = game.currentPhase, actualTimeElapsedInPeriodMillis = game.actualTimeElapsedInPeriodMillis, inAddedTime = isInAdded) }
+            startGameTimer(game, game.actualTimeElapsedInPeriodMillis, isInAdded, shouldVibrate = shouldVibrate)
         }
     }
 
     fun stopGameTimerAndSession() {
         serviceScope.launch {
-            Log.i(TAG, "Stopping game timer and session.")
             _timerStateFlow.update { it.copy(isTimerRunning = false, currentPhase = GamePhase.GAME_ENDED) }
             gameCountDownTimer?.cancel()
-            gameCountDownTimer = null
             releaseWakeLock()
             stopForegroundSafely("Game Ended") 
-            Log.d(TAG, "Ongoing Activity should be cancelled by stopForegroundSafely.")
         }
     }
 
     fun commandStopGameSessionAndCleanup(onCleanupComplete: () -> Unit) {
         serviceScope.launch {
-            Log.i(TAG, "COMMAND: Stop Game Session & Cleanup. Releasing WakeLock.")
             gameCountDownTimer?.cancel()
-            gameCountDownTimer = null
-
-            _timerStateFlow.update {
-                it.copy(
-                    isTimerRunning = false,
-                    displayedMillis = 0L, 
-                    actualTimeElapsedInPeriodMillis = 0L,
-                    currentPhase = GamePhase.GAME_ENDED 
-                )
-            }
+            _timerStateFlow.update { it.copy(isTimerRunning = false, currentPhase = GamePhase.GAME_ENDED) }
             releaseWakeLock() 
-            updateNotificationAndOngoingActivity("Game Session Ended", isOngoing = false) // Explicitly set isOngoing to false
             stopForegroundSafely()
-            currentInternalGame = null // Clear the game state
             onCleanupComplete()
         }
     }
 
-    private fun stopForegroundSafely(notificationTextIfLingering: String? = null) {
-        Log.d(TAG, "stopForegroundSafely called.")
+    private fun stopForegroundSafely(text: String? = null) {
         stopForeground(STOP_FOREGROUND_REMOVE)
-        if (notificationTextIfLingering != null && canPostNotifications()) {
-            val finalNotification = NotificationCompat.Builder(this, ONGOING_NOTIFICATION_CHANNEL_ID)
-                .setContentTitle("RefWatch")
-                .setContentText(notificationTextIfLingering)
-                .setSmallIcon(R.drawable.ic_stat_refwatch)
-                .setAutoCancel(true) 
-                .build()
-            notificationManager.notify(ONGOING_NOTIFICATION_ID_SERVICE + 100, finalNotification) 
+        if (text != null && canPostNotifications()) {
+            val n = NotificationCompat.Builder(this, ONGOING_NOTIFICATION_CHANNEL_ID).setContentTitle("RefWatch").setContentText(text).setSmallIcon(R.drawable.ic_stat_refwatch).setAutoCancel(true).build()
+            notificationManager.notify(ONGOING_NOTIFICATION_ID_SERVICE + 100, n) 
         }
-        if (canPostNotifications()) {
-            notificationManager.cancel(ONGOING_NOTIFICATION_ID_VM)
-            Log.d(TAG, "In stopForegroundSafely, cancelled notification (ID: $ONGOING_NOTIFICATION_ID_VM) for OngoingActivity.")
-        }
-        Log.i(TAG, "Service stopped foreground state.")
+        notificationManager.cancel(ONGOING_NOTIFICATION_ID_VM)
     }
 
-      private fun createServiceNotification(contentText: String): Notification {
-        val activityIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, activityIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return NotificationCompat.Builder(this, ONGOING_NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_refwatch) 
-            .setContentTitle("RefWatch") // Simplified title for service notification
-            .setContentText(contentText)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE) 
-            .setOngoing(true) 
-            .setOnlyAlertOnce(true)
-            .setContentIntent(pendingIntent) // Main pending intent for the service notification
-            .build()
+    private fun createServiceNotification(text: String): Notification {
+        val intent = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        return NotificationCompat.Builder(this, ONGOING_NOTIFICATION_CHANNEL_ID).setSmallIcon(R.drawable.ic_stat_refwatch).setContentTitle("RefWatch").setContentText(text).setOngoing(true).setContentIntent(intent).build()
     }
 
-    // Updated to handle general status text and OngoingActivity more flexibly
-    private fun updateNotificationAndOngoingActivity(statusText: String, isOngoing: Boolean) {
-        if (!canPostNotifications()) {
-            Log.w(TAG, "Cannot post notifications, permission denied or not available.")
-            return
-        }
-
-        // Update the service's own foreground notification (if it's running in foreground)
-        // This notification (ID_SERVICE) is primarily for keeping the service alive.
-        // Its content can be simpler than the OngoingActivity's notification.
-        val serviceNotificationText = if (_timerStateFlow.value.isTimerRunning) {
-            _timerStateFlow.value.displayedMillis.formatTime(_timerStateFlow.value.inAddedTime)
-        } else {
-            currentInternalGame?.currentPhase?.readable() ?: statusText
-        }
-        // Only call startForeground if we intend for the service to be in foreground, 
-        // e.g. timer running or in PRE_GAME state.
-        // The call to startForeground is now in configureTimerForGame (for PRE_GAME) 
-        // and startGameTimer (for active timer).
-        notificationManager.notify(ONGOING_NOTIFICATION_ID_SERVICE, createServiceNotification(serviceNotificationText))
-
-
-        // Logic for the Notification that is also an Ongoing Activity (ID_VM)
+    private fun updateNotificationAndOngoingActivity(text: String, isOngoing: Boolean) {
+        if (!canPostNotifications()) return
+        notificationManager.notify(ONGOING_NOTIFICATION_ID_SERVICE, createServiceNotification(text))
         if (isOngoing && currentInternalGame != null) {
-            val ongoingActivityStatus = Status.Builder()
-                .addTemplate(statusText) // Use the provided statusText directly for the OA template
-                .build()
-
-            val oaNotificationBuilder = NotificationCompat.Builder(this, ONGOING_NOTIFICATION_CHANNEL_ID) // Use same channel
-                .setSmallIcon(R.drawable.ic_stat_refwatch) // Consider a distinct icon for OA vs service
-                .setContentTitle(currentInternalGame?.homeTeamName + " vs " + currentInternalGame?.awayTeamName) // Game Title
-                .setContentText(statusText) // Main status text (e.g., "Pre-Game", "05:34 - First Half")
-                .setCategory(NotificationCompat.CATEGORY_EVENT) 
+            val status = Status.Builder().addTemplate(text).build()
+            val intent = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val builder = NotificationCompat.Builder(this, ONGOING_NOTIFICATION_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_refwatch)
+                .setContentTitle("${currentInternalGame?.homeTeamName} vs ${currentInternalGame?.awayTeamName}")
+                .setContentText(text)
                 .setOngoing(true)
-                .setOnlyAlertOnce(true)
+                .setContentIntent(intent)
 
-            val ongoingActivity = OngoingActivity.Builder(applicationContext, ONGOING_NOTIFICATION_ID_VM, oaNotificationBuilder)
-                .setStaticIcon(R.drawable.ic_stat_refwatch)
-                .setTouchIntent(
-                    PendingIntent.getActivity(
-                        this, 0, Intent(this, MainActivity::class.java),
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                )
-                .setStatus(ongoingActivityStatus)
+            OngoingActivity.Builder(applicationContext, ONGOING_NOTIFICATION_ID_VM, builder)
+                .setStatus(status)
+                .setTouchIntent(intent)
                 .build()
-            ongoingActivity.apply(applicationContext) 
-
-            notificationManager.notify(ONGOING_NOTIFICATION_ID_VM, oaNotificationBuilder.build())
-//            Log.d(TAG, "Ongoing Activity notification posted/updated: ID $ONGOING_NOTIFICATION_ID_VM, Text: $statusText")
-
-        } else {
-            // Keeps game in FG even if timer isn't running
-//            notificationManager.cancel(ONGOING_NOTIFICATION_ID_VM)
-            Log.d(TAG, "Ongoing Activity notification cancelled (ID: $ONGOING_NOTIFICATION_ID_VM) as isOngoing=false or no current game.")
+                .apply(applicationContext)
+            notificationManager.notify(ONGOING_NOTIFICATION_ID_VM, builder.build())
         }
     }
 
-    fun commandStartGameSessionAndTimer(game: Game, initialElapsedMillis: Long = 0L) {
+    fun commandStartGameSessionAndTimer(game: Game, elapsed: Long = 0L) {
         serviceScope.launch {
             currentInternalGame = game
-            Log.i(TAG, "COMMAND: Start Game Session & Timer for ${game.currentPhase}. Acquiring WakeLock.")
             acquireWakeLock() 
-
-            _timerStateFlow.update {
-                it.copy(
-                    currentPhase = game.currentPhase,
-                    isTimerRunning = false, // Will be set true by startGameTimer
-                    actualTimeElapsedInPeriodMillis = initialElapsedMillis,
-                    inAddedTime = false,
-                    displayedMillis = game.regulationPeriodDurationMillis() - initialElapsedMillis,
-                    regulationPeriodDurationMillis = game.regulationPeriodDurationMillis()
-                )
-            }
-             // startGameTimer will call startForeground and updateNotificationAndOngoingActivity
-            if (game.currentPhase.hasTimer()) {
-                 startGameTimer(game, initialElapsedMillis, false)
-            } else {
-                Log.w(TAG, "Commanded to start timer for non-timed phase: ${game.currentPhase}")
-                // Still ensure ongoing activity reflects current state if it's PRE_GAME or similar
-                 updateNotificationAndOngoingActivity("${game.currentPhase.readable()}: Ready", isOngoing = game.currentPhase == GamePhase.PRE_GAME)
-                 if(game.currentPhase == GamePhase.PRE_GAME && !isForegroundServiceRunning()) {
-                     startForeground(ONGOING_NOTIFICATION_ID_SERVICE, createServiceNotification("${game.currentPhase.readable()}"))
-                 }
-            }
+            if (game.currentPhase.hasTimer()) startGameTimer(game, elapsed, false)
         }
-    }
-    private fun isForegroundServiceRunning(): Boolean {
-        // A simple check based on wakeLock or a dedicated flag could be used.
-        // For a more robust check, you might need to inspect ActivityManager, but that's heavier.
-        return wakeLock?.isHeld == true // Assuming wakelock is held when foreground service is active with a timer
     }
 
     override fun onDestroy() {
-        Log.d(TAG, "Service Destroyed.")
         releaseWakeLock() 
         gameCountDownTimer?.cancel()
         serviceJob.cancel() 
-        if (canPostNotifications()) {
-            notificationManager.cancel(ONGOING_NOTIFICATION_ID_VM)
-            Log.d(TAG, "In onDestroy, cancelled notification (ID: $ONGOING_NOTIFICATION_ID_VM) for OngoingActivity.")
-        }
         super.onDestroy()
     }
 }

@@ -24,6 +24,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SportsFootball
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,7 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.databelay.refwatch.R
+import com.databelay.refwatch.common.luminance
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
+import com.databelay.refwatch.wear.presentation.utils.localizedName
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
@@ -61,6 +67,7 @@ import androidx.wear.compose.material3.ScrollIndicator
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.databelay.refwatch.common.Game
+import com.databelay.refwatch.common.Team
 
 @Composable
 fun PreGameSetupScreen(
@@ -75,6 +82,7 @@ fun PreGameSetupScreen(
     onAwayColorPickerClick: () -> Unit,
     onSetHalfDuration: (Int) -> Unit,
     onSetHalftimeDuration: (Int) -> Unit,
+    onSetExtraTimeDuration: (Int) -> Unit,
     onSetMaxSubstitutions: (Int) -> Unit,
     onCreateMatchClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -90,7 +98,9 @@ fun PreGameSetupScreen(
     val awayTeamColor = game?.awayTeamColor ?: Color.LightGray
     val halfDurationMinutes = game?.halfDurationMinutes ?: 45
     val halftimeDurationMinutes = game?.halftimeDurationMinutes ?: 15
+    val extraTimeHalfDurationMinutes = game?.extraTimeHalfDurationMinutes ?: 15
     val maxSubstitutionsAllowed = game?.maxSubstitutionsAllowed ?: 5
+    val kickOffTeam = game?.kickOffTeam ?: Team.HOME
 
     ScreenScaffold(
         scrollIndicator = {
@@ -109,24 +119,45 @@ fun PreGameSetupScreen(
             ) {
             item {
                 ListHeader(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 ) {
-                    Text(
-                        stringResource(R.string.match_setup),
-                        style = MaterialTheme.typography.titleSmall,
-                        textAlign = TextAlign.Center,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.SportsFootball,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            stringResource(R.string.match_setup),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                 }
             }
 
             // Team Names Section
             item {
-                Text(
-                    stringResource(R.string.home_away_teams),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Groups, // I'll need to check if Groups is available, otherwise use SportsFootball
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(R.string.home_away_teams),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
             item {
                 Row(
@@ -294,6 +325,28 @@ fun PreGameSetupScreen(
                 }
             }
 
+            // Section: Match Rules
+            item {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Spieleinstellungen",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+
             // Half Duration
             item {
                 DurationSettingStepper(
@@ -316,13 +369,24 @@ fun PreGameSetupScreen(
                 )
             }
 
+            // Extra Time Duration
+            item {
+                DurationSettingStepper(
+                    label = stringResource(R.string.extra_time_duration),
+                    currentValue = extraTimeHalfDurationMinutes,
+                    onValueChange = onSetExtraTimeDuration,
+                    valueRange = 1..60,
+                    step = 1
+                )
+            }
+
             // Max Substitutions
             item {
                 DurationSettingStepper(
                     label = stringResource(R.string.max_substitutions),
                     currentValue = maxSubstitutionsAllowed,
                     onValueChange = onSetMaxSubstitutions,
-                    valueRange = 1..11,
+                    valueRange = 0..15,
                     step = 1
                 )
             }
@@ -392,7 +456,8 @@ fun TeamNameEditDialogContent(
                 unfocusedIndicatorColor = MaterialTheme.colorScheme.outline
             ),
             keyboardOptions = KeyboardOptions.Default.copy(
-                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
+                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.None,
+                autoCorrectEnabled = false,
                 imeAction = ImeAction.Done
             ),
             keyboardActions = KeyboardActions(
@@ -466,6 +531,7 @@ fun NumberEditDialogContent(
             },
             keyboardOptions = KeyboardOptions.Default.copy(
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                autoCorrectEnabled = false,
                 imeAction = ImeAction.Done
             ),
             keyboardActions = KeyboardActions(
@@ -497,7 +563,7 @@ fun TeamNameEditDialog(
     onSave: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var text by remember(initialValue) { mutableStateOf(initialValue) }
+    var text by remember { mutableStateOf(initialValue) }
     Dialog(
         visible = true,
         onDismissRequest = onDismiss,
@@ -520,7 +586,7 @@ fun NumberEditDialog(
     onSave: (Int?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var text by remember(initialValue) { mutableStateOf(initialValue) }
+    var text by remember { mutableStateOf(initialValue) }
     Dialog(
         visible = true,
         onDismissRequest = {
@@ -567,6 +633,7 @@ fun ColorPickerButton(label: String, currentColor: Color, onClick: () -> Unit) {
 fun SimpleColorPickerDialog(
     title: String,
     availableColors: List<Color>,
+    selectedColor: Color?,
     onColorSelected: (Color) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -605,18 +672,28 @@ fun SimpleColorPickerDialog(
                     ) {
                         rowColors.forEach { color ->
                             Box(
+                                contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .size(48.dp)
+                                    .size(52.dp)
                                     .padding(4.dp)
                                     .clip(CircleShape)
                                     .background(color)
                                     .border(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        2.dp,
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                                         CircleShape
                                     )
                                     .clickable { onColorSelected(color) }
-                            )
+                            ) {
+                                if (color == selectedColor) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = if (color.luminance() > 0.5f) Color.Black else Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -707,6 +784,7 @@ fun PreviewPreGameSetupScreen() {
             onAwayColorPickerClick = {},
             onSetHalfDuration = {},
             onSetHalftimeDuration = {},
+            onSetExtraTimeDuration = {},
             onSetMaxSubstitutions = {},
             onCreateMatchClick = {}
         )

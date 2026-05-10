@@ -15,6 +15,8 @@ import com.databelay.refwatch.common.theme.PredefinedJerseyColors
 import com.databelay.refwatch.wear.WearGameViewModel
 import com.databelay.refwatch.wear.navigation.WearNavRoutes
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import com.databelay.refwatch.R
 
 private const val TAG = "PreGameSetupRoute"
@@ -47,6 +49,7 @@ fun PreGameSetupRoute(
         onAwayColorPickerClick = { showAwayColorPickerDialog = true },
         onSetHalfDuration = { duration -> gameViewModel.setHalfDuration(duration) },
         onSetHalftimeDuration = { duration -> gameViewModel.setHalftimeDuration(duration) },
+        onSetExtraTimeDuration = { duration -> gameViewModel.setExtraTimeDuration(duration) },
         onSetMaxSubstitutions = { max -> gameViewModel.updateMaxSubstitutions(max) },
         onCreateMatchClick = {
             gameViewModel.activeGame.value?.let { game ->
@@ -62,7 +65,7 @@ fun PreGameSetupRoute(
     if (showHomeTeamEditDialog) {
         TeamNameEditDialog(
             teamLabel = stringResource(R.string.edit_team_name) + " (${stringResource(R.string.home)})",
-            initialValue = activeGame?.homeTeamName?.takeIf { it != "Home" && it != "Heim" } ?: "",
+            initialValue = activeGame?.homeTeamName ?: "",
             onSave = {
                 gameViewModel.updateHomeTeamName(it)
                 showHomeTeamEditDialog = false
@@ -74,7 +77,7 @@ fun PreGameSetupRoute(
     if (showAwayTeamEditDialog) {
         TeamNameEditDialog(
             teamLabel = stringResource(R.string.edit_team_name) + " (${stringResource(R.string.away)})",
-            initialValue = activeGame?.awayTeamName?.takeIf { it != "Away" && it != "Gast" } ?: "",
+            initialValue = activeGame?.awayTeamName ?: "",
             onSave = {
                 gameViewModel.updateAwayTeamName(it)
                 showAwayTeamEditDialog = false
@@ -86,7 +89,7 @@ fun PreGameSetupRoute(
     if (showHomeTeamAbbrEditDialog) {
         TeamNameEditDialog(
             teamLabel = stringResource(R.string.edit_team_abbr) + " (${stringResource(R.string.home)})",
-            initialValue = activeGame?.homeTeamAbbr ?: "HEIM",
+            initialValue = activeGame?.homeTeamAbbr ?: "",
             onSave = {
                 gameViewModel.updateHomeTeamAbbr(it)
                 showHomeTeamAbbrEditDialog = false
@@ -98,7 +101,7 @@ fun PreGameSetupRoute(
     if (showAwayTeamAbbrEditDialog) {
         TeamNameEditDialog(
             teamLabel = stringResource(R.string.edit_team_abbr) + " (${stringResource(R.string.away)})",
-            initialValue = activeGame?.awayTeamAbbr ?: "GAST",
+            initialValue = activeGame?.awayTeamAbbr ?: "",
             onSave = {
                 gameViewModel.updateAwayTeamAbbr(it)
                 showAwayTeamAbbrEditDialog = false
@@ -133,10 +136,11 @@ fun PreGameSetupRoute(
 
     if (showHomeColorPickerDialog) {
         SimpleColorPickerDialog(
-            title = stringResource(R.string.home) + " " + stringResource(R.string.team_color),
+            title = stringResource(R.string.team_color),
             availableColors = PredefinedJerseyColors,
-            onColorSelected = {
-                gameViewModel.updateHomeTeamColor(it)
+            selectedColor = activeGame?.homeTeamColor ?: Color.Gray,
+            onColorSelected = { color ->
+                gameViewModel.updateHomeTeamColor(color)
                 showHomeColorPickerDialog = false
             },
             onDismiss = { showHomeColorPickerDialog = false }
@@ -145,14 +149,14 @@ fun PreGameSetupRoute(
 
     if (showAwayColorPickerDialog) {
         SimpleColorPickerDialog(
-            title = stringResource(R.string.away) + " " + stringResource(R.string.team_color),
+            title = stringResource(R.string.team_color),
             availableColors = PredefinedJerseyColors,
-            onColorSelected = {
-                gameViewModel.updateAwayTeamColor(it)
+            selectedColor = activeGame?.awayTeamColor ?: Color.LightGray,
+            onColorSelected = { color ->
+                gameViewModel.updateAwayTeamColor(color)
                 showAwayColorPickerDialog = false
             },
             onDismiss = { showAwayColorPickerDialog = false }
         )
     }
-
 }

@@ -18,11 +18,15 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.databelay.refwatch.common.luminance
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,7 +83,6 @@ fun ColorPickerDialog(
         }
     }
 }
-
 @Composable
 private fun ColorPickerItem(
     color: Color,
@@ -87,23 +90,27 @@ private fun ColorPickerItem(
     onClick: () -> Unit
 ) {
     Box(
+        contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(40.dp) // Size of the color circle
+            .size(56.dp)
             .clip(CircleShape)
             .background(color)
             .clickable(onClick = onClick)
-            .then( // Add a border if selected
-                if (isSelected) {
-                    Modifier.border(
-                        width = 2.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                        shape = CircleShape
-                    )
-                } else {
-                    Modifier
-                }
+            .border(
+                width = if (isSelected) 3.dp else 1.dp,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.1f),
+                shape = CircleShape
             )
-    )
+    ) {
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Selected",
+                tint = if (color.luminance() > 0.5f) Color.Black else Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
 }
 
 // Example Usage (you'd call this from AddEditGameScreen)

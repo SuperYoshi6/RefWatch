@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Text
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -38,6 +39,7 @@ import com.databelay.refwatch.common.SimpleIcsParser
 import com.databelay.refwatch.screens.AddEditGameRoute
 import com.databelay.refwatch.data.AddEditGameViewModel
 import com.databelay.refwatch.screens.AuthScreenRoute
+import com.databelay.refwatch.screens.MatchScreen
 import com.databelay.refwatch.screens.GameListScreen
 import com.databelay.refwatch.screens.GameLogScreen
 import com.databelay.refwatch.data.MobileGameViewModel
@@ -157,6 +159,9 @@ fun RefWatchNavHost() {
                 onNavigateBack = { navController.popBackStack() },
                 onDeleteAccountConfirmed = {
                     authViewModel.deleteUserAccount()
+                },
+                onDeleteAllCompletedGames = {
+                    mobileGameViewModel.deleteAllCompletedGames()
                 }
             )
         }
@@ -223,6 +228,9 @@ fun RefWatchNavHost() {
                     navController.navigate(MobileNavRoutes.gameLogRoute(gameToView.id))
                 },
                 onDeleteGame = { gameToDelete -> mobileGameViewModel.deleteGame(gameToDelete) },
+                onStartMatch = { gameToStart ->
+                    navController.navigate(MobileNavRoutes.matchRoute(gameToStart.id))
+                },
                 onSignOut = { authViewModel.signOut()},
                 onImportGames = {filePickerLauncher.launch("text/calendar")},
                 onNavigateToSettings = { navController.navigate(MobileNavRoutes.SETTINGS_SCREEN) },
@@ -282,6 +290,35 @@ fun RefWatchNavHost() {
             }
 
             AddEditGameRoute(navController = navController)
+        }
+        composable(
+            route = "${MobileNavRoutes.MATCH_SCREEN}?gameId={gameId}",
+            arguments = listOf(navArgument("gameId") {
+                type = NavType.StringType
+                nullable = false
+            })
+        ) { backStackEntry ->
+            val gameId = backStackEntry.arguments?.getString("gameId")
+
+            // Find the game from the ViewModel
+            val allGames by mobileGameViewModel.gamesList.collectAsStateWithLifecycle()
+            val selectedGame = remember(allGames, gameId) {
+                allGames.find { it.id == gameId }
+            }
+
+            if (selectedGame != null) {
+                MatchScreen(
+                    game = selectedGame,
+                    onNavigateBack = { navController.popBackStack() },
+                    onTakeCurrentTime = { /* TODO: implement */ },
+                    onHalfTime = { /* TODO: implement */ }
+                )
+            } else {
+                // Handle game not found
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Spiel nicht gefunden")
+                }
+            }
         }
     }
 }

@@ -7,6 +7,7 @@
     <string name="edit_away_captain">Gast-Kapitän bearbeiten</string>
     <string name="half_duration">Halbzeitdauer</string>
     <string name="halftime_duration">Pausendauer</string>
+    <string name="extra_time_duration">Verlängerungsdauer</string>
     <string name="create_match">Spiel erstellen</string>
     <string name="kick_off">Anstoß</string>
     <string name="goal_type">Torart</string>
@@ -46,7 +47,7 @@
     <string name="card_red">Rot</string>
     <string name="card_yellow_red">Gelb-Rot</string>
     <string name="card_event_template">%1$s Karte: %2$s Nr.%3$s</string>
-    <string name="goal_event_template">%1$s: %2$s (%3$d-%4$d)</string>
+    <string name="goal_event_template">%1$s: %2$s Nr.%3$s (%4$d-%5$d)</string>
     <string name="penalty_event_template">Elfmeter: %1$s %2$s</string>
     <string name="scored">Tor</string>
     <string name="missed_saved">Verworfen/Gehalten</string>
@@ -59,4 +60,6 @@
     <string name="incoming_player">Einwechseln</string>
     <string name="select_kick_off_team">Anstoßteam wählen</string>
     <string name="load_setup_from_phone">Setup vom Handy laden</string>
+    <string name="kickoff_team">Anstoß</string>
+    <string name="end_phase_action">%1$s beenden</string>
 </resources>

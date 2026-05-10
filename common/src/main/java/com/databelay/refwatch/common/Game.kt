@@ -31,8 +31,8 @@ data class Game(
     // --- Match Information (can be pre-filled from a schedule) ---
     var gameNumber: String = "XXXX", // Default, can be overridden
     var fieldNumber: String? = null, // Default, can be overridden
-    var homeTeamName: String = "Home", // Default, can be overridden
-    var awayTeamName: String = "Away", // Default, can be overridden
+    var homeTeamName: String = "", // Default, can be overridden
+    var awayTeamName: String = "", // Default, can be overridden
     var homeTeamAbbr: String? = null,
     var awayTeamAbbr: String? = null,
     var homeCaptainNumber: Int? = null,
@@ -87,8 +87,8 @@ data class Game(
         extraTimeHalftimeDurationMinutes = 1,
         gameNumber = "XXXX",
         fieldNumber = null,
-        homeTeamName = "Home",
-        awayTeamName = "Away",
+        homeTeamName = "",
+        awayTeamName = "",
         homeTeamAbbr = null,
         awayTeamAbbr = null,
         homeCaptainNumber = null,
@@ -132,8 +132,8 @@ data class Game(
                 extraTimeHalftimeDurationMinutes = 1,
                 gameNumber = "XXXX",
                 fieldNumber = null,
-                homeTeamName = "Heim",
-                awayTeamName = "Gast",
+                homeTeamName = "",
+                awayTeamName = "",
                 homeTeamAbbr = null,
                 awayTeamAbbr = null,
                 homeCaptainNumber = null,
@@ -171,8 +171,8 @@ data class Game(
         id = icsEvent.uid ?: UUID.randomUUID().toString(),
         gameNumber = icsEvent.gameNumber ?: "XXXX",
         fieldNumber = icsEvent.fieldNumber,
-        homeTeamName = icsEvent.homeTeam ?: "Home",
-        awayTeamName = icsEvent.awayTeam ?: "Away",
+        homeTeamName = icsEvent.homeTeam ?: "",
+        awayTeamName = icsEvent.awayTeam ?: "",
         refereeAssignment = icsEvent.refereeAssignment,
         venue = icsEvent.location,
         gameDateTimeEpochMillis = icsEvent.dtStart?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
@@ -200,9 +200,10 @@ data class Game(
         // Adjust scores/stats based on the type of event removed
         when (eventToRemove) {
             is GoalScoredEvent -> {
+                val scoringTeam = if (eventToRemove.goalType == GoalType.OWN_GOAL) eventToRemove.team.opposite() else eventToRemove.team
                 gameWithEventRemoved = gameWithEventRemoved.copy(
-                    homeScore = if (eventToRemove.team == Team.HOME) gameWithEventRemoved.homeScore - 1 else gameWithEventRemoved.homeScore,
-                    awayScore = if (eventToRemove.team == Team.AWAY) gameWithEventRemoved.awayScore - 1 else gameWithEventRemoved.awayScore
+                    homeScore = if (scoringTeam == Team.HOME) gameWithEventRemoved.homeScore - 1 else gameWithEventRemoved.homeScore,
+                    awayScore = if (scoringTeam == Team.AWAY) gameWithEventRemoved.awayScore - 1 else gameWithEventRemoved.awayScore
                 )
             }
              is PenaltyEvent -> {

@@ -13,6 +13,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -45,6 +49,7 @@ import com.databelay.refwatch.common.logBackStack
 import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.wear.TimerDisplayMode
+import com.databelay.refwatch.wear.presentation.utils.localizedName
 import com.google.android.horologist.compose.layout.ColumnItemType
 import com.google.android.horologist.compose.layout.ColumnItemType.Companion.EdgeButtonPadding
 import com.google.android.horologist.compose.layout.rememberResponsiveColumnPadding
@@ -64,7 +69,7 @@ sealed class ConfirmationDialogInfo(
         onConfirm: () -> Unit,
         onDialogClose: () -> Unit // Common action for closing dialog (e.g., animate, clear state)
     ) : ConfirmationDialogInfo(
-        title = "End $gamePhaseReadable?",
+        title = "$gamePhaseReadable beenden?",
         onConfirmAction = { 
             onConfirm()
             onDialogClose()
@@ -153,6 +158,7 @@ sealed class ConfirmationDialogInfo(
 @Composable
 fun GameScreenWithPager(
     game: Game,
+    isAmbient: Boolean = false,
     kickoffCountdownSeconds: Int? = null,
     timerDisplayMode: TimerDisplayMode = TimerDisplayMode.REMAINING,
     onToggleTimerDisplayMode: () -> Unit = {},
@@ -172,10 +178,16 @@ fun GameScreenWithPager(
     onResetPeriodTimer: () -> Unit, // For current period's timer
     onConfirmEndMatch: () -> Unit, // For finishing the game
     onPenaltyAttemptRecorded: (scored: Boolean) -> Unit,
+    onQuickGoal: (Team) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
 
     var activeDialogInfo: ConfirmationDialogInfo? by remember { mutableStateOf(null) }
     // transitions blink white borders after the confirmation dialog
@@ -228,13 +240,27 @@ fun GameScreenWithPager(
                 flingBehavior =
                 PagerScaffoldDefaults.snapWithSpringFlingBehavior(state = verticalPagerState),
                 state = verticalPagerState,
-                userScrollEnabled = false,
-                modifier = Modifier.fillMaxSize()
+                userScrollEnabled = !isAmbient,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onRotaryScrollEvent {
+                        coroutineScope.launch {
+                            if (it.verticalScrollPixels > 0) {
+                                verticalPagerState.animateScrollToPage(1)
+                            } else {
+                                verticalPagerState.animateScrollToPage(0)
+                            }
+                        }
+                        true
+                    }
+                    .focusRequester(focusRequester)
+                    .focusable()
             ) { page ->
                 when (page) {
                     0 -> {
                         GamePagerContent(
                             game = game,
+                            isAmbient = isAmbient,
                             kickoffCountdownSeconds = kickoffCountdownSeconds,
                             timerDisplayMode = timerDisplayMode,
                             onToggleTimerDisplayMode = onToggleTimerDisplayMode,
@@ -250,6 +276,10 @@ fun GameScreenWithPager(
                             onOpenGameMenu = {
                                 coroutineScope.launch { verticalPagerState.scrollToPage(1) }
                             },
+                            onQuickGoal = { team ->
+                                onQuickGoal(team)
+                                Toast.makeText(context, "Tor für ${if (team == Team.HOME) game.homeTeamName else game.awayTeamName} hinzugefügt!", Toast.LENGTH_SHORT).show()
+                            },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -257,6 +287,7 @@ fun GameScreenWithPager(
                         BackHandler {
                             coroutineScope.launch { verticalPagerState.scrollToPage(0) }
                         }
+                        val currentPhaseLocalized = game.currentPhase.localizedName()
                         GameSettingsScreen(
                             game = game,
                             onAttemptFinishGame = {
@@ -268,7 +299,7 @@ fun GameScreenWithPager(
                             onAttemptResetPeriodTimer = {
                                 if (game.currentPhase.hasTimer()) {
                                     activeDialogInfo = ConfirmationDialogInfo.ResetPeriodTimer(
-                                        gamePhaseReadable = game.currentPhase.readable(),
+                                        gamePhaseReadable = currentPhaseLocalized,
                                         onConfirm = onResetPeriodTimer,
                                         onDialogClose = createDialogCloseHandler(true)
                                     )
@@ -300,7 +331,7 @@ fun GameScreenWithPager(
                                     )
                                 } else {
                                     activeDialogInfo = ConfirmationDialogInfo.EndPhase(
-                                        gamePhaseReadable = game.currentPhase.readable(),
+                                        gamePhaseReadable = currentPhaseLocalized,
                                         onConfirm = onEndPhase,
                                         onDialogClose = createDialogCloseHandler(true)
                                     )

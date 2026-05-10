@@ -2,96 +2,50 @@
 
 ![RefWatch Icon](./ic_launcher-playstore.png)
 
-RefWatch ist eine Wear-OS- und Android-App zur Unterstützung von Fußball-Schiedsrichtern direkt am Handgelenk.
+**100% Kostenlos & Open Source.** RefWatch ist eine professionelle Wear-OS- und Android-App, die Fußball-Schiedsrichter direkt am Handgelenk unterstützt. Optimiert für Performance und intuitive Bedienung unter Belastung.
 
 ## Deutsch
 
+### Highlights
+- **Lünetten-Steuerung (Rotary):** Nutze die Lünette oder Krone deiner Uhr (z.B. Galaxy Watch, Pixel Watch), um blitzschnell zwischen Spielanzeige und Einstellungen zu wechseln.
+- **Ambient Mode (Always-On):** Stromsparende Anzeige für den Ruhemodus – die Spielzeit bleibt immer im Blick, ohne den Arm heben zu müssen.
+- **Optimierte Performance:** Flüssige Bedienung auch auf älteren Wear-OS-Geräten durch effiziente Compose-Architektur.
+
 ### Funktionen
-- Match-Setup mit Teamnamen, Teamkürzeln, Farben, Kapitänsnummern, Halbzeitdauer, Pausendauer und max. Wechseln.
-- Spieluhr mit Umschaltung zwischen Restzeit und gespielter Zeit.
-- Nachspielzeit-Timer (grün), der separat gestartet/gestoppt werden kann.
-- 5-Sekunden-Anstoß-Countdown mit Vibrationsfeedback.
-- Ereignis-Erfassung: Tore, Karten, Wechsel, Spielprotokoll.
-- Aktionsmenü per Long-Press im Hauptscreen (z. B. Protokoll, Halbzeit beenden, Timer-Aktionen).
+- Match-Setup: Teamnamen, Kürzel, Farben, Kapitäne, Halbzeitdauer, max. Wechsel.
+- Spieluhr: Umschaltung Restzeit / gespielte Zeit.
+- Nachspielzeit: Separater grüner Timer für Unterbrechungen.
+- Anstoß-Countdown: 5-Sekunden-Timer mit Vibrationsfeedback.
+- Ereignis-Log: Tore, Karten, Wechsel mit Zeitstempel.
+- Aktionsmenü: Per Long-Press im Hauptscreen oder über die Settings-Page.
 
 ### Projektstruktur
-- `wear/` – Wear OS App (Hauptspielbetrieb auf der Uhr)
-- `mobile/` – Android Begleit-App (komfortables Setup/Verwaltung)
-- `common/` – Gemeinsame Modelle und Logik
-- `functions/` – Firebase Functions
-- `landingpage/` – einfache Download-Landingpage
-
-### Build & Start
-1. Repository klonen:
-   ```bash
-   git clone https://github.com/SuperYoshi6/RefWatch.git
-   cd RefWatch
-   ```
-2. In Android Studio öffnen.
-3. Build ausführen:
-   ```bash
-   ./gradlew :wear:assembleDebug :mobile:assembleDebug
-   ```
-4. Uhr/Emulator auswählen und Wear-App starten.
-
-### Firebase (optional)
-```bash
-firebase login
-firebase init functions
-cd functions
-firebase deploy --only functions
-```
-
-### Hinweise
-- Für beste Eingabe-Erfahrung Teamdaten in der Mobile-App pflegen und auf der Uhr nutzen.
-- Das Aktionsmenü ist für den Spielbetrieb auf Long-Press ausgelegt.
+- `wear/` – Wear OS App (Spielbetrieb)
+- `mobile/` – Android App (Verwaltung & Setup)
+- `common/` – Geteilte Datenmodelle & Logik
+- `landingpage/` – Web-Landingpage
 
 ---
 
-# RefWatch – Wear OS Referee App
-
-![RefWatch Icon](./ic_launcher-playstore.png)
-
-RefWatch is a Wear OS + Android app that helps football referees manage matches directly from the wrist.
-
 ## English
 
-### Features
-- Match setup with team names, abbreviations, colors, captain numbers, half-time duration, break duration, and max substitutions.
-- Main timer with toggle between remaining time and played time.
-- Separate stoppage-time timer (green), start/stop independently.
-- 5-second kickoff countdown with vibration feedback.
-- Event logging: goals, cards, substitutions, and full match log.
-- Long-press action menu on the main screen (e.g., log view, end half, timer actions).
+**100% Free & Open Source.** RefWatch is a professional Wear OS + Android app that helps football referees manage matches directly from the wrist.
 
-### Project Structure
-- `wear/` – Wear OS app (main in-match experience)
-- `mobile/` – Android companion app (easier setup/management)
-- `common/` – shared models and logic
-- `functions/` – Firebase Functions
-- `landingpage/` – simple download landing page
+### Highlights
+- **Rotary Input Support:** Use your watch's bezel or crown (e.g., Galaxy Watch, Pixel Watch) to quickly switch between match display and settings.
+- **Ambient Mode (Always-On):** Power-efficient ambient view keeps the match time visible at all times.
+- **Smooth Performance:** Optimized for lag-free operation even on older Wear OS hardware.
 
-### Build & Run
-1. Clone repository:
-   ```bash
-   git clone https://github.com/SuperYoshi6/RefWatch.git
-   cd RefWatch
-   ```
-2. Open in Android Studio.
-3. Build:
-   ```bash
-   ./gradlew :wear:assembleDebug :mobile:assembleDebug
-   ```
-4. Select watch/emulator and run the Wear app.
+### Core Features
+- Match Setup: Team names, abbreviations, colors, captains, half durations, max substitutions.
+- Game Clock: Toggle between remaining and elapsed time.
+- Stoppage Time: Separate green timer for injuries and delays.
+- Kickoff Countdown: 5-second countdown with haptic feedback.
+- Event Log: Goals, cards, and substitutions with timestamps.
 
-### Firebase (optional)
-```bash
-firebase login
-firebase init functions
-cd functions
-firebase deploy --only functions
-```
+---
 
-### Notes
-- For faster setup, edit team data in the mobile app and use it on the watch.
-- The action menu is intentionally optimized for long-press during live matches.
+### Build & Install
+1. Clone: `git clone https://github.com/SuperYoshi6/RefWatch.git`
+2. Build: `./gradlew assembleDebug`
+3. Install: Use **Wear Installer 2** for the Watch APK.

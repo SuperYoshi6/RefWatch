@@ -35,14 +35,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
+import com.databelay.refwatch.R
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import com.databelay.refwatch.BuildConfig
 import com.databelay.refwatch.common.LegalLinks
 import com.databelay.refwatch.common.getAppVersionCode
@@ -59,10 +61,12 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     // Inject your AuthViewModel or a specific ViewModel responsible for account deletion
     // authViewModel: AuthViewModel = hiltViewModel() // Example
-    onDeleteAccountConfirmed: () -> Unit // Callback when deletion is confirmed
+    onDeleteAccountConfirmed: () -> Unit, // Callback when deletion is confirmed
+    onDeleteAllCompletedGames: () -> Unit = {} // Added default value to fix compilation error
 ) {
     val context = LocalContext.current
     var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
+    var showDeleteAllCompletedConfirmationDialog by remember { mutableStateOf(false) }
     var appVersionName by remember { mutableStateOf("Loading...") } // State for version name
     var appVersionNumber by remember { mutableLongStateOf(0L) } // State for version name
     val buildDateString = BuildConfig.BUILD_TIME
@@ -154,17 +158,86 @@ fun SettingsScreen(
                     }
             )
 
-            Spacer(modifier = Modifier.height(24.dp)) // More space before other settings
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // --- ADD BUILD INFO TEXT HERE ---
             Text(
-                text = "Version: $appVersionName", // Display version name
-                color = androidx.wear.compose.material.MaterialTheme.colors.primary,
-                style = androidx.wear.compose.material.MaterialTheme.typography.caption1.copy(fontSize = 14.sp),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
+                "Projekt",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
+
+            // App Logo
+            Image(
+                painter = painterResource(id = R.drawable.logo),
+                contentDescription = "RefWatch Logo",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp)
+                    .padding(vertical = 8.dp)
+            )
+
+            Text(
+                "Website",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier
+                    .padding(vertical = 8.dp)
+                    .clickable {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(LegalLinks.WEBSITE_URL))
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Log.e("SettingsScreen", "Failed to open Website URL", e)
+                        }
+                    }
+            )
+
+            Text(
+                "GitHub Repository",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier
+                    .padding(vertical = 8.dp)
+                    .clickable {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(LegalLinks.GITHUB_URL))
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Log.e("SettingsScreen", "Failed to open GitHub URL", e)
+                        }
+                    }
+            )
+
+            Text(
+                "Superior Zex",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier
+                    .padding(vertical = 8.dp)
+                    .clickable {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(LegalLinks.SUPERIOR_ZEX_URL))
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Log.e("SettingsScreen", "Failed to open Superior Zex URL", e)
+                        }
+                    }
+            )
+
             // --- END BUILD INFO TEXT ---
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                "Datenverwaltung",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            Button(
+                onClick = { showDeleteAllCompletedConfirmationDialog = true },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Alle vergangenen Spiele löschen")
+            }
+
             Spacer(modifier = Modifier.weight(1f)) // Pushes delete account to bottom
 
             Button(
@@ -174,6 +247,14 @@ fun SettingsScreen(
             ) {
                 Text("Account löschen")
             }
+            
+            // Build Info
+            Text(
+                text = "Version: $appVersionName ($appVersionNumber)\nBuild: $buildDateString",
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(top = 16.dp).align(Alignment.CenterHorizontally),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 
@@ -207,6 +288,31 @@ fun SettingsScreen(
             }
         )
     }
+
+    if (showDeleteAllCompletedConfirmationDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAllCompletedConfirmationDialog = false },
+            title = { Text("Alle vergangenen Spiele löschen?") },
+            text = { Text("Diese Aktion löscht alle abgeschlossenen Spiele unwiderruflich aus der Datenbank. Anstehende Spiele bleiben erhalten.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteAllCompletedConfirmationDialog = false
+                        onDeleteAllCompletedGames()
+                    }
+                ) {
+                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteAllCompletedConfirmationDialog = false }
+                ) {
+                    Text("Abbrechen")
+                }
+            }
+        )
+    }
 }
 
 @Preview(showBackground = true, showSystemUi = true,
@@ -215,6 +321,10 @@ fun SettingsScreen(
 @Composable
 fun SettingsScreenMobilePreview() {
     RefWatchMobileTheme {
-        SettingsScreen(onNavigateBack = {}, onDeleteAccountConfirmed = {})
+        SettingsScreen(
+            onNavigateBack = {},
+            onDeleteAccountConfirmed = {},
+            onDeleteAllCompletedGames = {}
+        )
     }
 }

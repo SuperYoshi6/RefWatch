@@ -8,9 +8,12 @@ import android.os.Build
 import android.util.Log
 import androidx.navigation.NavController
 
-object LegalLinks { // Using an object to group them
+object LegalLinks {
     const val PRIVACY_POLICY_URL = "https://doc-hosting.flycricket.io/refwatch-privacy-policy/3571da7e-481d-4199-adfb-921382bad8be/privacy"
     const val TERMS_OF_USE_URL = "https://doc-hosting.flycricket.io/refwatch-terms-of-use/34d1063e-7d93-40d5-8016-5ede5ab4c1c1/terms"
+    const val WEBSITE_URL = "https://refwatch.databelay.com"
+    const val GITHUB_URL = "https://github.com/SuperYoshi6/RefWatch"
+    const val SUPERIOR_ZEX_URL = "https://github.com/SuperYoshi6" // Assuming this is the user's GitHub profile
 }
 
 // Function to get the application's version name

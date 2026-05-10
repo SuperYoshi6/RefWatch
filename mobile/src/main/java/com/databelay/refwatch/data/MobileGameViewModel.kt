@@ -259,6 +259,24 @@ class MobileGameViewModel @Inject constructor(
         }
     }
 
+    override fun deleteAllCompletedGames() {
+        val userId = _currentUserId.value
+        if (userId == null) {
+            Log.w(TAG, "Cannot delete completed games: User not logged in.")
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val completedGames = gamesList.value.filter { it.status == GameStatus.COMPLETED }
+            Log.i(TAG, "Deleting ${completedGames.size} completed games for user $userId.")
+            completedGames.forEach { game ->
+                gameRepository.deleteGame(userId, game.id).onFailure {
+                    Log.e(TAG, "Failed to delete completed game ${game.id}: ${it.localizedMessage}")
+                }
+            }
+            Log.i(TAG, "Bulk delete of completed games finished.")
+        }
+    }
+
     private fun syncGamesToWatchInternal(games: List<Game>) {
         val userIdForSync = _currentUserId.value // Use the ID for whom these games are relevant
 

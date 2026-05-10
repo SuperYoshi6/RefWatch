@@ -61,8 +61,9 @@ import kotlinx.coroutines.delay
 
 const val TAG = "NavigationRoutes"
 
+
 @Composable
-fun NavigationRoutes() {
+fun NavigationRoutes(isAmbient: Boolean = false) {
     val navController = rememberSwipeDismissableNavController()
     val gameViewModel: WearGameViewModel = hiltViewModel()
     val activeGame by gameViewModel.activeGame.collectAsStateWithLifecycle()
@@ -242,6 +243,8 @@ fun NavigationRoutes() {
             composable(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
                 val isPlayableRegularPhase = activeGame?.currentPhase?.isPlayablePhase() == true &&
                         activeGame?.currentPhase != GamePhase.PENALTIES
+                
+                val canToggleStoppageTimer = activeGame?.isTimerRunning == true && isPlayableRegularPhase
 
                 val horizontalPagerState = rememberPagerState(
                     initialPage = 1,
@@ -253,6 +256,7 @@ fun NavigationRoutes() {
                     GameScreenWithPager(
                         modifier = Modifier.fillMaxSize(),
                         game = activeGame!!,
+                        isAmbient = isAmbient,
                         kickoffCountdownSeconds = kickoffCountdownSeconds,
                         timerDisplayMode = timerDisplayMode,
                         onToggleTimerDisplayMode = { gameViewModel.toggleTimerDisplayMode() },
@@ -263,7 +267,11 @@ fun NavigationRoutes() {
                         onSetToHaveExtraTime = { gameViewModel.setToHaveExtraTime() },
                         onSetToHavePenalties = { gameViewModel.setToHavePenalties() },
                         onToggleTimer = { gameViewModel.toggleTimer() },
-                        onToggleStoppageTimer = { gameViewModel.toggleStoppageTimer() },
+                        onToggleStoppageTimer = { 
+                            if (canToggleStoppageTimer) {
+                                gameViewModel.toggleStoppageTimer()
+                            }
+                        },
                         onNavigateToLogGoal = { team, goalType ->
                             navController.navigate(WearNavRoutes.logGoalRoute(team, goalType))
                         },
@@ -305,6 +313,9 @@ fun NavigationRoutes() {
                         },
                         onPenaltyAttemptRecorded = { scored ->
                             gameViewModel.recordPenaltyAttempt(scored)
+                        },
+                        onQuickGoal = { team ->
+                            gameViewModel.addGoal(team)
                         }
                     )
                 } else {

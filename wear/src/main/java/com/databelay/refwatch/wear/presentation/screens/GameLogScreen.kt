@@ -1,4 +1,4 @@
-package com.databelay.refwatch.wear.presentation.screens // << MAKE SURE THIS MATCHES YOUR PACKAGE
+package com.databelay.refwatch.wear.presentation.screens
 
 import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -27,12 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material.Chip
-import androidx.wear.compose.material.ChipDefaults.chipColors
 import androidx.wear.compose.material.ListHeader
 import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.Card
-import androidx.wear.compose.material3.CardDefaults
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.ScrollIndicator
@@ -41,16 +37,11 @@ import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import androidx.compose.ui.res.stringResource
 import com.databelay.refwatch.R
 import com.databelay.refwatch.wear.presentation.utils.localizedDisplayString
+import com.databelay.refwatch.wear.presentation.utils.getMatchMinute
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameEvent
 import com.databelay.refwatch.common.PreviewTools.createFirstHalfSampleGame
-import com.databelay.refwatch.common.theme.RefWatchWearTheme
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -60,17 +51,8 @@ fun GameLogScreen(
     onRemoveEvent: (event: GameEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val tag = "GameLogScreen"
     var activeDialogInfo: ConfirmationDialogInfo? by remember { mutableStateOf(null) }
-    // Common logic for closing any dialog and animating back to the main page (if applicable)
 
-    LaunchedEffect(game) {
-        game.let {
-            Log.d(tag, "Displaying Game ID: ${it.id}, Status: ${it.status}")
-            Log.d(tag, "Scores: ${it.homeScore}-${it.awayScore}")
-            Log.d(tag, "Events Count: ${it.events.size}")
-        }
-    }
     val listState = rememberScalingLazyListState()
     ScreenScaffold(
         scrollIndicator = {
@@ -82,23 +64,22 @@ fun GameLogScreen(
         modifier = modifier
             .fillMaxSize()
             .padding(2.dp),
-                contentPadding = PaddingValues(vertical = 0.dp, horizontal = 2.dp),
-
+        contentPadding = PaddingValues(vertical = 0.dp, horizontal = 2.dp),
     ) { contentPadding ->
         ScalingLazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 2.dp), // Adjusted padding slightly for cards
+                .padding(horizontal = 2.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp) // Adjusted spacing for cards
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             item {
                 ListHeader {
                     Text(
                         stringResource(R.string.game_log),
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(vertical = 8.dp), // Added vertical padding
+                        modifier = Modifier.padding(vertical = 8.dp),
                         textAlign = TextAlign.Center
                     )
                 }
@@ -116,9 +97,10 @@ fun GameLogScreen(
             } else {
                 items(
                     game.events.asReversed(),
-                    key = { event -> event.timestamp }) { event -> // Show newest events first
+                    key = { event -> event.id }) { event ->
                     EventLogItem(
                         event = event,
+                        halfDurationMinutes = game.halfDurationMinutes,
                         onLongClick = {
                             activeDialogInfo = ConfirmationDialogInfo.RemoveLogEvent(
                                 onConfirm = { onRemoveEvent(event)},
@@ -126,14 +108,13 @@ fun GameLogScreen(
                             )
                         }
                     )
-                    // HorizontalDivider removed as Cards provide separation
                 }
             }
             item {
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier
-                        .padding(top = 10.dp, bottom = 10.dp) // Added bottom padding
+                        .padding(top = 10.dp, bottom = 10.dp)
                         .fillMaxWidth(0.7f)
                 ) {
                     Text(stringResource(R.string.back),
@@ -144,33 +125,32 @@ fun GameLogScreen(
         }
     }
 
-    // Unified Confirmation Dialog
     activeDialogInfo?.let { dialogInfo ->
         UnifiedConfirmationDialog(dialogInfo = dialogInfo)
     }
-
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun EventLogItem(
     event: GameEvent,
+    halfDurationMinutes: Int,
     onLongClick: () -> Unit
 ) {
-    val wallTimestampStr = remember(event.timestamp) {
-        val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        sdf.format(Date(event.timestamp.toLong()))
+    val matchMinute = remember(event, halfDurationMinutes) {
+        event.getMatchMinute(halfDurationMinutes)
     }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(
                 MaterialTheme.colorScheme.primary,
                 MaterialTheme.shapes.medium
-            ) // Style like a button
-            .clip(MaterialTheme.shapes.medium) // For ripple effect if combinedClickable provides one
+            )
+            .clip(MaterialTheme.shapes.medium)
             .combinedClickable(
-                onClick = { Log.d("EventLogItem", "Short click on event: ${event.displayString}") },
+                onClick = { },
                 onLongClick = onLongClick,
             ),
     ) {
@@ -182,30 +162,15 @@ fun EventLogItem(
             Text(
                 text = event.localizedDisplayString(),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimary // Ensure text is visible on Card
+                color = MaterialTheme.colorScheme.onPrimary
             )
-            Text(
-                text = stringResource(R.string.logged_at, wallTimestampStr),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-            )
+            if (matchMinute.isNotEmpty()) {
+                Text(
+                    text = "Minute: $matchMinute",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                )
+            }
         }
-    }
-}
-
-// --------------------------------------- Previews ----------------------------------------
-@Preview(device = "id:wearos_small_round", showBackground = true)
-@Preview(device = "id:wearos_square", showBackground = true)
-@Preview(device = "id:wearos_large_round", showBackground = true)
-@WearPreviewFontScales
-@Composable
-fun GameLogScreenPreview() {
-    val sampleGame = createFirstHalfSampleGame()
-    RefWatchWearTheme {
-        GameLogScreen(
-            game = sampleGame,
-            onDismiss = { Log.d("Preview", "Dismiss clicked") },
-            onRemoveEvent = { Log.d("Preview", "Undo event clicked") }
-        )
     }
 }

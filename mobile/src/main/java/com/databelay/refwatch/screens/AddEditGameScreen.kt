@@ -1,4 +1,4 @@
-﻿package com.databelay.refwatch.screens
+package com.databelay.refwatch.screens
 
 import android.content.res.Configuration
 import android.util.Log
@@ -59,11 +59,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.databelay.refwatch.R
-import com.databelay.refwatch.common.predefinedColors
+
 import com.databelay.refwatch.common.theme.RefWatchMobileTheme
 import com.databelay.refwatch.data.AddEditGameUiState
 import com.databelay.refwatch.data.AddEditGameViewModel
-import com.databelay.refwatch.data.ColorPickerDialog
+import com.databelay.refwatch.data.AdvancedColorPickerDialog
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -89,6 +89,7 @@ fun AddEditGameScreen(
     onGameDateTimeChange: (Long) -> Unit,
     onHalfDurationChange: (String) -> Unit,
     onHalftimeDurationChange: (String) -> Unit,
+    onExtraTimeHalfDurationChange: (String) -> Unit,
     onMaxSubstitutionsChange: (String) -> Unit,
     onHomeColorSelected: (Color) -> Unit,
     onAwayColorSelected: (Color) -> Unit,
@@ -143,16 +144,18 @@ fun AddEditGameScreen(
                 value = uiState.homeTeamName,
                 onValueChange = onHomeTeamNameChange,
                 label = { Text(stringResource(R.string.home_team_name)) },
+                placeholder = { Text("z.B. Heim" + (if (uiState.homeTeamAbbr.isNotBlank()) " (${uiState.homeTeamAbbr})" else "")) },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 singleLine = true
             )
             OutlinedTextField(
                 value = uiState.awayTeamName,
                 onValueChange = onAwayTeamNameChange,
                 label = { Text(stringResource(R.string.away_team_name)) },
+                placeholder = { Text("z.B. Gast" + (if (uiState.awayTeamAbbr.isNotBlank()) " (${uiState.awayTeamAbbr})" else "")) },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 singleLine = true
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -160,7 +163,7 @@ fun AddEditGameScreen(
                     value = uiState.homeTeamAbbr,
                     onValueChange = onHomeTeamAbbrChange,
                     label = { Text(stringResource(R.string.home_abbr)) },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
@@ -168,7 +171,7 @@ fun AddEditGameScreen(
                     value = uiState.awayTeamAbbr,
                     onValueChange = onAwayTeamAbbrChange,
                     label = { Text(stringResource(R.string.away_abbr)) },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
@@ -348,14 +351,23 @@ fun AddEditGameScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
-            OutlinedTextField(
-                value = uiState.maxSubstitutionsAllowed.toString(),
-                onValueChange = onMaxSubstitutionsChange,
-                label = { Text(stringResource(R.string.max_substitutions_mobile)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = uiState.extraTimeHalfDurationMinutes.toString(),
+                    onValueChange = onExtraTimeHalfDurationChange,
+                    label = { Text(stringResource(R.string.extra_time_minutes)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = uiState.maxSubstitutionsAllowed.toString(),
+                    onValueChange = onMaxSubstitutionsChange,
+                    label = { Text(stringResource(R.string.max_substitutions_mobile)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
 
             Row(
                 Modifier.fillMaxWidth(),
@@ -387,10 +399,9 @@ fun AddEditGameScreen(
             }
 
             if (showHomeColorPicker) {
-                ColorPickerDialog(
+                AdvancedColorPickerDialog(
                     title = stringResource(R.string.team_color_select),
-                    availableColors = predefinedColors,
-                    selectedColor = Color(uiState.homeTeamColorArgb),
+                    initialColor = Color(uiState.homeTeamColorArgb),
                     onColorSelected = { color: Color ->
                         onHomeColorSelected(color)
                         showHomeColorPicker = false
@@ -399,10 +410,9 @@ fun AddEditGameScreen(
                 )
             }
             if (showAwayColorPicker) {
-                ColorPickerDialog(
+                AdvancedColorPickerDialog(
                     title = stringResource(R.string.select_away_color),
-                    availableColors = predefinedColors,
-                    selectedColor = Color(uiState.awayTeamColorArgb),
+                    initialColor = Color(uiState.awayTeamColorArgb),
                     onColorSelected = { color: Color ->
                         onAwayColorSelected(color)
                         showAwayColorPicker = false
@@ -474,6 +484,7 @@ fun AddEditGameRoute(
         onGameDateTimeChange = addEditViewModel::onGameDateTimeChange,
         onHalfDurationChange = addEditViewModel::onHalfDurationChange,
         onHalftimeDurationChange = addEditViewModel::onHalftimeDurationChange,
+        onExtraTimeHalfDurationChange = addEditViewModel::onExtraTimeHalfDurationChange,
         onMaxSubstitutionsChange = addEditViewModel::onMaxSubstitutionsChange,
         onHomeColorSelected = addEditViewModel::onHomeColorSelected,
         onAwayColorSelected = addEditViewModel::onAwayColorSelected,
@@ -531,6 +542,7 @@ fun AddEditGameScreen_AddNewPreview() {
             onGameDateTimeChange = {},
             onHalfDurationChange = {},
             onHalftimeDurationChange = {},
+            onExtraTimeHalfDurationChange = {},
             onMaxSubstitutionsChange = {},
             onHomeColorSelected = {},
             onAwayColorSelected = {},
@@ -582,6 +594,7 @@ fun AddEditGameScreen_EditPreview() {
             onGameDateTimeChange = {},
             onHalfDurationChange = {},
             onHalftimeDurationChange = {},
+            onExtraTimeHalfDurationChange = {},
             onMaxSubstitutionsChange = {},
             onHomeColorSelected = {},
             onAwayColorSelected = {},

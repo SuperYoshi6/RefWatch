@@ -9,6 +9,7 @@ import kotlin.collections.plus
 
 interface IMobileGameViewModel {
     val gamesList: StateFlow<List<Game>>
+    fun deleteAllCompletedGames()
 }
 
 interface IWearGameViewModel {

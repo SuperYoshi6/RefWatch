@@ -62,6 +62,53 @@ fun Team.localizedName(): String {
     return stringResource(resId)
 }
 
+/**
+ * Berechnet die Spielminute für ein Ereignis basierend auf der Phase und der Dauer.
+ */
+fun GameEvent.getMatchMinute(halfDurationMinutes: Int): String {
+    val phase = this.phase ?: return ""
+    val elapsedMillis = this.gameTimeMillis.toLong()
+    val regMillis = halfDurationMinutes * 60 * 1000L
+    
+    return when (phase) {
+        GamePhase.FIRST_HALF -> {
+            if (elapsedMillis >= regMillis) {
+                val added = (elapsedMillis - regMillis) / 60000 + 1
+                "$halfDurationMinutes' + $added"
+            } else {
+                "${elapsedMillis / 60000 + 1}'"
+            }
+        }
+        GamePhase.SECOND_HALF -> {
+            if (elapsedMillis >= regMillis) {
+                val added = (elapsedMillis - regMillis) / 60000 + 1
+                "${halfDurationMinutes * 2}' + $added"
+            } else {
+                "${halfDurationMinutes + elapsedMillis / 60000 + 1}'"
+            }
+        }
+        GamePhase.EXTRA_TIME_FIRST_HALF -> {
+            val base = halfDurationMinutes * 2
+            if (elapsedMillis >= 15 * 60 * 1000L) {
+                val added = (elapsedMillis - 15 * 60 * 1000L) / 60000 + 1
+                "${base + 15}' + $added"
+            } else {
+                "${base + elapsedMillis / 60000 + 1}'"
+            }
+        }
+        GamePhase.EXTRA_TIME_SECOND_HALF -> {
+            val base = halfDurationMinutes * 2 + 15 + 15
+            if (elapsedMillis >= 15 * 60 * 1000L) {
+                val added = (elapsedMillis - 15 * 60 * 1000L) / 60000 + 1
+                "${base}' + $added"
+            } else {
+                "${base - 15 + elapsedMillis / 60000 + 1}'"
+            }
+        }
+        else -> ""
+    }
+}
+
 @Composable
 fun GameEvent.localizedDisplayString(): String {
     return when (this) {
@@ -70,9 +117,9 @@ fun GameEvent.localizedDisplayString(): String {
                 R.string.goal_event_template,
                 goalType.localizedName(),
                 team.localizedName(),
+                playerNumber?.toString() ?: "--",
                 homeScoreAtTime,
-                awayScoreAtTime,
-                gameTimeMillis.toLong().formatTime()
+                awayScoreAtTime
             )
         }
         is PenaltyEvent -> {
@@ -92,6 +139,6 @@ fun GameEvent.localizedDisplayString(): String {
             )
         }
         is GenericLogEvent -> message
-        else -> displayString // Fallback for phase changes etc.
+        else -> displayString
     }
 }

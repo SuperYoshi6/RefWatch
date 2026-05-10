@@ -5,26 +5,43 @@ import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.wear.ambient.AmbientLifecycleObserver
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.wear.navigation.NavigationRoutes
 import dagger.hilt.android.AndroidEntryPoint
 
-// TODO: add gps game movement statistics
-// FIXME: clock at the top asleep during kick off
-// TODO:  Make all work on watch without login
-@AndroidEntryPoint // This annotation enables Hilt injection for the Activity
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    // The Activity's only job is to set up the Compose content.
-    // Data reception is handled by your background WearableListenerService.
     private val TAG = "MainActivity"
+    
+    private var isAmbient by mutableStateOf(false)
+
+    private val ambientCallback = object : AmbientLifecycleObserver.AmbientLifecycleCallback {
+        override fun onEnterAmbient(ambientDetails: AmbientLifecycleObserver.AmbientDetails) {
+            isAmbient = true
+        }
+
+        override fun onExitAmbient() {
+            isAmbient = false
+        }
+
+        override fun onUpdateAmbient() {
+            // Update UI if needed
+        }
+    }
+
+    private val ambientObserver = AmbientLifecycleObserver(this, ambientCallback)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lifecycle.addObserver(ambientObserver)
 
         setContent {
             RefWatchWearTheme {
-                // Call your main Composable that contains the navigation logic.
-                NavigationRoutes()
+                NavigationRoutes(isAmbient = isAmbient)
             }
         }
     }

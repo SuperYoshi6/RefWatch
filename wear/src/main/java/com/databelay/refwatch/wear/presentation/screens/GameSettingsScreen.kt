@@ -17,17 +17,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material3.*
+import com.databelay.refwatch.R
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.hasTimer
 import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
+import com.databelay.refwatch.wear.presentation.utils.localizedName
 
 @Composable
 fun GameSettingsScreen(
@@ -94,7 +97,7 @@ fun GameSettingsScreen(
 
                         ) {
                         Text(
-                            text = "Beende ${game.currentPhase.readable()}",
+                            text = stringResource(R.string.end_phase_action, game.currentPhase.localizedName()),
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
