@@ -46,6 +46,7 @@ fun CardType.localizedName(): String {
 @Composable
 fun GoalType.localizedName(): String {
     val resId = when (this) {
+        GoalType.OPEN_PLAY -> R.string.goal_open_play
         GoalType.REGULAR -> R.string.goal_regular
         GoalType.PENALTY -> R.string.goal_penalty
         GoalType.OWN_GOAL -> R.string.goal_own_goal

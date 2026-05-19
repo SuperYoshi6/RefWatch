@@ -23,9 +23,10 @@ val gameEventModule = SerializersModule {
 
 @Serializable
 enum class GoalType {
-    REGULAR,
-    PENALTY,
-    OWN_GOAL
+    OPEN_PLAY,           // Feldtor
+    PENALTY,             // Strafstoß
+    OWN_GOAL,            // Eigentor
+    REGULAR              // Fallback für Legacy-Daten
 }
 
 // --- Game Event data Class and its Subclasses ---
@@ -57,8 +58,9 @@ data class GoalScoredEvent(
     get() {
         val typeStr = when (goalType) {
             GoalType.REGULAR -> "Goal"
-            GoalType.PENALTY -> "Penalty Goal"
-            GoalType.OWN_GOAL -> "Own Goal"
+            GoalType.OPEN_PLAY -> "Feldtor"
+            GoalType.PENALTY -> "Strafstoß"
+            GoalType.OWN_GOAL -> "Eigentor"
         }
         val playerStr = if (playerNumber != null) " (Player #$playerNumber)" else ""
         return "$typeStr$playerStr: ${team.name} ($homeScoreAtTime-$awayScoreAtTime) at ${

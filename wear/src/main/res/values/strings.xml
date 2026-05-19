@@ -12,6 +12,7 @@
     <string name="kick_off">Kick Off</string>
     <string name="goal_type">Goal Type</string>
     <string name="goal_regular">Goal</string>
+    <string name="goal_open_play">Open Play</string>
     <string name="goal_penalty">Penalty</string>
     <string name="goal_own_goal">Own Goal</string>
     <string name="home">Home</string>
@@ -24,6 +25,7 @@
     <string name="new_game">New Game</string>
     <string name="online">Online</string>
     <string name="not_online">Offline</string>
+    <string name="not_set">--</string>
     <string name="no_time_set">--</string>
     <string name="field_label">Field: %1$s</string>
     <string name="game_log">Game Log</string>

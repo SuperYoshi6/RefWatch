@@ -1,5 +1,6 @@
-// File: PenaltyShootoutScreen.kt
 package com.databelay.refwatch.wear.presentation.screens
+
+import androidx.compose.ui.text.style.TextAlign
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,9 +17,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.databelay.refwatch.common.homeTeamColor
+import com.databelay.refwatch.common.awayTeamColor
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.MaterialTheme

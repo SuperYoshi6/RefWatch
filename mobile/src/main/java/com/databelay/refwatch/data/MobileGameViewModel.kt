@@ -8,8 +8,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.databelay.refwatch.common.AppJsonConfiguration
 import com.databelay.refwatch.common.Game
+import com.databelay.refwatch.common.GameEvent
 import com.databelay.refwatch.common.GameStatus
+import com.databelay.refwatch.common.GoalScoredEvent
+import com.databelay.refwatch.common.GoalType
 import com.databelay.refwatch.common.IMobileGameViewModel
+import com.databelay.refwatch.common.SubstitutionEvent
+import com.databelay.refwatch.common.Team
+import com.databelay.refwatch.common.opposite
 import com.databelay.refwatch.common.WearSyncConstants
 import com.databelay.refwatch.di.UserIdFlow
 import com.google.android.gms.wearable.DataClient
@@ -490,6 +496,35 @@ class MobileGameViewModel @Inject constructor(
     // Add this convenience function
     fun addOrUpdateGame(game: Game) {
         addOrUpdateGames(listOf(game))
+    }
+
+    fun addGameEvent(game: Game, event: GameEvent) {
+        val userId = _currentUserId.value
+        if (userId == null) {
+            Log.w(TAG, "Cannot add event: user not logged in.")
+            return
+        }
+
+        val updatedGame = when (event) {
+            is GoalScoredEvent -> {
+                val scoringTeam = if (event.goalType == GoalType.OWN_GOAL) event.team.opposite() else event.team
+                val newHomeScore = if (scoringTeam == Team.HOME) game.homeScore + 1 else game.homeScore
+                val newAwayScore = if (scoringTeam == Team.AWAY) game.awayScore + 1 else game.awayScore
+                game.copy(
+                    homeScore = newHomeScore,
+                    awayScore = newAwayScore,
+                    events = game.events + event,
+                    lastUpdated = System.currentTimeMillis()
+                )
+            }
+            else -> game.addEvent(event)
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            gameRepository.addOrUpdateGame(userId, updatedGame).onFailure {
+                Log.e(TAG, "Failed to save game event: ${it.localizedMessage}")
+            }
+        }
     }
 
     // Simplified: Call this function from anywhere a new game is added

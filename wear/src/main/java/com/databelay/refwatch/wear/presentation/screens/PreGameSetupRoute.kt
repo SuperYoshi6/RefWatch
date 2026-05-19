@@ -16,8 +16,9 @@ import com.databelay.refwatch.wear.WearGameViewModel
 import com.databelay.refwatch.wear.navigation.WearNavRoutes
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import com.databelay.refwatch.R
+import com.databelay.refwatch.common.homeTeamColor
+import com.databelay.refwatch.common.awayTeamColor
 
 private const val TAG = "PreGameSetupRoute"
 

@@ -34,8 +34,13 @@ import androidx.navigation.navArgument
 import com.databelay.refwatch.auth.AuthState
 import com.databelay.refwatch.auth.AuthViewModel
 import com.databelay.refwatch.common.Game
+import com.databelay.refwatch.common.GoalScoredEvent
+import com.databelay.refwatch.common.GoalType
 import com.databelay.refwatch.common.SimpleIcsEvent
 import com.databelay.refwatch.common.SimpleIcsParser
+import com.databelay.refwatch.common.SubstitutionEvent
+import com.databelay.refwatch.common.Team
+import com.databelay.refwatch.common.opposite
 import com.databelay.refwatch.screens.AddEditGameRoute
 import com.databelay.refwatch.data.AddEditGameViewModel
 import com.databelay.refwatch.screens.AuthScreenRoute
@@ -311,7 +316,32 @@ fun RefWatchNavHost() {
                     game = selectedGame,
                     onNavigateBack = { navController.popBackStack() },
                     onTakeCurrentTime = { /* TODO: implement */ },
-                    onHalfTime = { /* TODO: implement */ }
+                    onHalfTime = { /* TODO: implement */ },
+                    onRecordGoal = { team, goalType ->
+                        val scoringTeam = if (goalType == GoalType.OWN_GOAL) team.opposite() else team
+                        val homeScoreAtTime = if (scoringTeam == Team.HOME) selectedGame.homeScore + 1 else selectedGame.homeScore
+                        val awayScoreAtTime = if (scoringTeam == Team.AWAY) selectedGame.awayScore + 1 else selectedGame.awayScore
+                        val goalEvent = GoalScoredEvent(
+                            team = team,
+                            goalType = goalType,
+                            playerNumber = null,
+                            gameTimeMillis = selectedGame.actualTimeElapsedInPeriodMillis.toDouble(),
+                            homeScoreAtTime = homeScoreAtTime,
+                            awayScoreAtTime = awayScoreAtTime,
+                            phase = selectedGame.currentPhase
+                        )
+                        mobileGameViewModel.addGameEvent(selectedGame, goalEvent)
+                    },
+                    onLogSubstitution = { team, outgoingPlayerNumber, incomingPlayerNumber ->
+                        val substitutionEvent = SubstitutionEvent(
+                            team = team,
+                            outgoingPlayerNumber = outgoingPlayerNumber,
+                            incomingPlayerNumber = incomingPlayerNumber,
+                            gameTimeMillis = selectedGame.actualTimeElapsedInPeriodMillis.toDouble(),
+                            phase = selectedGame.currentPhase
+                        )
+                        mobileGameViewModel.addGameEvent(selectedGame, substitutionEvent)
+                    }
                 )
             } else {
                 // Handle game not found

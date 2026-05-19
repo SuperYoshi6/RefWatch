@@ -40,6 +40,11 @@ import com.databelay.refwatch.common.needsKickOffSelection
 import com.databelay.refwatch.common.opposite
 import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.toSnapshotForStorage
+import com.databelay.refwatch.common.regulationPeriodDurationMillis
+import com.databelay.refwatch.common.formattedGameDateTime
+import com.databelay.refwatch.common.isTied
+import com.databelay.refwatch.common.homeTeamColor
+import com.databelay.refwatch.common.awayTeamColor
 import com.databelay.refwatch.common.usesHalfDuration
 import com.databelay.refwatch.wear.data.GameStorageWear
 import com.databelay.refwatch.wear.data.GameTimerService
@@ -213,7 +218,7 @@ class WearGameViewModel @Inject constructor(
             .debounce(750L) 
             .onEach { snapshot ->
                 val latestGameToSave = _activeGame.value
-                if (latestGameToSave != null && latestGameToSave.id == snapshot.id && latestGameToSave.status != GameStatus.COMPLETED) {
+                if (latestGameToSave != null && latestGameToSave.id == snapshot["id"] && latestGameToSave.status != GameStatus.COMPLETED) {
                     // Avoid saving a completely untouched default game
                     val isUntouchedDefault = latestGameToSave.currentPhase == GamePhase.NOT_STARTED &&
                             latestGameToSave.homeTeamName.isBlank() &&
