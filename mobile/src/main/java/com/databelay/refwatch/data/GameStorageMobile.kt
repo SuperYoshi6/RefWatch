@@ -92,6 +92,41 @@ class GameStorageMobile(private val firestore: FirebaseFirestore) {
         }
     }
 
+    suspend fun getGameById(userId: String, gameId: String): Game? {
+        if (userId.isBlank() || gameId.isBlank()) {
+            Log.w(tag, "getGameById: userId or gameId is blank. userId=$userId, gameId=$gameId")
+            return null
+        }
+
+        return try {
+            val docSnapshot = firestore.collection(USERS_COLLECTION)
+                .document(userId)
+                .collection(GAMES_COLLECTION)
+                .document(gameId)
+                .get()
+                .await()
+
+            if (!docSnapshot.exists()) {
+                Log.w(tag, "getGameById: No game found with ID $gameId for user $userId.")
+                return null
+            }
+
+            val gameBase = docSnapshot.toObject<Game>()
+            if (gameBase == null) {
+                Log.w(tag, "getGameById: Failed to convert document $gameId to Game for user $userId.")
+                return null
+            }
+
+            gameBase.copy(
+                id = docSnapshot.id,
+                events = parseGameEventsFromDocument(docSnapshot)
+            )
+        } catch (ex: Exception) {
+            Log.e(tag, "getGameById: Error fetching game $gameId for user $userId", ex)
+            null
+        }
+    }
+
     suspend fun addOrUpdateGame(userId: String, gameToSaveInput: Game): Result<Unit> {
         Log.d(tag, "addOrUpdateGame: User: $userId, Input Game ID: ${gameToSaveInput.id}, Events: ${gameToSaveInput.events.size}")
         if (userId.isBlank()) {

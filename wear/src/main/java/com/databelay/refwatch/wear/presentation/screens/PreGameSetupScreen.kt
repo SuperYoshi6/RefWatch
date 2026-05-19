@@ -326,26 +326,9 @@ fun PreGameSetupScreen(
                 }
             }
 
-            // Section: Match Rules
+            // Match Rules
             item {
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.secondary
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Spieleinstellungen",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             // Half Duration

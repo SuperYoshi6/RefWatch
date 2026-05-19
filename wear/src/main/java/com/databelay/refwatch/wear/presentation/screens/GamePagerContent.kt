@@ -11,6 +11,7 @@ import androidx.wear.compose.foundation.pager.PagerState
 import androidx.wear.compose.material.HorizontalPageIndicator
 import androidx.wear.compose.material.PageIndicatorState
 import com.databelay.refwatch.common.CardType
+import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.wear.presentation.screens.PenaltyShootoutScreen
 import com.databelay.refwatch.common.Team
