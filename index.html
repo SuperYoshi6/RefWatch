@@ -15,7 +15,10 @@
     }
 
     :root {
-      --bg: #06090f;
+      --bg: #0a1a0a;
+      --pitch-dark: #1a3d1a;
+      --pitch-light: #2d5a2d;
+      --pitch-line: rgba(255, 255, 255, .85);
       --surf: #0d1320;
       --surf2: #121a2c;
       --border: #1a2438;
@@ -24,7 +27,7 @@
       --amber: #f59e0b;
       --red: #ef4444;
       --text: #e2e8f0;
-      --muted: #64748b;
+      --muted: #94a3b8;
     }
 
     html {
@@ -32,7 +35,7 @@
     }
 
     body {
-      font-family: 'Inter', system-ui, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
@@ -44,60 +47,60 @@
       position: sticky;
       top: 0;
       z-index: 99;
-      background: rgba(6, 9, 15, .9);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border);
+      background: rgba(10, 26, 10, .95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 32px;
+      padding: 12px 24px;
       gap: 16px
     }
 
     .nav-brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       text-decoration: none
     }
 
     .nav-brand img {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px
+      width: 32px;
+      height: 32px;
+      border-radius: 8px
     }
 
     .nav-brand span {
-      font-weight: 800;
-      font-size: 1.1rem;
+      font-weight: 700;
+      font-size: 1rem;
       color: var(--text)
     }
 
     .nav-brand b {
-      color: var(--blue)
+      color: #3fb950
     }
 
     .lang-btns {
       display: flex;
-      gap: 6px
+      gap: 4px
     }
 
     .lb {
-      padding: 5px 14px;
-      border-radius: 20px;
-      font-size: .78rem;
-      font-weight: 700;
-      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: .72rem;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, .1);
       background: none;
-      color: var(--muted);
+      color: rgba(255, 255, 255, .5);
       cursor: pointer;
-      transition: .18s
+      transition: .15s
     }
 
     .lb.on,
     .lb:hover {
-      background: var(--blue);
-      border-color: var(--blue);
+      background: rgba(255, 255, 255, .15);
+      border-color: rgba(255, 255, 255, .2);
       color: #fff
     }
 
@@ -105,80 +108,102 @@
     .hero {
       position: relative;
       text-align: center;
-      padding: 90px 24px 60px;
+      padding: 60px 24px 80px;
       overflow: hidden;
-      background: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(59, 130, 246, .2) 0%, transparent 68%)
+      background: 
+        repeating-linear-gradient(
+          90deg,
+          transparent,
+          transparent 50px,
+          rgba(255, 255, 255, .03) 50px,
+          rgba(255, 255, 255, .03) 51px
+        ),
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 50px,
+          rgba(255, 255, 255, .03) 50px,
+          rgba(255, 255, 255, .03) 51px
+        ),
+        linear-gradient(180deg, var(--pitch-dark) 0%, var(--pitch-light) 50%, var(--pitch-dark) 100%);
+      background-size: 100% 100%, 100% 100%, 100% 100%;
     }
 
     .hero::before {
-      content: '⚽';
+      content: '';
       position: absolute;
-      font-size: 380px;
-      opacity: .025;
-      top: -60px;
-      right: -80px;
-      line-height: 1;
-      pointer-events: none
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 700px;
+      height: 2px;
+      background: var(--pitch-line);
+      opacity: .4
     }
 
     .hero::after {
-      content: '⚽';
+      content: '';
       position: absolute;
-      font-size: 260px;
-      opacity: .02;
-      bottom: -40px;
-      left: -60px;
-      line-height: 1;
-      pointer-events: none
+      bottom: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 700px;
+      height: 2px;
+      background: var(--pitch-line);
+      opacity: .4
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2
     }
 
     .hero-logo {
-      width: 96px;
-      height: 96px;
-      border-radius: 22px;
+      width: 88px;
+      height: 88px;
+      border-radius: 20px;
       margin: 0 auto 20px;
       display: block;
-      box-shadow: 0 0 40px rgba(59, 130, 246, .35)
+      box-shadow: 0 4px 20px rgba(0, 0, 0, .4);
+      border: 3px solid rgba(255, 255, 255, .15)
     }
 
     .badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: rgba(59, 130, 246, .12);
-      border: 1px solid rgba(59, 130, 246, .35);
-      color: var(--blue);
+      background: rgba(0, 0, 0, .5);
+      border: 1px solid rgba(255, 255, 255, .15);
+      color: #fff;
       border-radius: 20px;
-      font-size: .76rem;
-      font-weight: 700;
-      padding: 4px 14px;
+      font-size: .72rem;
+      font-weight: 600;
+      padding: 6px 14px;
       text-transform: uppercase;
       letter-spacing: .5px;
       margin-bottom: 18px
     }
 
     .hero h1 {
-      font-size: clamp(2.1rem, 6vw, 3.8rem);
-      font-weight: 900;
-      letter-spacing: -1.5px;
-      line-height: 1.08;
-      margin-bottom: 18px
+      font-size: clamp(2rem, 6vw, 3.2rem);
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1.1;
+      margin-bottom: 14px;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, .5)
     }
 
     .hero h1 .ac {
-      color: var(--blue)
-    }
-
-    .hero h1 .ball {
-      display: inline-block;
-      margin-right: 6px
+      color: #fff
     }
 
     .hero-sub {
-      color: var(--muted);
-      font-size: 1.05rem;
-      max-width: 520px;
-      margin: 0 auto 36px
+      color: rgba(255, 255, 255, .75);
+      font-size: 1rem;
+      max-width: 480px;
+      margin: 0 auto 32px
     }
 
     .hero-btns {
@@ -186,31 +211,30 @@
       gap: 12px;
       justify-content: center;
       flex-wrap: wrap;
-      margin-bottom: 56px
+      margin-bottom: 50px
     }
 
     .btn {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 13px 24px;
-      border-radius: 12px;
+      padding: 12px 22px;
+      border-radius: 8px;
       font-weight: 700;
-      font-size: .92rem;
+      font-size: .9rem;
       text-decoration: none;
       border: none;
       cursor: pointer;
-      transition: transform .15s, box-shadow .15s, filter .15s
+      transition: all .2s
     }
 
     .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, .4)
+      transform: translateY(-2px)
     }
 
     .btn-blue {
-      background: var(--blue);
-      color: #fff
+      background: #fff;
+      color: #1a3d1a
     }
 
     .btn-green {
@@ -219,39 +243,57 @@
     }
 
     .btn-ghost {
-      background: rgba(255, 255, 255, .06);
-      border: 1px solid var(--border);
-      color: var(--text)
+      background: rgba(0, 0, 0, .4);
+      border: 1px solid rgba(255, 255, 255, .2);
+      color: #fff
     }
 
     /* PITCH ILLUSTRATION */
     .pitch-wrap {
-      max-width: 820px;
+      max-width: 680px;
       margin: 0 auto;
       position: relative
     }
 
     .pitch {
-      background: linear-gradient(180deg, #166534 0%, #15803d 50%, #166534 100%);
-      border-radius: 20px 20px 0 0;
-      border: 2px solid #14532d;
-      border-bottom: none;
-      padding: 32px;
+      background: 
+        repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,.04) 40px, rgba(255,255,255,.04) 41px),
+        repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(255,255,255,.04) 40px, rgba(255,255,255,.04) 41px),
+        linear-gradient(180deg, #1a472a 0%, #2d6b40 50%, #1a472a 100%);
+      border: 3px solid #fff;
+      border-radius: 4px;
+      padding: 28px 20px;
       display: grid;
       grid-template-columns: 1fr auto 1fr;
       align-items: center;
-      gap: 16px;
-      min-height: 180px;
-      overflow: hidden
+      gap: 12px;
+      min-height: 160px;
+      position: relative;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, .5)
     }
 
     .pitch::before {
       content: '';
       position: absolute;
-      inset: 0;
-      background: repeating-linear-gradient(180deg, rgba(0, 0, 0, .05) 0px, rgba(0, 0, 0, .05) 20px, transparent 20px, transparent 40px);
-      border-radius: 20px 20px 0 0;
-      pointer-events: none
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 60px;
+      border: 2px solid rgba(255, 255, 255, .5);
+      border-radius: 50%;
+      opacity: .5
+    }
+
+    .pitch::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 0;
+      transform: translateX(-50%);
+      width: 2px;
+      height: 100%;
+      background: rgba(255, 255, 255, .4)
     }
 
     .team-side {
@@ -259,65 +301,65 @@
     }
 
     .team-color {
-      width: 48px;
-      height: 48px;
+      width: 42px;
+      height: 42px;
       border-radius: 50%;
-      margin: 0 auto 8px;
-      border: 3px solid rgba(255, 255, 255, .3);
-      box-shadow: 0 0 16px rgba(0, 0, 0, .4)
+      margin: 0 auto 6px;
+      border: 2px solid rgba(255, 255, 255, .4);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .4)
     }
 
     .team-abbr {
-      font-size: 1.1rem;
-      font-weight: 800;
+      font-size: 1rem;
+      font-weight: 700;
       color: #fff;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, .5)
+      text-shadow: 0 1px 3px rgba(0, 0, 0, .5)
     }
 
     .team-cap {
-      font-size: .72rem;
-      color: rgba(255, 255, 255, .65);
+      font-size: .65rem;
+      color: rgba(255, 255, 255, .6);
       margin-top: 2px
     }
 
     .scoreboard {
-      background: rgba(0, 0, 0, .55);
-      backdrop-filter: blur(8px);
-      border-radius: 16px;
-      border: 1px solid rgba(255, 255, 255, .1);
-      padding: 16px 24px;
+      background: #0d1117;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+      padding: 12px 20px;
       text-align: center;
-      min-width: 160px
+      min-width: 120px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, .4)
     }
 
     .score-main {
-      font-size: 2.6rem;
-      font-weight: 900;
+      font-size: 2rem;
+      font-weight: 700;
       color: #fff;
-      letter-spacing: -2px;
+      letter-spacing: -1px;
       line-height: 1
     }
 
     .score-phase {
-      font-size: .7rem;
-      font-weight: 700;
-      color: var(--blue);
+      font-size: .6rem;
+      font-weight: 600;
+      color: #58a6ff;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: .5px;
       margin-top: 4px
     }
 
     .score-time {
-      font-size: 1.1rem;
-      font-weight: 700;
+      font-size: .95rem;
+      font-weight: 600;
       color: #fff;
-      margin-top: 6px
+      margin-top: 4px
     }
 
     .score-extra {
-      font-size: .85rem;
-      font-weight: 700;
-      color: var(--green);
+      font-size: .75rem;
+      font-weight: 600;
+      color: #3fb950;
       margin-top: 2px
     }
 
@@ -327,129 +369,131 @@
       justify-content: center;
       gap: 12px;
       flex-wrap: wrap;
-      padding: 24px;
-      background: var(--surf);
-      border: 1px solid var(--border);
-      border-top: none
+      padding: 20px;
+      background: #071a0a;
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-top: none;
+      border-radius: 0 0 4px 4px
     }
 
     .pill {
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-size: .82rem;
-      font-weight: 600;
-      color: var(--muted)
+      gap: 5px;
+      font-size: .78rem;
+      font-weight: 500;
+      color: rgba(255, 255, 255, .6)
     }
 
     .pill em {
-      font-size: 1.1rem;
+      font-size: 1rem;
       font-style: normal
     }
 
     /* SECTION */
     .sec {
-      max-width: 1080px;
+      max-width: 980px;
       margin: 0 auto;
-      padding: 72px 24px
+      padding: 56px 20px
     }
 
     .sec-tag {
-      font-size: .7rem;
-      font-weight: 700;
+      font-size: .65rem;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 1.5px;
-      color: var(--blue);
-      margin-bottom: 8px
+      color: #3fb950;
+      margin-bottom: 6px
     }
 
     .sec h2 {
-      font-size: clamp(1.6rem, 3.5vw, 2.3rem);
-      font-weight: 800;
-      letter-spacing: -.5px;
-      margin-bottom: 12px
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 700;
+      letter-spacing: -.3px;
+      margin-bottom: 10px
     }
 
     .sec-sub {
-      color: var(--muted);
-      font-size: .97rem;
-      max-width: 560px;
-      margin-bottom: 44px
+      color: rgba(255, 255, 255, .5);
+      font-size: .92rem;
+      max-width: 520px;
+      margin-bottom: 36px
     }
 
     hr {
       border: none;
-      border-top: 1px solid var(--border)
+      border-top: 1px solid rgba(255, 255, 255, .08)
     }
 
     /* FEATURE GRID */
     .fg {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
-      gap: 16px
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 14px
     }
 
     .fc {
-      background: var(--surf);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 24px;
-      transition: border-color .2s, transform .2s
+      background: rgba(255, 255, 255, .03);
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 12px;
+      padding: 20px;
+      transition: all .2s
     }
 
     .fc:hover {
-      border-color: var(--blue);
-      transform: translateY(-3px)
+      border-color: rgba(63, 185, 80, .4);
+      background: rgba(255, 255, 255, .05);
+      transform: translateY(-2px)
     }
 
     .fc-icon {
-      font-size: 2rem;
-      margin-bottom: 12px;
+      font-size: 1.6rem;
+      margin-bottom: 10px;
       display: block
     }
 
     .fc h3 {
-      font-size: .93rem;
-      font-weight: 700;
+      font-size: .9rem;
+      font-weight: 600;
       margin-bottom: 6px
     }
 
     .fc p {
-      font-size: .83rem;
-      color: var(--muted)
+      font-size: .8rem;
+      color: rgba(255, 255, 255, .5)
     }
 
     .fc .tag {
       display: inline-block;
-      font-size: .68rem;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 6px;
+      font-size: .62rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
       margin-top: 8px;
       text-transform: uppercase;
-      letter-spacing: .4px
+      letter-spacing: .3px
     }
 
     .tag-blue {
-      background: rgba(59, 130, 246, .15);
-      color: var(--blue)
+      background: rgba(88, 166, 255, .15);
+      color: #58a6ff
     }
 
     .tag-green {
-      background: rgba(16, 185, 129, .15);
-      color: var(--green)
+      background: rgba(63, 185, 80, .15);
+      color: #3fb950
     }
 
     .tag-amber {
-      background: rgba(245, 158, 11, .15);
-      color: var(--amber)
+      background: rgba(187, 134, 11, .15);
+      color: #d29922
     }
 
     /* INSTALL */
     .ig {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 20px
+      gap: 16px
     }
 
     @media(max-width:620px) {
@@ -459,66 +503,66 @@
     }
 
     .ic {
-      background: var(--surf);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 28px
+      background: rgba(255, 255, 255, .03);
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 12px;
+      padding: 24px
     }
 
     .ic-head {
-      font-size: 1rem;
-      font-weight: 700;
-      margin-bottom: 18px;
+      font-size: .95rem;
+      font-weight: 600;
+      margin-bottom: 16px;
       display: flex;
       align-items: center;
       gap: 8px
     }
 
     .ic ol {
-      padding-left: 18px
+      padding-left: 16px
     }
 
     .ic li {
-      margin-bottom: 10px;
-      font-size: .85rem;
-      color: var(--muted)
+      margin-bottom: 8px;
+      font-size: .8rem;
+      color: rgba(255, 255, 255, .5)
     }
 
     .ic li strong {
-      color: var(--text)
+      color: #fff
     }
 
     .note {
-      background: rgba(245, 158, 11, .08);
-      border: 1px solid rgba(245, 158, 11, .3);
-      border-radius: 12px;
-      padding: 16px 20px;
-      margin-top: 24px;
-      font-size: .83rem;
-      color: #fbbf24
+      background: rgba(187, 134, 11, .1);
+      border: 1px solid rgba(187, 134, 11, .3);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-top: 20px;
+      font-size: .8rem;
+      color: #d29922
     }
 
     .note strong {
       display: block;
       margin-bottom: 4px;
-      font-size: .85rem
+      font-size: .82rem
     }
 
     code {
-      background: #0a0d14;
-      border: 1px solid var(--border);
-      padding: 2px 7px;
-      border-radius: 5px;
-      font-size: .8rem;
-      color: var(--green);
-      font-family: 'JetBrains Mono', monospace
+      background: rgba(0, 0, 0, .4);
+      border: 1px solid rgba(255, 255, 255, .1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: .78rem;
+      color: #3fb950;
+      font-family: monospace
     }
 
     /* FOOTER */
     footer {
-      background: var(--surf);
-      border-top: 1px solid var(--border);
-      padding: 52px 24px;
+      background: #061206;
+      border-top: 1px solid rgba(255, 255, 255, .06);
+      padding: 40px 20px;
       text-align: center
     }
 
@@ -526,71 +570,71 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      margin-bottom: 8px
+      gap: 8px;
+      margin-bottom: 6px
     }
 
     .f-logo img {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px
+      width: 40px;
+      height: 40px;
+      border-radius: 10px
     }
 
     .f-logo span {
-      font-size: 1.4rem;
-      font-weight: 800
+      font-size: 1.2rem;
+      font-weight: 700
     }
 
     .f-logo b {
-      color: var(--blue)
+      color: #3fb950
     }
 
     .f-sub {
-      color: var(--muted);
-      font-size: .83rem;
-      margin-bottom: 32px
+      color: rgba(255, 255, 255, .4);
+      font-size: .78rem;
+      margin-bottom: 24px
     }
 
     .gh-row {
       display: flex;
       justify-content: center;
-      gap: 14px;
+      gap: 12px;
       flex-wrap: wrap;
-      margin-bottom: 28px
+      margin-bottom: 20px
     }
 
     .gh {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
-      background: var(--surf2);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 20px;
+      gap: 8px;
+      background: rgba(255, 255, 255, .03);
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 8px;
+      padding: 10px 16px;
       text-decoration: none;
       color: var(--text);
-      font-size: .83rem;
-      font-weight: 600;
-      transition: border-color .2s, transform .2s
+      font-size: .78rem;
+      font-weight: 500;
+      transition: all .2s
     }
 
     .gh:hover {
-      border-color: var(--blue);
-      transform: translateY(-2px)
+      border-color: rgba(63, 185, 80, .4);
+      background: rgba(255, 255, 255, .05)
     }
 
     .gh-meta {
-      font-size: .68rem;
-      color: var(--muted)
+      font-size: .62rem;
+      color: rgba(255, 255, 255, .4)
     }
 
     .f-legal {
-      color: var(--muted);
-      font-size: .74rem
+      color: rgba(255, 255, 255, .35);
+      font-size: .7rem
     }
 
     .f-legal a {
-      color: var(--muted)
+      color: rgba(255, 255, 255, .4)
     }
 
     /* LANG */
@@ -632,20 +676,19 @@
     </div>
   </nav>
 
-  <!-- HERO -->
+<!-- HERO -->
   <section class="hero">
-    <img class="hero-logo" src="logo.png" alt="RefWatch" />
-    <div class="badge">⌚ Wear OS + 📱 Android</div>
-    <h1 class="de"><span class="ball">⚽</span>Die App für<br /><span class="ac">Fußball-Schiedsrichter</span></h1>
-    <h1 class="en"><span class="ball">⚽</span>The App for<br /><span class="ac">Football Referees</span></h1>
-    <p class="hero-sub de">Spielzeit, Tore, Karten, Wechsel und Spielprotokoll – alles direkt am Handgelenk,
-      synchronisiert mit dem Handy.</p>
-    <p class="hero-sub en">Match timer, goals, cards, substitutions and match log – all on your wrist, synced to your
-      phone.</p>
-    <div class="hero-btns">
-      <a href="#install" class="btn btn-blue">📲 <span class="de">App installieren</span><span class="en">Install
-          App</span></a>
-      <a href="#features" class="btn btn-ghost">⚽ <span class="de">Funktionen</span><span class="en">Features</span></a>
+    <div class="hero-content">
+      <img class="hero-logo" src="logo.png" alt="RefWatch" />
+      <div class="badge">Wear OS + Android</div>
+      <h1 class="de">Die App für<br /><span class="ac">Fuß<span style="color:#10b981">ball</span>-Schiedsrichter</span></h1>
+      <h1 class="en">The App for<br /><span class="ac">Football Referees</span></h1>
+      <p class="hero-sub de">Spielzeit, Tore, Karten, Wechsel und Spielprotokoll – alles direkt am Handgelenk, synchronisiert mit dem Handy.</p>
+      <p class="hero-sub en">Match timer, goals, cards, substitutions and match log – all on your wrist, synced to your phone.</p>
+      <div class="hero-btns">
+        <a href="#install" class="btn btn-blue">📲 <span class="de">App installieren</span><span class="en">Install App</span></a>
+        <a href="#features" class="btn btn-ghost">⚽ <span class="de">Funktionen</span><span class="en">Features</span></a>
+      </div>
     </div>
 
     <!-- PITCH MOCKUP -->
@@ -672,11 +715,11 @@
         </div>
       </div>
       <div class="pills-bar">
-        <div class="pill"><em>⌚</em> Wear OS</div>
-        <div class="pill"><em>📱</em> Android 8+</div>
-        <div class="pill"><em>☁️</em> Firebase Sync</div>
-        <div class="pill"><em>🔓</em> Open Source</div>
-        <div class="pill"><em>🔴🟡</em> <span class="de">Karten</span><span class="en">Cards</span></div>
+        <div class="pill">⌚ Wear OS</div>
+        <div class="pill">📱 Android 8+</div>
+        <div class="pill">☁️ Firebase Sync</div>
+        <div class="pill">🔓 Open Source</div>
+        <div class="pill">🔴🟡 <span class="de">Karten</span><span class="en">Cards</span></div>
       </div>
     </div>
   </section>
