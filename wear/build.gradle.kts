@@ -36,8 +36,8 @@ android {
         minSdk = 34
         targetSdk = 36
 //        Version code scheme explained here:  https://developer.android.com/training/wearables/packaging
-        versionCode = 361090001
-        versionName = "1.0.9"
+        versionCode = 361110001
+        versionName = "1.0.11"
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
         buildConfigField(
             "String",
