@@ -17,8 +17,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.databelay.refwatch.R
 import com.databelay.refwatch.common.Team
 
 @Composable
@@ -67,7 +69,7 @@ fun TeamPickerDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.cancel))
                     }
                     // "OK" button is optional here as selection is immediate, but good for confirmation
                     // TextButton(

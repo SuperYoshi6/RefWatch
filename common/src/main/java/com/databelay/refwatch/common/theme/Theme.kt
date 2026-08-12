@@ -1,6 +1,7 @@
 package com.databelay.refwatch.common.theme
 
 import android.app.Activity
+import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
@@ -9,13 +10,14 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.wear.compose.material3.MaterialTheme // Wear Material Theme
 
-// Define your M3 ColorSchemes using the colors from Color.kt
+// Mobile color schemes — see Color.kt for the actual hex tokens.
 val AppLightColorScheme: ColorScheme = lightColorScheme(
     primary = md_theme_light_primary,
     onPrimary = md_theme_light_onPrimary,
@@ -80,43 +82,57 @@ val AppDarkColorScheme: ColorScheme = darkColorScheme(
     scrim = md_theme_dark_scrim,
 )
 
-// Create a Wear OS Colors object based on your common M3 colors
+// Wear OS color scheme. Mirrors the mobile dark scheme but expressed in the
+// Wear OS uses a NEUTRAL dark background (pure black / dark gray), NOT the
+// pitch-green / navy of the website. The watch is too small for the
+// PitchBackground gradient — it would muddy the contrast of timer numerals
+// and team colour chips. The accent colours (green, blue, amber, red) stay
+// the same so buttons / card indicators remain readable.
+private val WearNeutralBackground = Color(0xFF000000)
+private val WearNeutralSurfaceLow = Color(0xFF111111)
+private val WearNeutralSurface = Color(0xFF1A1A1A)
+private val WearNeutralSurfaceHigh = Color(0xFF262626)
+private val WearNeutralOnSurface = Color(0xFFE2E8F0)
+private val WearNeutralOnSurfaceVariant = Color(0xFF94A3B8)
+
 private val WearAppDarkColorScheme: androidx.wear.compose.material3.ColorScheme =
     androidx.wear.compose.material3.ColorScheme(
-        primary = md_theme_dark_primary,              // From Color.kt (Vibrant Green)
-        primaryDim = md_theme_dark_primaryDim, // From Color.kt (Darker Green)
+        // Accent colours — same as the phone, so brand recognition carries over.
+        primary = md_theme_dark_primary,
+        primaryDim = md_theme_dark_primaryDim,
         primaryContainer = md_theme_dark_primaryContainer,
-        secondary = md_theme_dark_secondary,            // From Color.kt (Vibrant Cyan/Blue)
-        secondaryDim = md_theme_dark_secondaryDim, // From Color.kt (Darker Cyan/Blue)
+        secondary = md_theme_dark_secondary,
+        secondaryDim = md_theme_dark_secondaryDim,
         secondaryContainer = md_theme_dark_secondaryContainer,
-        error = md_theme_dark_error,                  // From Color.kt (Bright Red)
+        error = md_theme_dark_error,
         errorDim = md_theme_dark_errorDim,
         errorContainer = md_theme_dark_errorContainer,
-        onPrimary = md_theme_dark_onPrimary,            // From Color.kt (Pure Black)
+        onPrimary = md_theme_dark_onPrimary,
         onPrimaryContainer = md_theme_dark_onPrimaryContainer,
-        onSecondary = md_theme_dark_onSecondary,          // From Color.kt (Pure Black)
+        onSecondary = md_theme_dark_onSecondary,
         onSecondaryContainer = md_theme_dark_onSecondaryContainer,
-        onError = md_theme_dark_onError,                // From Color.kt (Pure Black)
+        onError = md_theme_dark_onError,
         onErrorContainer = md_theme_dark_onErrorContainer,
-        background = md_theme_dark_background,          // From Color.kt (Pure Black)
-        onBackground = md_theme_dark_onBackground,        // From Color.kt (Pure White)
-        surfaceContainer = md_theme_dark_surfaceContainer,
-        surfaceContainerLow = md_theme_dark_surfaceContainerLow,
-        surfaceContainerHigh = md_theme_dark_surfaceContainerHigh, // From Color.kt (Very dark gray)
-        onSurface = md_theme_dark_onSurface,              // From Color.kt (Pure White)
-        onSurfaceVariant = md_theme_dark_onSurfaceVariant // From Color.kt (Very light gray / off-white)
+        // Backgrounds — neutral, NOT the website's pitch green.
+        background = WearNeutralBackground,
+        onBackground = WearNeutralOnSurface,
+        surfaceContainer = WearNeutralSurface,
+        surfaceContainerLow = WearNeutralSurfaceLow,
+        surfaceContainerHigh = WearNeutralSurfaceHigh,
+        onSurface = WearNeutralOnSurface,
+        onSurfaceVariant = WearNeutralOnSurfaceVariant
     )
-// Define WearAppLightColorScheme using your M3 light theme color tokens
+
 val WearAppLightColorScheme: androidx.wear.compose.material3.ColorScheme =
     androidx.wear.compose.material3.ColorScheme(
         primary = md_theme_light_primary,
-        primaryDim = md_theme_light_primaryDim, // Ensure md_theme_light_primaryDim is in Color.kt
+        primaryDim = md_theme_light_primaryDim,
         primaryContainer = md_theme_light_primaryContainer,
         secondary = md_theme_light_secondary,
-        secondaryDim = md_theme_light_secondaryDim, // Ensure md_theme_light_secondaryDim is in Color.kt
+        secondaryDim = md_theme_light_secondaryDim,
         secondaryContainer = md_theme_light_secondaryContainer,
         error = md_theme_light_error,
-        errorDim = md_theme_light_errorDim,         // Ensure md_theme_light_errorDim is in Color.kt
+        errorDim = md_theme_light_errorDim,
         errorContainer = md_theme_light_errorContainer,
         onPrimary = md_theme_light_onPrimary,
         onPrimaryContainer = md_theme_light_onPrimaryContainer,
@@ -124,13 +140,13 @@ val WearAppLightColorScheme: androidx.wear.compose.material3.ColorScheme =
         onSecondaryContainer = md_theme_light_onSecondaryContainer,
         onError = md_theme_light_onError,
         onErrorContainer = md_theme_light_onErrorContainer,
-        background = md_theme_light_background,
-        onBackground = md_theme_light_onBackground,
-        surfaceContainer = md_theme_light_surfaceContainer,    // Ensure md_theme_light_surfaceContainer is in Color.kt
-        surfaceContainerLow = md_theme_light_surfaceContainerLow, // Ensure md_theme_light_surfaceContainerLow is in Color.kt
-        surfaceContainerHigh = md_theme_light_surfaceContainerHigh, // Ensure md_theme_light_surfaceContainerHigh is in Color.kt
-        onSurface = md_theme_light_onSurface,
-        onSurfaceVariant = md_theme_light_onSurfaceVariant
+        background = Color(0xFFF8FAFC),
+        onBackground = Color(0xFF0F172A),
+        surfaceContainer = Color(0xFFE2E8F0),
+        surfaceContainerLow = Color(0xFFF1F5F9),
+        surfaceContainerHigh = Color(0xFFCBD5E1),
+        onSurface = Color(0xFF0F172A),
+        onSurfaceVariant = Color(0xFF475569)
     )
 
 @Composable
@@ -138,44 +154,48 @@ fun RefWatchWearTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    MaterialTheme( // androidx.wear.compose.material.MaterialTheme
+    MaterialTheme(
         colorScheme = WearAppDarkColorScheme,
-//            else -> {WearAppLightColorScheme}
-//        }, // Your WearAppColorPalette
-        typography = WearTypography,  // Use WearTypography defined in this module
+        typography = WearTypography,
         content = content
     )
 }
 
-// Basic Material 3 Theme (you can customize this further)
+/**
+ * Phone-app theme, designed to match the RefWatch landing page
+ * (super-yoshi6.github.io/RefWatch). Always dark, no dynamic color —
+ * the brand needs to stay consistent across devices. The background is the
+ * same dark pitch-green (#0A1A0A) that opens the website, so the app feels
+ * like an extension of the same page.
+ */
 @Composable
-fun RefWatchMobileTheme( // This is your PHONE App's M3 Theme
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true, // Dynamic color is available on Android 12+
+fun RefWatchMobileTheme(
+    darkTheme: Boolean = true,           // ignore system theme — brand is dark
+    dynamicColor: Boolean = false,       // never pull wallpaper colors
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> AppDarkColorScheme // Use common dark scheme
-        else -> AppLightColorScheme     // Use common light scheme
-    }
+    val colorScheme = if (darkTheme) AppDarkColorScheme else AppLightColorScheme
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb() // Example
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars =
-                !darkTheme // Or based on primary's luminance
+            // Make the system bars TRANSPARENT so the PitchBackground (which
+            // sits behind the Scaffold as a full-bleed Box) shows through
+            // edge-to-edge. We do NOT paint them with the background colour
+            // any more — that used to be correct, but with edge-to-edge
+            // enabled the painted colour would clip the gradient that bleeds
+            // up under the status bar.
+            window.statusBarColor = AndroidColor.TRANSPARENT
+            window.navigationBarColor = AndroidColor.TRANSPARENT
+            // Light icons on dark — the gradient behind is always dark.
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
         }
     }
 
     androidx.compose.material3.MaterialTheme(
         colorScheme = colorScheme,
-        typography = MobileTypography, // Your phone app's M3 Typography
+        typography = MobileTypography,
         content = content
     )
 }

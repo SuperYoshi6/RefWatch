@@ -1,7 +1,6 @@
 package com.databelay.refwatch.wear.presentation.screens
 
 import androidx.compose.material.icons.filled.SyncProblem
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +20,6 @@ import com.databelay.refwatch.common.formattedGameDateTime
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,13 +32,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import android.util.Log
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.ChipDefaults.chipColors
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.ToggleButton
 import androidx.wear.compose.material.ToggleButtonDefaults
@@ -54,12 +53,45 @@ import androidx.wear.tooling.preview.devices.WearDevices
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.common.Game
+import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.GameStatus
 import com.databelay.refwatch.common.PreviewTools.createSampleGames
 import com.databelay.refwatch.common.getAppVersionName
 
 // Assuming GameStatus.SCHEDULED and GameStatus.COMPLETED
 enum class GameListFilterState { UPCOMING, PAST }
+
+@Composable
+fun StatusHeader(
+    isOnline: Boolean,
+    userId: String?,
+    onPairClick: () -> Unit,
+    onLoginClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .clickable { if (userId == null) onLoginClick() },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.AccountCircle,
+            contentDescription = null,
+            tint = if (userId != null) Color.Green else Color.Red,
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = userId?.take(10)?.let { "$it..." } ?: "Anmelden",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (userId != null) MaterialTheme.colorScheme.onSurface else Color.Yellow,
+            textDecoration = if (userId == null) androidx.compose.ui.text.style.TextDecoration.Underline else null
+        )
+    }
+}
 
 @Composable
 fun CompactGameFilter(
@@ -83,8 +115,8 @@ fun CompactGameFilter(
         filters.forEach { (filterEnum, iconVector) ->
             val isSelected = selectedFilter == filterEnum
             val contentDescription = when (filterEnum) {
-                GameListFilterState.UPCOMING -> stringResource(R.string.upcoming_games) + " ($upcomingCount)"
-                GameListFilterState.PAST -> stringResource(R.string.past_games) + " ($pastCount)"
+                GameListFilterState.UPCOMING -> stringResource(R.string.upcoming_games)
+                GameListFilterState.PAST -> stringResource(R.string.past_games)
             }
 
             ToggleButton(
@@ -113,25 +145,31 @@ fun GameListScreen(
     onGameSelected: (Game) -> Unit,
     onViewLog: (String) -> Unit,
     onNavigateToNewGame: () -> Unit,
+    onNavigateToPairing: () -> Unit,
+    onNavigateToLogin: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val tag = "GameListScreen"
-    LaunchedEffect(allGames) {
-        Log.d(tag, "Games list updated. Number of games: ${allGames.size}")
-    }
     var selectedFilterState by remember { mutableStateOf(GameListFilterState.UPCOMING) }
-    var appVersionName by remember { mutableStateOf("Loading...") }
+    // Reading the version name from PackageManager is IO, so we hoist it out
+    // of recomposition and only read once. Previously this was a `LaunchedEffect
+    // (Unit)` that logged every time and ran an extra coroutine.
     val context = LocalContext.current
-
-    LaunchedEffect(Unit) {
-        appVersionName = getAppVersionName(context)
+    val appVersionName = remember(context) {
+        runCatching { getAppVersionName(context) }.getOrDefault("?")
     }
 
     val (upcomingGames, pastGames) = remember(allGames) {
-        val (scheduled, completed) = allGames.partition { it.status == GameStatus.SCHEDULED }
+        val now = System.currentTimeMillis()
+        val (upcoming, past) = allGames.partition { game ->
+            val isEnded = game.currentPhase == GamePhase.GAME_ENDED
+            val isScheduledOrInProgress = game.status == GameStatus.SCHEDULED || game.status == GameStatus.IN_PROGRESS
+            val isRecent = (game.gameDateTimeEpochMillis ?: 0L) > (now - 3 * 3600 * 1000L)
+            
+            !isEnded && isScheduledOrInProgress && isRecent
+        }
         Pair(
-            scheduled.sortedBy { it.gameDateTimeEpochMillis },
-            completed.sortedByDescending { it.gameDateTimeEpochMillis }
+            upcoming.sortedBy { it.gameDateTimeEpochMillis },
+            past.sortedByDescending { it.gameDateTimeEpochMillis }
         )
     }
     val gamesToDisplay =
@@ -147,14 +185,20 @@ fun GameListScreen(
     ) { contentPadding ->
             ScalingLazyColumn(
                 state = listState, contentPadding = contentPadding,
-//            modifier = Modifier.fillMaxSize(),
-//            horizontalAlignment = Alignment.CenterHorizontally,
-//            verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                item { Spacer(modifier = Modifier.padding(top = 0.dp)) }
+                item(key = "spacer_header") { Spacer(modifier = Modifier.height(32.dp)) }
+                
+                item(key = "status_header") {
+                    StatusHeader(
+                        isOnline = isOnline, 
+                        userId = activeGame?.userId ?: allGames.firstOrNull()?.userId,
+                        onPairClick = onNavigateToPairing,
+                        onLoginClick = onNavigateToLogin
+                    )
+                }
 
                 if (selectedFilterState == GameListFilterState.UPCOMING) {
-                    item {
+                    item(key = "new_game_chip") {
                         Chip(
                             onClick = onNavigateToNewGame,
                             label = {
@@ -192,26 +236,10 @@ fun GameListScreen(
                         }
                     )
                 }
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val emptyMessage =
-                            if (isOnline) stringResource(R.string.online) else stringResource(R.string.not_online)
-                        Text(
-                            text = emptyMessage,
-                            color = MaterialTheme.colorScheme.onSecondary,
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(16.dp)
-                        )
-                    }
-                }
-                item {
+                item(key = "version_footer") {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Version: $appVersionName",
+                        text = stringResource(R.string.version_label, appVersionName),
                         color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,
@@ -231,7 +259,6 @@ fun GameListScreen(
                 pastCount = pastGames.size,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.Transparent)
                     .padding(horizontal = 16.dp, vertical = 4.dp)
             )
         }
@@ -249,17 +276,17 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
         label = {
             Column(horizontalAlignment = Alignment.Start) {
                 Text(
-                    text = "${game.homeTeamName} vs ${game.awayTeamName}",
+                    text = "${game.homeTeamName} - ${game.awayTeamName}",
                     maxLines = 2,
                     color = MaterialTheme.colorScheme.onPrimary,
                     style = MaterialTheme.typography.labelMedium
                 )
                 if (game.status == GameStatus.COMPLETED) {
+                    val statusText = if (game.currentPhase == GamePhase.ABORTED) "Abgebrochen" else stringResource(R.string.final_score_chip, game.homeScore, game.awayScore)
                     Text(
-                        text = "Final: ${game.homeScore} - ${game.awayScore}",
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        style = MaterialTheme.typography.labelMedium,
-//                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        text = statusText,
+                        color = if (game.currentPhase == GamePhase.ABORTED) Color.Red else MaterialTheme.colorScheme.onPrimary,
+                        style = MaterialTheme.typography.labelMedium
                     )
                 }
             }
@@ -268,7 +295,7 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
                 Spacer(Modifier.width(8.dp))
                 Icon(
                     imageVector = Icons.Filled.SyncProblem,
-                    contentDescription = "Needs sync with phone",
+                    contentDescription = stringResource(R.string.needs_sync),
                     modifier = Modifier.size(ChipDefaults.IconSize),
                     tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
@@ -303,7 +330,7 @@ fun ScheduledGameItem(game: Game, onClick: () -> Unit) {
             game.fieldNumber?.let {
                 Icon(
                     imageVector = Icons.Filled.LocationOn,
-                    contentDescription = "Field Number available",
+                    contentDescription = stringResource(R.string.field_number_available),
                     modifier = Modifier.size(ChipDefaults.IconSize),
                 )
             }
@@ -328,7 +355,9 @@ fun GameListScreenPreview_WithScheduledGames() {
             isOnline = true,
             onGameSelected = {},
             onViewLog = {},
-            onNavigateToNewGame = {}
+            onNavigateToNewGame = {},
+            onNavigateToPairing = {},
+            onNavigateToLogin = {}
         )
     }
 }

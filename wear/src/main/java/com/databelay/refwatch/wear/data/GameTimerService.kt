@@ -12,7 +12,6 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
 import android.os.Binder
 import android.os.Build
-import android.os.CountDownTimer
 import android.os.IBinder
 import android.os.PowerManager
 import android.os.SystemClock
@@ -72,7 +71,7 @@ class GameTimerService : Service() {
     private lateinit var vibrator: Vibrator
 
     private var wakeLock: PowerManager.WakeLock? = null
-    private var gameCountDownTimer: CountDownTimer? = null
+    private var mainTimerJob: Job? = null
     private var stoppageCountUpTimer: Job? = null
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
@@ -140,7 +139,7 @@ class GameTimerService : Service() {
                 }
             } else {
                 initialElapsed = 0L
-                gameCountDownTimer?.cancel()
+                mainTimerJob?.cancel()
             }
 
             if (initialElapsed == 0L) hasWarnedForCurrentPeriod = false
@@ -180,7 +179,7 @@ class GameTimerService : Service() {
             acquireWakeLock()
             val currentRegulationDuration = game.regulationPeriodDurationMillis()
             _timerStateFlow.update { it.copy(isTimerRunning = true, currentPhase = game.currentPhase, inAddedTime = isInAddedTimeInitially) }
-            gameCountDownTimer?.cancel()
+            mainTimerJob?.cancel()
             timerStartTimeRealtime = SystemClock.elapsedRealtime()
 
             val initialMillis = if (isInAddedTimeInitially) MAX_ADDED_TIME_COUNTUP_DURATION else {
@@ -194,8 +193,17 @@ class GameTimerService : Service() {
             }
 
             if (shouldVibrate) vibratePeriodStart()
-            gameCountDownTimer = object : CountDownTimer(initialMillis, COUNTDOWN_INTERVAL_MS) {
-                override fun onTick(millisUntilFinished: Long) {
+            // Coroutine-based tick at 1Hz. We DO NOT rebuild the notification on
+            // every tick — that's a Notification + OngoingActivity rebuild per
+            // second, which was a major jank source on the Galaxy Watch 4.
+            // Instead, we update the notification once per 10s (when the
+            // displayed minute text changes), and on every second-tenth change
+            // (so the status ring still ticks visually). The state flow
+            // continues to update at 1Hz so the UI is smooth.
+            mainTimerJob = serviceScope.launch {
+                var lastNotificationTenthSec = -1
+                while (isActive) {
+                    delay(COUNTDOWN_INTERVAL_MS)
                     val currentTimerState = _timerStateFlow.value
                     val timeThisTickerHasRun = SystemClock.elapsedRealtime() - timerStartTimeRealtime
                     val newActualElapsed = elapsedMillisAtActivation + timeThisTickerHasRun
@@ -209,21 +217,31 @@ class GameTimerService : Service() {
                             hasWarnedForCurrentPeriod = true
                         }
                     }
-                    updateNotificationAndOngoingActivity(_timerStateFlow.value.displayedMillis.formatTime(), isOngoing = true)
-                }
 
-                override fun onFinish() {
-                    val finishedState = _timerStateFlow.value
-                    if (!finishedState.inAddedTime) {
-                        _timerStateFlow.update { it.copy(actualTimeElapsedInPeriodMillis = currentRegulationDuration, displayedMillis = 0L, isTimerRunning = false) }
-                        vibratePeriodEnd(finishedState.currentPhase)
-                        onTimerFinishActions(finishedState.currentPhase)
-                    } else {
-                        _timerStateFlow.update { it.copy(isTimerRunning = false) }
-                        vibratePeriodEnd(finishedState.currentPhase)
+                    // Throttle notification rebuilds to once every 10 seconds.
+                    // Watch OS doesn't refresh a 1Hz-tick notification visibly
+                    // anyway, and rebuilding it costs a JNI hop + builder alloc.
+                    val currentTenthSec = (newDisplayedMillis / 10_000L).toInt()
+                    if (currentTenthSec != lastNotificationTenthSec) {
+                        lastNotificationTenthSec = currentTenthSec
+                        updateNotificationAndOngoingActivity(_timerStateFlow.value.displayedMillis.formatTime(), isOngoing = true)
                     }
+
+                    // End-of-period check
+                    if (!currentTimerState.inAddedTime && newActualElapsed >= currentRegulationDuration) {
+                        _timerStateFlow.update { it.copy(actualTimeElapsedInPeriodMillis = currentRegulationDuration, displayedMillis = 0L, isTimerRunning = false) }
+                        vibratePeriodEnd(currentTimerState.currentPhase)
+                        onTimerFinishActions(currentTimerState.currentPhase)
+                        break
+                    }
+                    if (currentTimerState.inAddedTime && timeThisTickerHasRun >= MAX_ADDED_TIME_COUNTUP_DURATION) {
+                        _timerStateFlow.update { it.copy(isTimerRunning = false) }
+                        vibratePeriodEnd(currentTimerState.currentPhase)
+                        break
+                    }
+
                 }
-            }.start()
+            }
             _timerStateFlow.update { it.copy(isStoppageTimerRunning = false) }
             stopStoppageTimer()
         }
@@ -264,31 +282,31 @@ class GameTimerService : Service() {
 
     private fun pauseGameTimerInternally(notificationText: String) {
         _timerStateFlow.update { it.copy(isTimerRunning = false) }
-        gameCountDownTimer?.cancel() 
-        updateNotificationAndOngoingActivity(notificationText, isOngoing = false) 
+        mainTimerJob?.cancel()
+        updateNotificationAndOngoingActivity(notificationText, isOngoing = false)
     }
 
     fun toggleStoppageTimer() {
         val newState = !_timerStateFlow.value.isStoppageTimerRunning
-        _timerStateFlow.update { it.copy(isStoppageTimerRunning = newState) }
-        
+
         if (newState) {
-            // Starting stoppage tracking: pause main timer if it's running
-            if (_timerStateFlow.value.isTimerRunning) {
-                pauseGameTimerInternally("Tracking Stoppage") 
-            }
+            // Pause the main timer and start the stoppage (green) timer.
+            // The green timer counts the duration of the interruption.
+            _timerStateFlow.update { it.copy(isTimerRunning = false, isStoppageTimerRunning = true) }
+            mainTimerJob?.cancel()
             startStoppageTimer()
+            updateNotificationAndOngoingActivity("Stoppage Time", isOngoing = true)
         } else {
-            // Stopping stoppage tracking: resume main timer if we have a game
+            // Stop the stoppage timer and resume the main timer.
+            // The green timer's accumulated value is preserved for added-time display.
             stopStoppageTimer()
-            currentInternalGame?.let { game ->
-                if (game.currentPhase.hasTimer()) {
-                     // Update the game object with current elapsed time from state
-                     val gameToResume = game.copy(
-                         actualTimeElapsedInPeriodMillis = _timerStateFlow.value.actualTimeElapsedInPeriodMillis
-                     )
-                     resumeGameTimer(gameToResume, shouldVibrate = false)
-                }
+            _timerStateFlow.update { it.copy(isStoppageTimerRunning = false) }
+            val game = currentInternalGame ?: return
+            if (game.currentPhase.hasTimer()) {
+                val regDur = game.regulationPeriodDurationMillis(game.currentPhase)
+                val elapsed = _timerStateFlow.value.actualTimeElapsedInPeriodMillis
+                val isInAdded = elapsed >= regDur
+                startGameTimer(game, elapsed, isInAdded, shouldVibrate = false)
             }
         }
     }
@@ -336,17 +354,17 @@ class GameTimerService : Service() {
     fun stopGameTimerAndSession() {
         serviceScope.launch {
             _timerStateFlow.update { it.copy(isTimerRunning = false, currentPhase = GamePhase.GAME_ENDED) }
-            gameCountDownTimer?.cancel()
+            mainTimerJob?.cancel()
             releaseWakeLock()
-            stopForegroundSafely("Game Ended") 
+            stopForegroundSafely("Game Ended")
         }
     }
 
     fun commandStopGameSessionAndCleanup(onCleanupComplete: () -> Unit) {
         serviceScope.launch {
-            gameCountDownTimer?.cancel()
+            mainTimerJob?.cancel()
             _timerStateFlow.update { it.copy(isTimerRunning = false, currentPhase = GamePhase.GAME_ENDED) }
-            releaseWakeLock() 
+            releaseWakeLock()
             stopForegroundSafely()
             onCleanupComplete()
         }
@@ -397,9 +415,9 @@ class GameTimerService : Service() {
     }
 
     override fun onDestroy() {
-        releaseWakeLock() 
-        gameCountDownTimer?.cancel()
-        serviceJob.cancel() 
+        releaseWakeLock()
+        mainTimerJob?.cancel()
+        serviceJob.cancel()
         super.onDestroy()
     }
 }

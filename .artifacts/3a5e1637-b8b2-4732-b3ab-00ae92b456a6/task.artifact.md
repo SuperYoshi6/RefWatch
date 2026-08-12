@@ -1,0 +1,57 @@
+- [x] Research the build failure and file lock issue
+- [x] Stop Gradle daemon to release file locks
+- [x] Verify that clean build works after stopping daemon
+- [x] Create implementation plan for configuration stabilization
+- [x] Align Gradle version in `build.gradle.kts` with wrapper version
+- [x] Final verification of build and wrapper tasks
+- [x] Research localization and settings UI
+- [x] Create implementation plan for Language Selection
+- [x] Add `locales_config.xml` and update `AndroidManifest.xml`
+- [x] Update `strings.xml` with new keys and translations
+- [x] Convert `MainActivity` to `AppCompatActivity`
+- [x] Implement language selection logic and UI in `SettingsScreen.kt`
+- [x] Verify language switching works and persists
+- [x] Research Roster Management UI improvements
+- [x] Create implementation plan for Roster Management and Localized Website
+- [x] Update `LegalLinks` and `SettingsScreen` for localized website URL
+- [x] Add `updatePlayerName` to `AddEditGameViewModel`
+- [x] Update `AddEditGameScreen` to support in-line player editing
+- [x] Remove "#" prefix and dialogs from `PlayerRow`
+- [x] Final verification of roster editing and website link
+- [x] Research DFBnet integration and legal localization
+- [x] Update `LegalLinks` with localized Privacy/Terms URLs
+- [x] Add DFBnet localized strings
+- [x] Implement `PreferencesManager` for DFBnet toggle
+- [x] Implement `DFBnetWebView` component
+- [x] Update `SettingsScreen` with DFBnet toggle and localized legal links
+- [x] Refactor `GameLogScreen` to use tabs conditionally
+- [x] Implement Report Summary helper in DFBnet tab
+- [x] Bump version to 1.4.0
+- [x] Research Google Sign-In implementation
+- [x] Create implementation plan for Google Sign-In
+- [x] Add `signInWithGoogle` to `AuthRepository`
+- [x] Add `signInWithGoogle` to `AuthViewModel`
+- [x] Implement Google Sign-In launcher in `AuthScreenRoute`
+- [x] Add Google sign-in button to `AuthScreen`
+- [x] Add localized strings for Google Sign-In
+- [x] Final verification of Google Sign-In
+- [x] Research Email Verification and Email Updates
+- [x] Create implementation plan for Email Management
+- [x] Add `sendEmailVerification` and `updateEmail` to `AuthRepository`
+- [x] Update `AuthViewModel` with account management logic
+- [x] Add account strings and translations
+- [x] Update `SettingsScreen` with Account section and Update Email dialog
+- [x] Research Enhanced Login and Re-authentication
+- [x] Create implementation plan for Enhanced Email Management
+- [x] Add `reauthenticate` to `AuthRepository`
+- [x] Update `AuthViewModel` to handle re-auth and specific login errors
+- [x] Add strings for specific login errors and password confirmation
+- [x] Update `SettingsScreen` email dialog with password field
+- [x] Bump version to 1.5.0
+- [x] Final verification of all auth features
+- [x] Research Auth Screen UI improvements
+- [x] Create implementation plan for Auth Screen UI
+- [x] Add `or_separator`, `auth_tagline`, `auth_footer` to strings
+- [x] Implement visual separator in `AuthScreen.kt`
+- [x] Localize tagline and footer in `AuthScreen.kt`
+- [x] Final verification of UI and localization

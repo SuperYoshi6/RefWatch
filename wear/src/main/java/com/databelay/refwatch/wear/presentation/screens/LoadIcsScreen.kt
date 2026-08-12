@@ -17,12 +17,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import com.databelay.refwatch.R
 import com.databelay.refwatch.common.Game
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -43,15 +45,17 @@ fun LoadIcsScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        val successMsg = stringResource(R.string.load_ics_sim_success)
+
         Text(
-            "Load Game Schedule",
+            stringResource(R.string.load_game_schedule),
             style = MaterialTheme.typography.title3,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
         Text(
-            "To load games from an ICS file, please use the companion phone app (not yet implemented) or transfer the file via developer methods.",
+            stringResource(R.string.load_ics_body),
             style = MaterialTheme.typography.body2,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(bottom = 24.dp)
@@ -73,9 +77,9 @@ fun LoadIcsScreen(
                         delay(2000) // Simulate loading
                         // val games = parseIcsStream(inputStream)
                         // onIcsLoadedAndParsed(games)
-                        message = "Simulated ICS load successful. (Functionality to be implemented via companion app)"
+                        message = successMsg
                     } catch (e: Exception) {
-                        message = "Error loading ICS: ${e.message}"
+                        message = context.getString(R.string.load_ics_error, e.message ?: "")
                     } finally {
                         isLoading = false
                     }
@@ -87,7 +91,7 @@ fun LoadIcsScreen(
             if (isLoading) {
                 CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
             } else {
-                Text("Load Example File (Test)")
+                Text(stringResource(R.string.load_example_file))
             }
         }
 

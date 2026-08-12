@@ -1,64 +1,65 @@
 {
   "project_info": {
-    "project_number": "140812013657",
-    "project_id": "refwatchapp",
-    "storage_bucket": "refwatchapp.firebasestorage.app"
+    "project_number": "35000564665",
+    "project_id": "refwatch-1938a",
+    "storage_bucket": "refwatch-1938a.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:140812013657:android:1f7819005360a735e36148",
+        "mobilesdk_app_id": "1:35000564665:android:28e44fa05283c697615468",
         "android_client_info": {
           "package_name": "com.databelay.refwatch"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "35000564665-rbocngv0fi4a9turcrbq7brfegk57bda.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyD89KeSHF_s_4FmAXnC1fb4i2OBf6baUOA"
+          "current_key": "AIzaSyBgCT2Fqnj54wY5LNVQ6JgF9c0YhyX7Tv8"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "35000564665-rbocngv0fi4a9turcrbq7brfegk57bda.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:140812013657:android:4e19d5e173d552dbe36148",
+        "mobilesdk_app_id": "1:35000564665:android:cf4a85c80fa2986d615468",
         "android_client_info": {
           "package_name": "com.databelay.refwatch.mobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "35000564665-rbocngv0fi4a9turcrbq7brfegk57bda.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyD89KeSHF_s_4FmAXnC1fb4i2OBf6baUOA"
+          "current_key": "AIzaSyBgCT2Fqnj54wY5LNVQ6JgF9c0YhyX7Tv8"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:140812013657:android:17ec8ca0eebcb160e36148",
-        "android_client_info": {
-          "package_name": "com.example.minwearlistener"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyD89KeSHF_s_4FmAXnC1fb4i2OBf6baUOA"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "35000564665-rbocngv0fi4a9turcrbq7brfegk57bda.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

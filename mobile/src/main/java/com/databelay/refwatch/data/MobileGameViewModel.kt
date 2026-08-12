@@ -140,8 +140,12 @@ class MobileGameViewModel @Inject constructor(
 
     init {
         Log.d(TAG, "MobileGameViewModel initializing...")
-        dataClient.addListener(dataChangedListener)
-        Log.d("MobileVM", "DataChangedListener added for watch updates.")
+        try {
+            dataClient.addListener(dataChangedListener)
+            Log.d("MobileVM", "DataChangedListener added for watch updates.")
+        } catch (e: Exception) {
+            Log.e("MobileVM", "Failed to add DataChangedListener (Wearable API may not be available)", e)
+        }
 
         viewModelScope.launch {
             // Collect the injected userIdFlow to update the internal _currentUserId
@@ -294,14 +298,15 @@ class MobileGameViewModel @Inject constructor(
         // If userIdForSync is not null, send the games (even if empty for that user).
 
         viewModelScope.launch(Dispatchers.IO) {
-            // In phone's MobileGameViewModel, before sending
-            val nodes = Wearable.getNodeClient(getApplication<Application>()).connectedNodes.await()
-            if (nodes.isEmpty()) {
-                Log.e(TAG, "PHONE: No connected Wear OS nodes found. Data will be queued by DataClient but may not send immediately.")
-            } else {
-                Log.i(TAG, "PHONE: Connected nodes: ${nodes.joinToString { it.displayName }}")
-            }
             try {
+                // In phone's MobileGameViewModel, before sending
+                val nodes = Wearable.getNodeClient(getApplication<Application>()).connectedNodes.await()
+                if (nodes.isEmpty()) {
+                    Log.e(TAG, "PHONE: No connected Wear OS nodes found. Data will be queued by DataClient but may not send immediately.")
+                } else {
+                    Log.i(TAG, "PHONE: Connected nodes: ${nodes.joinToString { it.displayName }}")
+                }
+                
                 val jsonString = AppJsonConfiguration.encodeToString(games)
                 Log.d(TAG, "syncGamesToWatch: Sending to watch. Path: ${WearSyncConstants.PATH_GAMES_LIST}, User: $userIdForSync, Games: ${games.size}")
                 // ... (rest of PutDataMapRequest logic) ...
@@ -571,8 +576,12 @@ class MobileGameViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        dataClient.removeListener(dataChangedListener)
-        Log.d("MobileVM", "DataChangedListener removed.")
+        try {
+            dataClient.removeListener(dataChangedListener)
+            Log.d("MobileVM", "DataChangedListener removed.")
+        } catch (e: Exception) {
+            Log.e("MobileVM", "Failed to remove DataChangedListener", e)
+        }
     }
 
 }

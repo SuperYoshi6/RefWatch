@@ -1,1846 +1,1144 @@
-package com.databelay.refwatch.commons
+package com.databelay.refwatch.screens
 
+import android.content.res.Configuration
+import android.widget.Toast
+import android.util.Log
+import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Chair
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SportsFootball
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import com.databelay.refwatch.common.theme.DefaultAwayJerseyColor
-import com.databelay.refwatch.common.theme.DefaultHomeJerseyColor
-import com.google.firebase.firestore.Excluderangement
-import com.google.firebase.firestore.IgnoreExtraProperties
-import com.google.firebase.firestore.PropertyName
-import kotlinx.serialization.Serializable.Row
-import kotlinx.serialization.encodeToStringpacer
-import kotlinx.serialization.json.jsonObjectllMaxWidth
-import java.text.SimpleDateFormatn.layout.height
-import java.time.ZoneId.foundation.layout.heightIn
-import java.util.Datese.foundation.layout.padding
-import java.util.Locale.foundation.layout.size
-import java.util.UUIDse.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-// --- Player Model ---.foundation.text.KeyboardOptions
-@Serializabledx.compose.foundation.verticalScroll
-@IgnoreExtraPropertiese.material.icons.Icons
-data class Player(mpose.material.icons.automirrored.filled.ArrowBack
-    val name: String,se.material.icons.filled.DateRange
-    val number: Int,ose.material.icons.filled.Delete
-    val isCaptain: Boolean = falsecons.filled.Save
-)mport androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-// --- Game Settings ---material3.DatePicker
-@Serializable // Add thisaterial3.DatePickerDialog
-@IgnoreExtraProperties // Add this annotation to the class
-data class Game(compose.material3.FloatingActionButton
-    // --- Core Game Mechanics Settings ---
-    val id: String = UUID.randomUUID().toString(), // Unique ID for these game settings instance
-    val userId: String = "", // User who created this game (for cache and syncing
-    var lastUpdated: Long = System.currentTimeMillis(), // Timestamp for when this was last updated by user
-    var halfDurationMinutes: Int = 45,inedTextFieldDefaults
-    var halftimeDurationMinutes: Int = 15,
-    var extraTimeHalfDurationMinutes: Int = 15, // Optional for future
-    var extraTimeHalftimeDurationMinutes: Int = 1, // Optional for future
-//port androidx.compose.material3.TimePicker
-    // --- Match Information (can be pre-filled from a schedule) ---le) ---
-    var gameNumber: String = "XXXX", // Default, can be overridden
-    var fieldNumber: String? = null, // Default, can be overridden
-    var homeTeamName: String = "", // Default, can be overriddenn be overridden
-    var awayTeamName: String = "", // Default, can be overridden
-    var homeTeamAbbr: String? = null,hedEffect
-    var awayTeamAbbr: String? = null,lue
-    var homeCaptainNumber: Int? = null,StateOf
-    var awayCaptainNumber: Int? = null,r
-    @PropertyName("homeRoster").setValue
-    var homeRoster: List<Player> = emptyList(),,
-    @PropertyName("awayRoster")fier
-    var awayRoster: List<Player> = emptyList(),
-    var ageGroup: AgeGroup? = null,          // e.g., "U12 Boys", "Adult Men"
-    var competition: String? = null,       // e.g., "League Match", "Cup Final"
-    var refereeAssignment: String? = null, // e.g. Assistant Refereent Referee
-    var venue: String? = null,             // e.g., "Field 3, West Park"
-    var gameDateTimeEpochMillis: Long? = null, // Start date & time of the match, UTC epoch msch, UTC epoch ms
-    var notes: String? = null,t.dp
-    // Live State Fields (updated by watch, synced via phone to Firebase)
-    val inAddedTime: Boolean = false, // Is the current playable period in added time?period in added time?
-    var hasExtraTime: Boolean = false, // True if extra time has been initiatedinitiated
-    var hasPenalties: Boolean = false, // True if extra time has been initiatedf extra time has been initiated
-    var homeTeamColorArgb: Int = Color.Yellow.toArgb(),
-    var awayTeamColorArgb: Int = DefaultAwayJerseyColor.toArgb(),
-    var kickOffTeam: Team = Team.HOME, // Actual team kicking off current period (managed by ViewModel)
-    var penaltiesTakenHome: Int = 0, // Number of penalties scored by home team
-    var penaltiesTakenAway: Int = 0, // Number of penalties scored by away teamnalties scored by away team
-    var currentPhase: GamePhase = GamePhase.NOT_STARTED,STARTED,
-    var homeScore: Int = 0,= 0,
-    var awayScore: Int = 0,
-    var displayedTimeMillis: Long = 45,dTimeMillis: Long = 45,
-    var actualTimeElapsedInPeriodMillis: Long = 0L,
-    var stoppageTimeMillis: Long = 0L,
-    var isTimerRunning: Boolean = false,
-    var isStoppageTimerRunning: Boolean = false,merRunning: Boolean = false,
-    @get:Exclude
-    val needsSyncWithPhone: Boolean = false, // Store locally on watch, needs sync with phone
-    var maxSubstitutionsAllowed: Int = 5,,
-    @get:Excludeck: () -> Unit,
-    val events: List<GameEvent> = emptyList() // We will sync this one manually
-)  {onAwayTeamNameChange: (String) -> Unit,
-    // Computed property for GameStatusnit,
-    // If you use Kotlinx.serialization and don't want this in Firestore,
-    // you might not need @Transient if it's just a getter.
-    // If it were a var with a backing field you didn't want to store, you'd use @Transient.
-    val status: GameStatusist<com.databelay.refwatch.common.Player>) -> Unit,
-        get() {rChange: (List<com.databelay.refwatch.common.Player>) -> Unit,
-            return currentPhase.status()t,
-        }ereeAssignmentChange: (String) -> Unit,
-    // Secondary constructor for Firestore deserialization, ensures `id` is always present.
-    // No-argument constructor is required by Firestore for deserialization to a custom object..
-    // It's good practice to initialize all fields to default values.
-    constructor() : this( (String) -> Unit,
-        id = UUID.randomUUID().toString(), // Generate a new ID if none provided
-        userId = "",urationChange: (String) -> Unit,
-        lastUpdated = System.currentTimeMillis(),lis(),
-        halfDurationMinutes = 45,-> Unit,
-        halftimeDurationMinutes = 15,nit,
-        extraTimeHalfDurationMinutes = 15,
-        extraTimeHalftimeDurationMinutes = 1,ew callback
-        gameNumber = "XXXX",ng) -> Unit, // New callback,
-        fieldNumber = null,
-        homeTeamName = "",ng, String) -> Unit,
-        awayTeamName = "",layer) -> Unit,
-        homeTeamAbbr = null,, String) -> Unit,
-        awayTeamAbbr = null,yer) -> Unit,     awayTeamAbbr = null,
-        homeCaptainNumber = null,tring) -> Unit,
-        awayCaptainNumber = null,it,        awayCaptainNumber = null,
-        homeRoster = emptyList(), -> Unit,
-        awayRoster = emptyList(),-> Unit,
-        ageGroup = null,: (String) -> Unit,   ageGroup = null,
-        competition = null,e: (String) -> Unit,        competition = null,
-        refereeAssignment = null,: (String) -> Unit,
-        venue = null,sChange: (String) -> Unit,
-        gameDateTimeEpochMillis = null,t,
-        notes = null,ed: (Color) -> Unit,
-        inAddedTime = false, -> Unit,
-        hasExtraTime = false,g) -> Unit, // New callbackfalse,
-        hasPenalties = false,g) -> Unit, // New callback   hasPenalties = false,
-        homeTeamColorArgb = Color.Yellow.toArgb(),
-        awayTeamColorArgb = DefaultAwayJerseyColor.toArgb(),
-        kickOffTeam = Team.HOME, -> Unit,
-        penaltiesTakenHome = 0,tring) -> Unit,
-        penaltiesTakenAway = 0,) -> Unit,        penaltiesTakenAway = 0,
-        currentPhase = GamePhase.NOT_STARTED,it,ntPhase = GamePhase.NOT_STARTED,
-        homeScore = 0,ring) -> Unit,= 0,
-        awayScore = 0,e: (String) -> Unit,
-        displayedTimeMillis = 45,-> Unit,
-        actualTimeElapsedInPeriodMillis = 0L,lis = 0L,
-        stoppageTimeMillis = 0L,tring) -> Unit,
-        isTimerRunning = false,ge: (String) -> Unit,
-        isStoppageTimerRunning = false,-> Unit,erRunning = false,
-        needsSyncWithPhone = false, Unit,WithPhone = false,
-        maxSubstitutionsAllowed = 5,Unit,bstitutionsAllowed = 5,
-        events = emptyList() -> Unit,ents = emptyList()
-    )nHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callback
-    companion object {Unit,
-        fun defaults(): Game {String) -> Unit,efaults(): Game {
-            return Game( // Call primary constructor with all defaults explicitly for clarity defaults explicitly for clarity
-                id = UUID.randomUUID().toString(),ndomUUID().toString(),
-                userId = "",yer) -> Unit, userId = "",
-                lastUpdated = System.currentTimeMillis(),rentTimeMillis(),
-                halfDurationMinutes = 45,
-                halftimeDurationMinutes = 15,nutes = 15,
-                extraTimeHalfDurationMinutes = 15,
-                extraTimeHalftimeDurationMinutes = 1,
-                gameNumber = "XXXX",g) -> Unit,     gameNumber = "XXXX",
-                fieldNumber = null,(String) -> Unit,null,
-                homeTeamName = "",ing) -> Unit,
-                awayTeamName = "",> Unit,
-                homeTeamAbbr = null,Unit,
-                awayTeamAbbr = null,,
-                homeCaptainNumber = null,// New callback
-                awayCaptainNumber = null,// New callback
-                homeRoster = emptyList(),
-                awayRoster = emptyList(),Unit,   awayRoster = emptyList(),
-                ageGroup = null, -> Unit,l,
-                competition = null,g) -> Unit,
-                refereeAssignment = null,
-                venue = null,: (String) -> Unit,
-                gameDateTimeEpochMillis = null,
-                notes = null,ing) -> Unit,
-                stoppageTimeMillis = 0L,,
-                inAddedTime = false,> Unit,se,
-                hasExtraTime = false,) -> Unit,   hasExtraTime = false,
-                hasPenalties = false,tring) -> Unit,
-                homeTeamColorArgb = Color.Yellow.toArgb(),low.toArgb(),
-                awayTeamColorArgb = DefaultAwayJerseyColor.toArgb(),
-                kickOffTeam = Team.HOME,,
-                penaltiesTakenHome = 0,
-                penaltiesTakenAway = 0,, // New callback
-                currentPhase = GamePhase.NOT_STARTED,ackD,
-                homeScore = 0,
-                awayScore = 0,String) -> Unit,wayScore = 0,
-                displayedTimeMillis = 45L * 60 * 1000, // Default to half duration in millis millis
-                actualTimeElapsedInPeriodMillis = 0L,
-                isTimerRunning = false,t,
-                isStoppageTimerRunning = false,,
-                needsSyncWithPhone = false, // Not typically set in defaults directly
-                maxSubstitutionsAllowed = 5,
-                events = emptyList()Unit,
-            )ationChange: (String) -> Unit,
-        }ftimeDurationChange: (String) -> Unit,
-    }nExtraTimeHalfDurationChange: (String) -> Unit,    }
-    // Constructor to initialize from SimpleIcsEventimpleIcsEvent
-    constructor(icsEvent: SimpleIcsEvent) : this(
-        id = icsEvent.uid ?: UUID.randomUUID().toString(),ring(),
-        gameNumber = icsEvent.gameNumber ?: "XXXX",
-        fieldNumber = icsEvent.fieldNumber, New callback
-        homeTeamName = icsEvent.homeTeam ?: "", callback
-        awayTeamName = icsEvent.awayTeam ?: "",
-        refereeAssignment = icsEvent.refereeAssignment,
-        venue = icsEvent.location,> Unit,
-        gameDateTimeEpochMillis = icsEvent.dtStart?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),.toInstant()?.toEpochMilli(),
-        halfDurationMinutes = icsEvent.ageGroup?.defaultHalfDurationMinutes ?: 45, ?: 45, 
-        halftimeDurationMinutes = icsEvent.ageGroup?.defaultHalftimeDurationMinutes ?: 10, 
-        homeCaptainNumber = null,it,
-        awayCaptainNumber = null, -> Unit,
-        homeRoster = emptyList(),-> Unit,
-        awayRoster = emptyList(),) -> Unit,
-        ageGroup = icsEvent.ageGroup,) -> Unit,
-        notes = listOfNotNull(icsEvent.summary, icsEvent.ageGroup?.notes).joinToString(" / ").ifEmpty { null },inToString(" / ").ifEmpty { null },
-        // Other fields will take defaults from the primary constructor via `this(...)` cally constructor via `this(...)` call
-    )nHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,
-    // --- Methods to modify events ------
-    fun addEvent(event: GameEvent): Game {/ New callback
-        val updatedEvents = events + event/ New callback
-        return this.copy(events = updatedEvents, lastUpdated = System.currentTimeMillis())
-    }nAddHomePlayer: (String, String) -> Unit,
-    onRemoveHomePlayer: (Player) -> Unit,
-    // In Game.kter: (String, String) -> Unit,
-    fun removeEvent(eventToRemove: GameEvent): Game {move: GameEvent): Game {
-        if (!events.contains(eventToRemove)) {t,ToRemove)) {
-            return this // Event not found
-        }petitionChange: (String) -> Unit,
-        val updatedEvents = events.filterNot { it == eventToRemove }
-        var gameWithEventRemoved = this.copy(events = updatedEvents, lastUpdated = System.currentTimeMillis())
-    onHalftimeDurationChange: (String) -> Unit,
-        // Adjust scores/stats based on the type of event removedf event removed
-        when (eventToRemove) {(String) -> Unit,ntToRemove) {
-            is GoalScoredEvent -> { Unit,s GoalScoredEvent -> {
-                val scoringTeam = if (eventToRemove.goalType == GoalType.OWN_GOAL) eventToRemove.team.opposite() else eventToRemove.teamRemove.team
-                gameWithEventRemoved = gameWithEventRemoved.copy(
-                    homeScore = if (scoringTeam == Team.HOME) gameWithEventRemoved.homeScore - 1 else gameWithEventRemoved.homeScore,
-                    awayScore = if (scoringTeam == Team.AWAY) gameWithEventRemoved.awayScore - 1 else gameWithEventRemoved.awayScore
-                )) -> Unit,
-            }Player: (String, String) -> Unit,
-             is PenaltyEvent -> {-> Unit,
-                gameWithEventRemoved = gameWithEventRemoved.copy(oved = gameWithEventRemoved.copy(
-                    homeScore = if (eventToRemove.team == Team.HOME && eventToRemove.scored) gameWithEventRemoved.homeScore - 1 else gameWithEventRemoved.homeScore,ved.homeScore,
-                    awayScore = if (eventToRemove.team == Team.AWAY && eventToRemove.scored) gameWithEventRemoved.awayScore - 1 else gameWithEventRemoved.awayScore,
-                    penaltiesTakenHome = if (eventToRemove.team == Team.HOME) (gameWithEventRemoved.penaltiesTakenHome - 1).coerceAtLeast(0) else gameWithEventRemoved.penaltiesTakenHome,e,
-                    penaltiesTakenAway = if (eventToRemove.team == Team.AWAY) (gameWithEventRemoved.penaltiesTakenAway - 1).coerceAtLeast(0) else gameWithEventRemoved.penaltiesTakenAway
-                )eChange: (Long) -> Unit,
-            }ationChange: (String) -> Unit,
-            else -> {nChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-            }titutionsChange: (String) -> Unit,
-        } ColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,
-        return gameWithEventRemovedt,
-    }nHomeScoreChange: (String) -> Unit, // New callback
-}   onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,
-// --- UI State ---: (String, String) -> Unit,
-_uiState.value = AddEditGameUiState(Unit,
-    isEditing = false,String, String) -> Unit,alse,
-    gameId = null,ayer: (Player) -> Unit,null,
-    gameDateTimeEpochMillis = System.currentTimeMillis()urrentTimeMillis()
-)   onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit,
-// --- Game Save ---ange: (Long) -> Unit,
-fun saveGame(gameToSave: Game) {g) -> Unit,
-    // Save the game to Firestorering) -> Unit,
-    // gameToSave = existingGame.copy(ring) -> Unit,copy(
-    //                     gameNumber = currentState.gameNumber,eNumber = currentState.gameNumber,
-    //                     homeTeamName = currentState.homeTeamName,homeTeamName = currentState.homeTeamName,
-    //                     awayTeamName = currentState.awayTeamName,awayTeamName = currentState.awayTeamName,
-    //                     homeTeamAbbr = currentState.homeTeamAbbr.ifBlank { null },
-    //                     awayTeamAbbr = currentState.awayTeamAbbr.ifBlank { null },
-    //                     homeCaptainNumber = currentState.homeCaptainNumber.toIntOrNull(),ike the game's location, weather, etc.    // This is a simplified example, you may need to handle errors and loading states    // Save the game settings to Firestorefun saveGame(gameToSave: Game) {// --- Game Save ---                label = { Text(stringResource(R.string.competition_optional)) },
-    //                     awayCaptainNumber = currentState.awayCaptainNumber.toIntOrNull(),
-    //                     fieldNumber = currentState.fieldNumber.takeIf { it.isNotBlank() },
-    //                     refereeAssignment = currentState.refereeAssignment.takeIf { it.isNotBlank() },reeAssignment.takeIf { it.isNotBlank() },
-    //                     venue = currentState.venue.takeIf { it.isNotBlank() },
-    //                     competition = currentState.competition.takeIf { it.isNotBlank() },eIf { it.isNotBlank() },
-    //                     gameDateTimeEpochMillis = currentState.gameDateTimeEpochMillis,meEpochMillis,
-    //                     halfDurationMinutes = currentState.halfDurationMinutes,
-    //                     halftimeDurationMinutes = currentState.halftimeDurationMinutes,
-    //                     extraTimeHalfDurationMinutes = currentState.extraTimeHalfDurationMinutes,
-    //                     maxSubstitutionsAllowed = currentState.maxSubstitutionsAllowed,
-    //                     homeTeamColorArgb = currentState.homeTeamColorArgb,mColorArgb,
-    //                     awayTeamColorArgb = currentState.awayTeamColorArgb,
-    //                     kickOffTeam = currentState.kickOffTeam,
-    //                     notes = currentState.notes.takeIf { it.isNotBlank() },
-    //                     ageGroup = currentState.ageGroup,
-    //                     homeScore = currentState.homeScore.toIntOrNull() ?: existingGame.homeScore,
-    //                     awayScore = currentState.awayScore.toIntOrNull() ?: existingGame.awayScore,
-    //                     homeRoster = currentState.homeRoster,
-    //                     awayRoster = currentState.awayRoster,ster, cursor
-    //                     lastUpdated = System.currentTimeMillis()meMillis()
-    //                 )(Player) -> Unit,
-}   onAddAwayPlayer: (String, String) -> Unit,Game(                   colors = OutlinedTextFieldDefaults.colors(
-    onRemoveAwayPlayer: (Player) -> Unit,edTextColor = MaterialTheme.colorScheme.onSurface,
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
+import com.databelay.refwatch.R
+import com.databelay.refwatch.common.Player
+import com.databelay.refwatch.common.Team
+import com.databelay.refwatch.common.TeamOfficial
+import com.databelay.refwatch.common.theme.AccentGreen
+import com.databelay.refwatch.common.theme.Border
+import com.databelay.refwatch.common.theme.PitchBackground
+import com.databelay.refwatch.common.theme.Surface
+import com.databelay.refwatch.common.theme.TextMuted
+import com.databelay.refwatch.common.theme.TextPrimary
+import com.databelay.refwatch.common.theme.RefWatchMobileTheme
+import com.databelay.refwatch.data.AddEditGameUiState
+import com.databelay.refwatch.data.AddEditGameViewModel
+import com.databelay.refwatch.common.luminance
+import com.databelay.refwatch.common.theme.PredefinedJerseyColors
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
-
-
-
-
-
-
-
-
-    onSaveGame: () -> Unit    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onAwayScoreChange: (String) -> Unit, // New callbackonHomeScoreChange: (String) -> Unit, // New callback// --- Game UI Callbacks ---    onRefereeAssignmentChange: (String) -> Unit,
-    onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,
-    onNotesChanged: (String) -> Unit,
-    onHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,
-    onRemoveHomePlayer: (Player) -> Unit,
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddEditGameScreen(
+    uiState: AddEditGameUiState,
+    onNavigateBack: () -> Unit,
+    onHomeTeamNameChange: (String) -> Unit,
+    onAwayTeamNameChange: (String) -> Unit,
+    onHomeTeamAbbrChange: (String) -> Unit,
+    onAwayTeamAbbrChange: (String) -> Unit,
+    onHomeCaptainNumberChange: (String) -> Unit,
+    onAwayCaptainNumberChange: (String) -> Unit,
+    onFieldNumberChange: (String) -> Unit,
     onRefereeAssignmentChange: (String) -> Unit,
     onVenueChange: (String) -> Unit,
     onCompetitionChange: (String) -> Unit,
+    onMainRefereeChange: (String) -> Unit,
+    onAssistantReferee1Change: (String) -> Unit,
+    onAssistantReferee2Change: (String) -> Unit,
+    onFourthOfficialChange: (String) -> Unit,
+    onObserverChange: (String) -> Unit,
     onGameDateTimeChange: (Long) -> Unit,
     onHalfDurationChange: (String) -> Unit,
     onHalftimeDurationChange: (String) -> Unit,
     onExtraTimeHalfDurationChange: (String) -> Unit,
     onMaxSubstitutionsChange: (String) -> Unit,
+    onHasTemporaryDismissalsChange: (Boolean) -> Unit,
+    onTemporaryDismissalChange: (String) -> Unit,
+    onHasPenaltiesChange: (Boolean) -> Unit,
+    onPenaltyKicksPerTeamChange: (String) -> Unit,
     onHomeColorSelected: (Color) -> Unit,
     onAwayColorSelected: (Color) -> Unit,
     onNotesChanged: (String) -> Unit,
-    onHomeScoreChange: (String) -> Unit, // New callback)                    lastUpdated = System.currentTimeMillis()                    awayRoster = currentState.awayRoster,                    homeRoster = currentState.homeRoster,                    awayScore = currentState.awayScore.toIntOrNull() ?: 0,                    homeScore = currentState.homeScore.toIntOrNull() ?: 0,                    ageGroup = currentState.ageGroup,                    notes = currentState.notes.takeIf { it.isNotBlank() },                    kickOffTeam = currentState.kickOffTeam,                    awayTeamColorArgb = currentState.awayTeamColorArgb,                    homeTeamColorArgb = currentState.homeTeamColorArgb,                    maxSubstitutionsAllowed = currentState.maxSubstitutionsAllowed,                    extraTimeHalfDurationMinutes = currentState.extraTimeHalfDurationMinutes,                    halftimeDurationMinutes = currentState.halftimeDurationMinutes,                    halfDurationMinutes = currentState.halfDurationMinutes,                    gameDateTimeEpochMillis = currentState.gameDateTimeEpochMillis,                    competition = currentState.competition.takeIf { it.isNotBlank() },                    venue = currentState.venue.takeIf { it.isNotBlank() },                    refereeAssignment = currentState.refereeAssignment.takeIf { it.isNotBlank() },                    fieldNumber = currentState.fieldNumber.takeIf { it.isNotBlank() },                    awayCaptainNumber = currentState.awayCaptainNumber.toIntOrNull(),                    homeCaptainNumber = currentState.homeCaptainNumber.toIntOrNull(),                    awayTeamAbbr = currentState.awayTeamAbbr.ifBlank { null },                    homeTeamAbbr = currentState.homeTeamAbbr.ifBlank { null },                    awayTeamName = currentState.awayTeamName,                    homeTeamName = currentState.homeTeamName,                    gameNumber = currentState.gameNumber,                        disabledBorderColor = MaterialTheme.colorScheme.outline,
-    onAwayScoreChange: (String) -> Unit, // New callback           disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    onSaveGame: () -> Unit,                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    onAddHomePlayer: (String, String) -> Unit,railingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-    onRemoveHomePlayer: (Player) -> Unit,
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,Icon(Icons.Filled.DateRange, contentDescription = stringResource(R.string.select_date)) }
-    onRefereeAssignmentChange: (String) -> Unit,
-    onVenueChange: (String) -> Unit, a covering Box
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,
-    onNotesChanged: (String) -> Unit,DismissRequest = { showDatePicker = false },
-    onHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callback
+    onHomeScoreChange: (String) -> Unit,
+    onAwayScoreChange: (String) -> Unit,
+    onApplyTemplate: (Team, Int, Int) -> Unit,
+    onAddPlayer: (Team, Int, String) -> Unit,
+    onRemovePlayer: (Team, Int) -> Unit,
+    onToggleCaptain: (Team, Int) -> Unit,
+    onToggleOnField: (Team, Int) -> Unit,
+    onUpdatePlayerNumber: (Team, Int, Int) -> Unit,
+    onUpdatePlayerName: (Team, Int, String) -> Unit,
+    onAddOfficial: (Team, String, String) -> Unit,
+    onRemoveOfficial: (Team, String) -> Unit,
     onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,{ selectedDate ->
-    onRemoveHomePlayer: (Player) -> Unit,           val cal = Calendar.getInstance()
-    onAddAwayPlayer: (String, String) -> Unit,             uiState.gameDateTimeEpochMillis?.let { cal.timeInMillis = it }
-    onRemoveAwayPlayer: (Player) -> Unit,
-    onRefereeAssignmentChange: (String) -> Unit,               timePickerState.hour = cal.get(Calendar.HOUR_OF_DAY)
-    onVenueChange: (String) -> Unit,                   timePickerState.minute = cal.get(Calendar.MINUTE)
-    onCompetitionChange: (String) -> Unit,                                showTimePicker = true
-    onGameDateTimeChange: (Long) -> Unit,
-    onHalfDurationChange: (String) -> Unit,stringResource(R.string.ok)) }
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,.string.cancel)) }
-    onNotesChanged: (String) -> Unit,   }
-    onHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,
-    onRemoveHomePlayer: (Player) -> Unit,
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,imePickerDialog(
-    onRefereeAssignmentChange: (String) -> Unit,       onDismissRequest = { showTimePicker = false },
-    onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit,(onClick = {
-    onGameDateTimeChange: (Long) -> Unit,
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit,llis = it }
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,E, timePickerState.minute)
-    onHomeColorSelected: (Color) -> Unit,           cal.set(Calendar.SECOND, 0)
-    onAwayColorSelected: (Color) -> Unit,t(Calendar.MILLISECOND, 0)
-    onNotesChanged: (String) -> Unit,
-    onHomeScoreChange: (String) -> Unit, // New callback) }
-    onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,
-    onRemoveHomePlayer: (Player) -> Unit,icker = false
-    onAddAwayPlayer: (String, String) -> Unit,       }) { Text(stringResource(R.string.cancel)) }
-    onRemoveAwayPlayer: (Player) -> Unit,       }
-    onRefereeAssignmentChange: (String) -> Unit,                ) {
-    onVenueChange: (String) -> Unit,    TimePicker(state = timePickerState, modifier = Modifier.padding(16.dp))
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit,(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,hange = onHalfDurationChange,
-    onAwayColorSelected: (Color) -> Unit,ce(R.string.half_minutes)) },
-    onNotesChanged: (String) -> Unit,rdOptions(keyboardType = KeyboardType.Number),
-    onHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,ing(),
-    onRemoveHomePlayer: (Player) -> Unit,nValueChange = onHalftimeDurationChange,
-    onAddAwayPlayer: (String, String) -> Unit,   label = { Text(stringResource(R.string.halftime_minutes)) },
-    onRemoveAwayPlayer: (Player) -> Unit, = KeyboardType.Number),
-    onRefereeAssignmentChange: (String) -> Unit,
-    onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,izontalArrangement = Arrangement.spacedBy(8.dp)) {
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit, = uiState.extraTimeHalfDurationMinutes.toString(),
-    onExtraTimeHalfDurationChange: (String) -> Unit,urationChange,
-    onMaxSubstitutionsChange: (String) -> Unit,time_minutes)) },
-    onHomeColorSelected: (Color) -> Unit,eyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-    onAwayColorSelected: (Color) -> Unit,   modifier = Modifier.weight(1f)
-    onNotesChanged: (String) -> Unit,   )
-    onHomeScoreChange: (String) -> Unit, // New callback                OutlinedTextField(
-    onAwayScoreChange: (String) -> Unit, // New callbackxSubstitutionsAllowed.toString(),
-    onSaveGame: () -> Unit,ubstitutionsChange,
-    onAddHomePlayer: (String, String) -> Unit,tions_mobile)) },
-    onRemoveHomePlayer: (Player) -> Unit, KeyboardType.Number),
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,
-    onRefereeAssignmentChange: (String) -> Unit,
-    onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,
-    onHalfDurationChange: (String) -> Unit,   Modifier.fillMaxWidth(),
-    onHalftimeDurationChange: (String) -> Unit,= Arrangement.SpaceAround,
-    onExtraTimeHalfDurationChange: (String) -> Unit,ent.CenterVertically
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,enterVertically) {
-    onNotesChanged: (String) -> Unit,
-    onHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callback          .size(20.dp)
-    onSaveGame: () -> Unit,eamColorArgb))
-    onAddHomePlayer: (String, String) -> Unit,       )
-    onRemoveHomePlayer: (Player) -> Unit,           Spacer(Modifier.width(4.dp))
-    onAddAwayPlayer: (String, String) -> Unit,                        Text(stringResource(R.string.home_color))
-    onRemoveAwayPlayer: (Player) -> Unit,
-    onRefereeAssignmentChange: (String) -> Unit,
-    onVenueChange: (String) -> Unit,nClick = { showAwayColorPicker = true }) {
-    onCompetitionChange: (String) -> Unit,Alignment.CenterVertically) {
-    onGameDateTimeChange: (Long) -> Unit,
-    onHalfDurationChange: (String) -> Unit,               modifier = Modifier
-    onHalftimeDurationChange: (String) -> Unit,                                .size(20.dp)
-    onExtraTimeHalfDurationChange: (String) -> Unit,      .background(Color(uiState.awayTeamColorArgb))
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,Spacer(Modifier.width(4.dp))
-    onAwayColorSelected: (Color) -> Unit,R.string.away_color))
-    onNotesChanged: (String) -> Unit,
-    onHomeScoreChange: (String) -> Unit, // New callback   }
-    onAwayScoreChange: (String) -> Unit, // New callback            }
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,
-    onRemoveHomePlayer: (Player) -> Unit,
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,Color(uiState.homeTeamColorArgb),
-    onRefereeAssignmentChange: (String) -> Unit, = { color: Color ->
-    onVenueChange: (String) -> Unit,(color)
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,       },
-    onHalfDurationChange: (String) -> Unit,                    onDismiss = { showHomeColorPicker = false }
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,yColorPicker) {
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,y_color),
-    onNotesChanged: (String) -> Unit,   initialColor = Color(uiState.awayTeamColorArgb),
-    onHomeScoreChange: (String) -> Unit, // New callback       onColorSelected = { color: Color ->
-    onAwayScoreChange: (String) -> Unit, // New callback                        onAwayColorSelected(color)
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,           },
-    onRemoveHomePlayer: (Player) -> Unit,               onDismiss = { showAwayColorPicker = false }
-    onAddAwayPlayer: (String, String) -> Unit,               )
-    onRemoveAwayPlayer: (Player) -> Unit,            }
-    onRefereeAssignmentChange: (String) -> Unit,
-    onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit, Text("Heim-Kader", style = MaterialTheme.typography.titleMedium)
-    onGameDateTimeChange: (Long) -> Unit,ut(
-    onHalfDurationChange: (String) -> Unit,homeRoster,
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,         )
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,            Text("Gast-Kader", style = MaterialTheme.typography.titleMedium)
-    onNotesChanged: (String) -> Unit,
-    onHomeScoreChange: (String) -> Unit, // New callback                roster = uiState.awayRoster,
-    onAwayScoreChange: (String) -> Unit, // New callbackge = onAwayRosterChange
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,
-    onRemoveHomePlayer: (Player) -> Unit,
-    onAddAwayPlayer: (String, String) -> Unit,       value = uiState.notes,
-    onRemoveAwayPlayer: (Player) -> Unit,
-    onRefereeAssignmentChange: (String) -> Unit,ing.notes_optional)) },
-    onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,           .heightIn(min = 80.dp),
-    onHalfDurationChange: (String) -> Unit,           keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
-    onHalftimeDurationChange: (String) -> Unit,            )
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,essage?.let {
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,
-    onNotesChanged: (String) -> Unit,
-    onHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,
-    onRemoveHomePlayer: (Player) -> Unit,
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,
-    onRefereeAssignmentChange: (String) -> Unit,
-    onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,
-    onNotesChanged: (String) -> Unit,WithLifecycle()
-    onHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,
-    onRemoveHomePlayer: (Player) -> Unit,
-    onAddAwayPlayer: (String, String) -> Unit,            tag,
-    onRemoveAwayPlayer: (Player) -> Unit,   "LaunchedEffect triggered. gameIdFromNav: $gameId, Current uiState.gameId: ${uiState.gameId}, isEditing: ${uiState.isEditing}"
-    onRefereeAssignmentChange: (String) -> Unit,   )
-    onVenueChange: (String) -> Unit,       if (gameId != null && !uiState.isEditing) {
-    onCompetitionChange: (String) -> Unit,            addEditViewModel.initializeForm(gameId)
-    onGameDateTimeChange: (Long) -> Unit, {
-    onHalfDurationChange: (String) -> Unit, addEditViewModel.initializeForm(null) // New game
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit, AddEditGameScreen(
-    onAwayColorSelected: (Color) -> Unit,
-    onNotesChanged: (String) -> Unit,k() },
-    onHomeScoreChange: (String) -> Unit, // New callback        onHomeTeamNameChange = addEditViewModel::onHomeTeamNameChange,
-    onAwayScoreChange: (String) -> Unit, // New callback:onAwayTeamNameChange,
-    onSaveGame: () -> Unit,:onHomeTeamAbbrChange,
-    onAddHomePlayer: (String, String) -> Unit,amAbbrChange = addEditViewModel::onAwayTeamAbbrChange,
-    onRemoveHomePlayer: (Player) -> Unit,l::onHomeCaptainNumberChange,
-    onAddAwayPlayer: (String, String) -> Unit,NumberChange,
-    onRemoveAwayPlayer: (Player) -> Unit,nge,
-    onRefereeAssignmentChange: (String) -> Unit,osterChange = addEditViewModel::onAwayRosterChange,
-    onVenueChange: (String) -> Unit,ditViewModel::onFieldNumberChange,
-    onCompetitionChange: (String) -> Unit,ditViewModel::onRefereeAssignmentChange,
-    onGameDateTimeChange: (Long) -> Unit,enueChange,
-    onHalfDurationChange: (String) -> Unit,e,
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,lfDurationChange,
-    onMaxSubstitutionsChange: (String) -> Unit,tionChange = addEditViewModel::onHalftimeDurationChange,
-    onHomeColorSelected: (Color) -> Unit,itViewModel::onExtraTimeHalfDurationChange,
-    onAwayColorSelected: (Color) -> Unit,::onMaxSubstitutionsChange,
-    onNotesChanged: (String) -> Unit,ViewModel::onHomeColorSelected,
-    onHomeScoreChange: (String) -> Unit, // New callbackorSelected = addEditViewModel::onAwayColorSelected,
-    onAwayScoreChange: (String) -> Unit, // New callbackewModel::onNotesChanged,
-    onSaveGame: () -> Unit,coreChange, // Pass new handler
-    onAddHomePlayer: (String, String) -> Unit,::onAwayScoreChange, // Pass new handler
-    onRemoveHomePlayer: (Player) -> Unit,
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,
-    onRefereeAssignmentChange: (String) -> Unit,
-    onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit,ut Composable ---
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,
-    onNotesChanged: (String) -> Unit,
-    onHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callback by remember { mutableStateOf("") }
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,n(modifier = Modifier.fillMaxWidth()) {
-    onRemoveHomePlayer: (Player) -> Unit,er.forEachIndexed { index, player ->
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,
-    onRefereeAssignmentChange: (String) -> Unit,By(8.dp),
-    onVenueChange: (String) -> Unit,     verticalAlignment = Alignment.CenterVertically
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,d(
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,ter.toMutableList()
-    onMaxSubstitutionsChange: (String) -> Unit,ster[index] = player.copy(name = name)
-    onHomeColorSelected: (Color) -> Unit,           onRosterChange(updatedRoster)
-    onAwayColorSelected: (Color) -> Unit,
-    onNotesChanged: (String) -> Unit,("Name") },
-    onHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,
-    onRemoveHomePlayer: (Player) -> Unit,r.number.toString(),
-    onAddAwayPlayer: (String, String) -> Unit,       onValueChange = { num ->
-    onRemoveAwayPlayer: (Player) -> Unit,datedRoster = roster.toMutableList()
-    onRefereeAssignmentChange: (String) -> Unit,um.toIntOrNull() ?: 0)
-    onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,xt("Nr.") },
-    onHalfDurationChange: (String) -> Unit,s = KeyboardOptions(keyboardType = KeyboardType.Number),
-    onHalftimeDurationChange: (String) -> Unit,   modifier = Modifier.width(80.dp),
-    onExtraTimeHalfDurationChange: (String) -> Unit,    singleLine = true
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,   IconButton(onClick = {
-    onAwayColorSelected: (Color) -> Unit,           val updatedRoster = roster.toMutableList()
-    onNotesChanged: (String) -> Unit,               updatedRoster.removeAt(index)
-    onHomeScoreChange: (String) -> Unit, // New callback                   onRosterChange(updatedRoster)
-    onAwayScoreChange: (String) -> Unit, // New callback                }) {
-    onSaveGame: () -> Unit, Icon(Icons.Default.Delete, contentDescription = "Entfernen")
-    onAddHomePlayer: (String, String) -> Unit,                }
-    onRemoveHomePlayer: (Player) -> Unit,   }
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,
-    onRefereeAssignmentChange: (String) -> Unit,ifier.fillMaxWidth(),
-    onVenueChange: (String) -> Unit,ent.spacedBy(8.dp),
-    onCompetitionChange: (String) -> Unit,           verticalAlignment = Alignment.CenterVertically
-    onGameDateTimeChange: (Long) -> Unit, {
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,nge = { newName = it },
-    onMaxSubstitutionsChange: (String) -> Unit,r Name") },
-    onHomeColorSelected: (Color) -> Unit,               modifier = Modifier.weight(1f),
-    onAwayColorSelected: (Color) -> Unit,       singleLine = true
-    onNotesChanged: (String) -> Unit,
-    onHomeScoreChange: (String) -> Unit, // New callbackeld(
-    onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,               onValueChange = { newNumber = it },
-    onAddHomePlayer: (String, String) -> Unit,     label = { Text("Nr.") },
-    onRemoveHomePlayer: (Player) -> Unit,ardOptions(keyboardType = KeyboardType.Number),
-    onAddAwayPlayer: (String, String) -> Unit,= Modifier.width(80.dp),
-    onRemoveAwayPlayer: (Player) -> Unit, = true
-    onRefereeAssignmentChange: (String) -> Unit,
-    onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit,Blank() && newNumber.isNotBlank()) {
-    onGameDateTimeChange: (Long) -> Unit,r = Player(name = newName, number = newNumber.toIntOrNull() ?: 0)
-    onHalfDurationChange: (String) -> Unit,ge(roster + newPlayer)
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,      newNumber = ""
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,
-    onNotesChanged: (String) -> Unit,
-    onHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,
-    onRemoveHomePlayer: (Player) -> Unit,
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,
-    onRefereeAssignmentChange: (String) -> Unit,
-    onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,ES
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,,
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,
-    onNotesChanged: (String) -> Unit,
-    onHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callbackame = "Add New Game (Dark)",
-    onSaveGame: () -> Unit,   showBackground = true,
-    onAddHomePlayer: (String, String) -> Unit,    uiMode = Configuration.UI_MODE_NIGHT_YES
-    onRemoveHomePlayer: (Player) -> Unit,)
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,GameScreen_AddNewPreview() {
-    onRefereeAssignmentChange: (String) -> Unit,
-    onVenueChange: (String) -> Unit,(
-    onCompetitionChange: (String) -> Unit,ditGameUiState(
-    onGameDateTimeChange: (Long) -> Unit,
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,= ""
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,
-    onNotesChanged: (String) -> Unit,
-    onHomeScoreChange: (String) -> Unit, // New callback
-    onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,
-    onRemoveHomePlayer: (Player) -> Unit,
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,
-    onRefereeAssignmentChange: (String) -> Unit,
-    onVenueChange: (String) -> Unit,= {},
-    onCompetitionChange: (String) -> Unit,{},
-    onGameDateTimeChange: (Long) -> Unit,HalftimeDurationChange = {},
-    onHalfDurationChange: (String) -> Unit,ionChange = {},
-    onHalftimeDurationChange: (String) -> Unit, {},
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,
-    onHomeColorSelected: (Color) -> Unit,
-    onAwayColorSelected: (Color) -> Unit,dummy handler
-    onNotesChanged: (String) -> Unit,dummy handler
-    onHomeScoreChange: (String) -> Unit, // New callback = {}, // Add dummy handler
-    onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,
-    onAddHomePlayer: (String, String) -> Unit,
-    onRemoveHomePlayer: (Player) -> Unit,
-    onAddAwayPlayer: (String, String) -> Unit,
-    onRemoveAwayPlayer: (Player) -> Unit,
-    onRefereeAssignmentChange: (String) -> Unit,und = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
-    onVenueChange: (String) -> Unit,
-    onCompetitionChange: (String) -> Unit,
-    onGameDateTimeChange: (Long) -> Unit,
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,e = "Preview Home Team",
-    onHomeColorSelected: (Color) -> Unit,       awayTeamName = "Preview Away Team",
-    onAwayColorSelected: (Color) -> Unit,           fieldNumber = "7",
-    onNotesChanged: (String) -> Unit,               refereeAssignment = "AR 1",
-    onHomeScoreChange: (String) -> Unit, // New callback                venue = "Preview Venue",
-    onAwayScoreChange: (String) -> Unit, // New callback
-    onSaveGame: () -> Unit,     gameDateTimeEpochMillis = System.currentTimeMillis() + (3 * 24 * 60 * 60 * 1000),
-    onAddHomePlayer: (String, String) -> Unit,urationMinutes = 40,
-    onRemoveHomePlayer: (Player) -> Unit,inutes = 10,
-    onAddAwayPlayer: (String, String) -> Unit,Blue.toArgb(),
-    onRemoveAwayPlayer: (Player) -> Unit,Red.toArgb(),
-    onRefereeAssignmentChange: (String) -> Unit,note for the preview of an edited game.",
-    onVenueChange: (String) -> Unit,             homeScore = "1", // Example score
-    onCompetitionChange: (String) -> Unit,awayScore = "2", // Example score
-    onGameDateTimeChange: (Long) -> Unit,
-    onHalfDurationChange: (String) -> Unit,
-    onHalftimeDurationChange: (String) -> Unit,
-    onExtraTimeHalfDurationChange: (String) -> Unit,
-    onMaxSubstitutionsChange: (String) -> Unit,,
-    onHomeColorSelected: (Color) -> Unit,       onAwayTeamNameChange = {},
-    onAwayColorSelected: (Color) -> Unit,           onHomeTeamAbbrChange = {},
-    onNotesChanged: (String) -> Unit,            onAwayTeamAbbrChange = {},
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    onAway    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,
-
-
-
-
-
-
-
-
-    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback    onNotesChanged: (String) -> Unit,    onAwayColorSelected: (Color) -> Unit,    onHomeColorSelected: (Color) -> Unit,    onMaxSubstitutionsChange: (String) -> Unit,    onExtraTimeHalfDurationChange: (String) -> Unit,    onHalftimeDurationChange: (String) -> Unit,    onHalfDurationChange: (String) -> Unit,    onGameDateTimeChange: (Long) -> Unit,    onCompetitionChange: (String) -> Unit,    onVenueChange: (String) -> Unit,    onRefereeAssignmentChange: (String) -> Unit,    onRemoveAwayPlayer: (Player) -> Unit,    onAddAwayPlayer: (String, String) -> Unit,    onRemoveHomePlayer: (Player) -> Unit,    onAddHomePlayer: (String, String) -> Unit,    onSaveGame: () -> Unit,    onAwayScoreChange: (String) -> Unit, // New callback    onHomeScoreChange: (String) -> Unit, // New callback            onHomeCaptainNumberChange = {},
-            onAwayCaptainNumberChange = {},
-            onFieldNumberChange = {},
-            onRefereeAssignmentChange = {}, // Add dummy handler
-            onVenueChange = {},
-            onCompetitionChange = {},
-            onGameDateTimeChange = {},
-            onHalfDurationChange = {},
-            onHalftimeDurationChange = {},
-            onExtraTimeHalfDurationChange = {},
+) {
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val scrollState = rememberScrollState()
+
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = uiState.gameDateTimeEpochMillis ?: System.currentTimeMillis()
+    )
+
+    val calendar = Calendar.getInstance()
+    uiState.gameDateTimeEpochMillis?.let { calendar.timeInMillis = it }
+    val timePickerState = rememberTimePickerState(
+        initialHour = calendar.get(Calendar.HOUR_OF_DAY),
+        initialMinute = calendar.get(Calendar.MINUTE),
+        is24Hour = true
+    )
+    var showTimePicker by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showHomeColorPicker by remember { mutableStateOf(false) }
+    var showAwayColorPicker by remember { mutableStateOf(false) }
+    var selectedTeamColorTarget by remember { mutableStateOf("HOME") }
+
+    Scaffold(
+        containerColor = Color.Transparent,
+        topBar = {
+            Column {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = if (uiState.isEditing) stringResource(R.string.edit_game) else stringResource(R.string.add_game),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = onNavigateBack,
+                            colors = IconButtonDefaults.iconButtonColors(contentColor = TextPrimary)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = TextPrimary,
+                        navigationIconContentColor = TextPrimary
+                    )
+                )
+                SecondaryTabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    containerColor = Color.Transparent,
+                    contentColor = AccentGreen,
+                    indicator = {
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(selectedTabIndex),
+                            color = AccentGreen
+                        )
+                    }
+                ) {
+                    Tab(
+                        selected = selectedTabIndex == 0,
+                        onClick = { selectedTabIndex = 0 },
+                        text = { Text(stringResource(R.string.tab_details)) }
+                    )
+                    Tab(
+                        selected = selectedTabIndex == 1,
+                        onClick = { selectedTabIndex = 1 },
+                        text = { Text(stringResource(R.string.tab_roster)) }
+                    )
+                }
+            }
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { 
+                    Log.d("AddEditGameScreen", "Save FAB clicked. isSaving: ${uiState.isSaving}")
+                    if (!uiState.isSaving) onSaveGame() 
+                },
+                containerColor = AccentGreen,
+                contentColor = Color(0xFF0A1A0A),
+                elevation = FloatingActionButtonDefaults.elevation(
+                    defaultElevation = 0.dp,
+                    pressedElevation = 0.dp
+                ),
+                shape = CircleShape
+            ) {
+                if (uiState.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color(0xFF0A1A0A),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(Icons.Filled.Save, contentDescription = stringResource(R.string.save_game))
+                }
+            }
+        }
+    ) { paddingValues ->
+        PitchBackground(modifier = Modifier.padding(paddingValues)) {
+            if (selectedTabIndex == 0) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    HeroHeader(
+                        title = if (uiState.isEditing) "Spiel bearbeiten" else "Neues Spiel anlegen",
+                        subtitle = "Einstellungen werden automatisch mit deiner Wear OS-Uhr synchronisiert."
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    FormCard(title = "Teams") {
+                        OutlinedTextField(
+                            value = uiState.homeTeamName,
+                            onValueChange = onHomeTeamNameChange,
+                            label = { Text(stringResource(R.string.home_team_name)) },
+                            placeholder = { Text(stringResource(R.string.placeholder_home_team) + (if (uiState.homeTeamAbbr.isNotBlank()) " (${uiState.homeTeamAbbr})" else "")) },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                            singleLine = true,
+                            colors = darkFieldColors()
+                        )
+                        OutlinedTextField(
+                            value = uiState.awayTeamName,
+                            onValueChange = onAwayTeamNameChange,
+                            label = { Text(stringResource(R.string.away_team_name)) },
+                            placeholder = { Text(stringResource(R.string.placeholder_away_team) + (if (uiState.awayTeamAbbr.isNotBlank()) " (${uiState.awayTeamAbbr})" else "")) },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                            singleLine = true,
+                            colors = darkFieldColors()
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = uiState.homeTeamAbbr,
+                                onValueChange = onHomeTeamAbbrChange,
+                                label = { Text(stringResource(R.string.home_abbr)) },
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                colors = darkFieldColors()
+                            )
+                            OutlinedTextField(
+                                value = uiState.awayTeamAbbr,
+                                onValueChange = onAwayTeamAbbrChange,
+                                label = { Text(stringResource(R.string.away_abbr)) },
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                colors = darkFieldColors()
+                            )
+                        }
+                    }
+
+                    FormCard(title = "Spielstand") {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = uiState.homeScore,
+                                onValueChange = onHomeScoreChange,
+                                label = { Text(stringResource(R.string.home_score)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                colors = darkFieldColors()
+                            )
+                            OutlinedTextField(
+                                value = uiState.awayScore,
+                                onValueChange = onAwayScoreChange,
+                                label = { Text(stringResource(R.string.away_score)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                colors = darkFieldColors()
+                            )
+                        }
+                    }
+
+                    FormCard(title = "Trikotfarben") {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = {
+                                    selectedTeamColorTarget = "HOME"
+                                    showHomeColorPicker = true
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Surface, contentColor = TextPrimary),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .background(Color(uiState.homeTeamColorArgb), RoundedCornerShape(4.dp))
+                                            .padding(2.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.home_color))
+                                }
+                            }
+                            Button(
+                                onClick = {
+                                    selectedTeamColorTarget = "AWAY"
+                                    showAwayColorPicker = true
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Surface, contentColor = TextPrimary),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .background(Color(uiState.awayTeamColorArgb), RoundedCornerShape(4.dp))
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.away_color))
+                                }
+                            }
+                        }
+                    }
+
+                    FormCard(title = stringResource(R.string.referee_team)) {
+                        OutlinedTextField(
+                            value = uiState.mainReferee,
+                            onValueChange = onMainRefereeChange,
+                            label = { Text(stringResource(R.string.main_referee)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = darkFieldColors()
+                        )
+                        OutlinedTextField(
+                            value = uiState.assistantReferee1,
+                            onValueChange = onAssistantReferee1Change,
+                            label = { Text(stringResource(R.string.assistant_referee_1)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = darkFieldColors()
+                        )
+                        OutlinedTextField(
+                            value = uiState.assistantReferee2,
+                            onValueChange = onAssistantReferee2Change,
+                            label = { Text(stringResource(R.string.assistant_referee_2)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = darkFieldColors()
+                        )
+                        OutlinedTextField(
+                            value = uiState.fourthOfficial,
+                            onValueChange = onFourthOfficialChange,
+                            label = { Text(stringResource(R.string.fourth_official)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = darkFieldColors()
+                        )
+                        OutlinedTextField(
+                            value = uiState.observer,
+                            onValueChange = onObserverChange,
+                            label = { Text(stringResource(R.string.observer)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = darkFieldColors()
+                        )
+                    }
+
+                    FormCard(title = "Ort & Wettbewerb") {
+                        OutlinedTextField(
+                            value = uiState.refereeAssignment,
+                            onValueChange = onRefereeAssignmentChange,
+                            label = { Text(stringResource(R.string.assignment)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                            singleLine = true,
+                            colors = darkFieldColors()
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = uiState.venue,
+                                onValueChange = onVenueChange,
+                                label = { Text(stringResource(R.string.venue_optional)) },
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                                singleLine = true,
+                                colors = darkFieldColors()
+                            )
+                            OutlinedTextField(
+                                value = uiState.fieldNumber,
+                                onValueChange = onFieldNumberChange,
+                                label = { Text(stringResource(R.string.field_number_optional)) },
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                colors = darkFieldColors()
+                            )
+                        }
+                        OutlinedTextField(
+                            value = uiState.competition,
+                            onValueChange = onCompetitionChange,
+                            label = { Text(stringResource(R.string.competition_optional)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                            singleLine = true,
+                            colors = darkFieldColors()
+                        )
+                    }
+
+                    val selectedDateTimeString = uiState.gameDateTimeEpochMillis?.let {
+                        val sdfDate = SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault())
+                        val sdfTime = SimpleDateFormat("HH:mm", Locale.getDefault())
+                        stringResource(R.string.date_time_format, sdfDate.format(Date(it)), sdfTime.format(Date(it)))
+                    } ?: stringResource(R.string.select_date_time)
+
+                    FormCard(title = "Zeitplan") {
+                        Box {
+                            OutlinedTextField(
+                                value = selectedDateTimeString,
+                                onValueChange = {},
+                                label = { Text(stringResource(R.string.game_date_time)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = false,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    disabledTextColor = TextPrimary,
+                                    disabledBorderColor = Border,
+                                    disabledPlaceholderColor = TextMuted,
+                                    disabledLabelColor = TextMuted,
+                                    disabledTrailingIconColor = TextMuted
+                                ),
+                                readOnly = true,
+                                trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = stringResource(R.string.select_date)) }
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable { showDatePicker = true }
+                            )
+                        }
+                    }
+
+                    FormCard(title = "Spielzeiten") {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = if (uiState.halfDurationMinutes == 0) "" else uiState.halfDurationMinutes.toString(),
+                                onValueChange = onHalfDurationChange,
+                                label = { Text(stringResource(R.string.half_minutes)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                colors = darkFieldColors()
+                            )
+                            OutlinedTextField(
+                                value = if (uiState.halftimeDurationMinutes == 0) "" else uiState.halftimeDurationMinutes.toString(),
+                                onValueChange = onHalftimeDurationChange,
+                                label = { Text(stringResource(R.string.halftime_minutes)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                colors = darkFieldColors()
+                            )
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = if (uiState.extraTimeHalfDurationMinutes == 0) "" else uiState.extraTimeHalfDurationMinutes.toString(),
+                                onValueChange = onExtraTimeHalfDurationChange,
+                                label = { Text(stringResource(R.string.extra_time_minutes)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                colors = darkFieldColors()
+                            )
+                            OutlinedTextField(
+                                value = if (uiState.maxSubstitutionsAllowed == 0) "" else uiState.maxSubstitutionsAllowed.toString(),
+                                onValueChange = onMaxSubstitutionsChange,
+                                label = { Text(stringResource(R.string.max_substitutions_mobile)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                colors = darkFieldColors()
+                            )
+                        }
+                    }
+
+                    FormCard(title = stringResource(R.string.temporary_dismissal_enabled)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = stringResource(R.string.temporary_dismissal_enabled),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = uiState.hasTemporaryDismissals,
+                                onCheckedChange = onHasTemporaryDismissalsChange,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = TextPrimary,
+                                    checkedTrackColor = AccentGreen,
+                                    checkedBorderColor = AccentGreen,
+                                    uncheckedThumbColor = TextMuted,
+                                    uncheckedTrackColor = Surface,
+                                    uncheckedBorderColor = Border
+                                )
+                            )
+                        }
+
+                        if (uiState.hasTemporaryDismissals) {
+                            OutlinedTextField(
+                                value = if (uiState.temporaryDismissalMinutes == 0) "" else uiState.temporaryDismissalMinutes.toString(),
+                                onValueChange = onTemporaryDismissalChange,
+                                label = { Text(stringResource(R.string.temporary_dismissal_minutes)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                colors = darkFieldColors()
+                            )
+                        }
+                    }
+
+                    FormCard(title = stringResource(R.string.penalty_shootout_enabled)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = stringResource(R.string.penalty_shootout_enabled),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = uiState.hasPenalties,
+                                onCheckedChange = onHasPenaltiesChange,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = TextPrimary,
+                                    checkedTrackColor = AccentGreen,
+                                    checkedBorderColor = AccentGreen,
+                                    uncheckedThumbColor = TextMuted,
+                                    uncheckedTrackColor = Surface,
+                                    uncheckedBorderColor = Border
+                                )
+                            )
+                        }
+
+                        OutlinedTextField(
+                            value = if (uiState.penaltyKicksPerTeam == 0) "" else uiState.penaltyKicksPerTeam.toString(),
+                            onValueChange = onPenaltyKicksPerTeamChange,
+                            label = { Text(stringResource(R.string.penalty_kicks_per_team)) },
+                            placeholder = { Text("5") },
+                            enabled = uiState.hasPenalties,
+                            readOnly = !uiState.hasPenalties,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            colors = darkFieldColors(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = uiState.notes,
+                        onValueChange = onNotesChanged,
+                        label = { Text(stringResource(R.string.notes_optional)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 80.dp),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        colors = darkFieldColors()
+                    )
+
+                    uiState.errorMessage?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+
+                    Spacer(Modifier.height(60.dp))
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    RosterManagementSection(
+                        teamName = uiState.homeTeamName.ifBlank { stringResource(R.string.home) },
+                        team = Team.HOME,
+                        roster = uiState.homeRoster,
+                        officials = uiState.homeOfficials,
+                        onApplyTemplate = onApplyTemplate,
+                        onAddPlayer = onAddPlayer,
+                        onRemovePlayer = onRemovePlayer,
+                        onToggleCaptain = onToggleCaptain,
+                        onToggleOnField = onToggleOnField,
+                        onUpdatePlayerNumber = onUpdatePlayerNumber,
+                        onUpdatePlayerName = onUpdatePlayerName,
+                        onAddOfficial = onAddOfficial,
+                        onRemoveOfficial = onRemoveOfficial
+                    )
+
+                    RosterManagementSection(
+                        teamName = uiState.awayTeamName.ifBlank { stringResource(R.string.away) },
+                        team = Team.AWAY,
+                        roster = uiState.awayRoster,
+                        officials = uiState.awayOfficials,
+                        onApplyTemplate = onApplyTemplate,
+                        onAddPlayer = onAddPlayer,
+                        onRemovePlayer = onRemovePlayer,
+                        onToggleCaptain = onToggleCaptain,
+                        onToggleOnField = onToggleOnField,
+                        onUpdatePlayerNumber = onUpdatePlayerNumber,
+                        onUpdatePlayerName = onUpdatePlayerName,
+                        onAddOfficial = onAddOfficial,
+                        onRemoveOfficial = onRemoveOfficial
+                    )
+                    Spacer(Modifier.height(60.dp))
+                }
+            }
+        }
+    }
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDatePicker = false
+                    datePickerState.selectedDateMillis?.let { selectedDate ->
+                        val cal = Calendar.getInstance()
+                        uiState.gameDateTimeEpochMillis?.let { cal.timeInMillis = it }
+                        cal.timeInMillis = selectedDate
+                        showTimePicker = true
+                    }
+                }) { Text(stringResource(R.string.ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showTimePicker) {
+        TimePickerDialog(
+            onDismissRequest = { showTimePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showTimePicker = false
+                    val cal = Calendar.getInstance()
+                    datePickerState.selectedDateMillis?.let { cal.timeInMillis = it }
+                    cal.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                    cal.set(Calendar.MINUTE, timePickerState.minute)
+                    cal.set(Calendar.SECOND, 0)
+                    cal.set(Calendar.MILLISECOND, 0)
+                    onGameDateTimeChange(cal.timeInMillis)
+                }) { Text(stringResource(R.string.ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        ) {
+            TimePicker(state = timePickerState, modifier = Modifier.padding(16.dp))
+        }
+    }
+
+    if (showHomeColorPicker) {
+        AdvancedColorPickerDialog(
+            initialColor = Color(uiState.homeTeamColorArgb),
+            onColorSelected = { onHomeColorSelected(it) },
+            onDismiss = { showHomeColorPicker = false }
+        )
+    }
+    if (showAwayColorPicker) {
+        AdvancedColorPickerDialog(
+            initialColor = Color(uiState.awayTeamColorArgb),
+            onColorSelected = { onAwayColorSelected(it) },
+            onDismiss = { showAwayColorPicker = false }
+        )
+    }
+}
+
+@Composable
+private fun RosterManagementSection(
+    teamName: String,
+    team: Team,
+    roster: List<Player>,
+    officials: List<TeamOfficial>,
+    onApplyTemplate: (Team, Int, Int) -> Unit,
+    onAddPlayer: (Team, Int, String) -> Unit,
+    onRemovePlayer: (Team, Int) -> Unit,
+    onToggleCaptain: (Team, Int) -> Unit,
+    onToggleOnField: (Team, Int) -> Unit,
+    onUpdatePlayerNumber: (Team, Int, Int) -> Unit,
+    onUpdatePlayerName: (Team, Int, String) -> Unit,
+    onAddOfficial: (Team, String, String) -> Unit,
+    onRemoveOfficial: (Team, String) -> Unit
+) {
+    var showAddPlayerDialog by remember { mutableStateOf(false) }
+    var showAddOfficialDialog by remember { mutableStateOf(false) }
+
+    FormCard(title = "${stringResource(R.string.tab_roster)}: $teamName") {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { onApplyTemplate(team, 11, 5) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Surface, contentColor = TextPrimary),
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Border)
+            ) {
+                Text(stringResource(R.string.template_11_5), style = MaterialTheme.typography.bodySmall)
+            }
+            Button(
+                onClick = { onApplyTemplate(team, 7, 6) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Surface, contentColor = TextPrimary),
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Border)
+            ) {
+                Text(stringResource(R.string.template_7_6), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        // On-Field Section
+        Text(stringResource(R.string.on_field_header), style = MaterialTheme.typography.labelLarge, color = AccentGreen)
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            roster.filter { it.isOnField }.forEach { player ->
+                PlayerRow(
+                    player = player,
+                    onRemove = { onRemovePlayer(team, player.number) },
+                    onToggleCaptain = { onToggleCaptain(team, player.number) },
+                    onToggleOnField = { onToggleOnField(team, player.number) },
+                    onUpdateNumber = { onUpdatePlayerNumber(team, player.number, it) },
+                    onUpdateName = { onUpdatePlayerName(team, player.number, it) }
+                )
+            }
+        }
+        
+        Spacer(Modifier.height(8.dp))
+
+        // Bench Section
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.on_bench_header), style = MaterialTheme.typography.labelLarge, color = AccentGreen, modifier = Modifier.weight(1f))
+            IconButton(onClick = { showAddPlayerDialog = true }, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = AccentGreen)
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            roster.filter { !it.isOnField }.forEach { player ->
+                PlayerRow(
+                    player = player,
+                    onRemove = { onRemovePlayer(team, player.number) },
+                    onToggleCaptain = { onToggleCaptain(team, player.number) },
+                    onToggleOnField = { onToggleOnField(team, player.number) },
+                    onUpdateNumber = { onUpdatePlayerNumber(team, player.number, it) },
+                    onUpdateName = { onUpdatePlayerName(team, player.number, it) }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.officials), style = MaterialTheme.typography.labelLarge, color = AccentGreen, modifier = Modifier.weight(1f))
+            IconButton(onClick = { showAddOfficialDialog = true }, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = AccentGreen)
+            }
+        }
+
+        if (officials.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                officials.forEach { official ->
+                    OfficialRow(
+                        official = official,
+                        onRemove = { onRemoveOfficial(team, official.id) }
+                    )
+                }
+            }
+        }
+    }
+
+    if (showAddPlayerDialog) {
+        var numStr by remember { mutableStateOf("") }
+        var nameStr by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAddPlayerDialog = false },
+            title = { Text(stringResource(R.string.add_player)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = numStr,
+                        onValueChange = { 
+                            val filtered = it.filter { c -> c.isDigit() }
+                            if (filtered != "0") numStr = filtered 
+                        },
+                        label = { Text(stringResource(R.string.player_number_label)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = nameStr,
+                        onValueChange = { nameStr = it },
+                        label = { Text(stringResource(R.string.player_name_label)) },
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    numStr.toIntOrNull()?.let { onAddPlayer(team, it, nameStr) }
+                    showAddPlayerDialog = false
+                }) { Text(stringResource(R.string.confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddPlayerDialog = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
+    if (showAddOfficialDialog) {
+        var nameStr by remember { mutableStateOf("") }
+        var roleStr by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAddOfficialDialog = false },
+            title = { Text(stringResource(R.string.add_official)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = roleStr,
+                        onValueChange = { roleStr = it },
+                        label = { Text(stringResource(R.string.official_role)) },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = nameStr,
+                        onValueChange = { nameStr = it },
+                        label = { Text(stringResource(R.string.official_name)) },
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onAddOfficial(team, nameStr, roleStr)
+                    showAddOfficialDialog = false
+                }) { Text(stringResource(R.string.confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddOfficialDialog = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+}
+
+@Composable
+private fun PlayerRow(
+    player: Player,
+    onRemove: () -> Unit,
+    onToggleCaptain: () -> Unit,
+    onToggleOnField: () -> Unit,
+    onUpdateNumber: (Int) -> Unit,
+    onUpdateName: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Player Number - In-line editable
+        var numberText by remember(player.number) { mutableStateOf(player.number.toString()) }
+        androidx.compose.foundation.text.BasicTextField(
+            value = numberText,
+            onValueChange = {
+                val filtered = it.filter { c -> c.isDigit() }
+                if (filtered.length <= 3) {
+                    numberText = filtered
+                    filtered.toIntOrNull()?.let { num ->
+                        if (num != 0) onUpdateNumber(num)
+                    }
+                }
+            },
+            modifier = Modifier.width(36.dp),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                fontWeight = FontWeight.Bold,
+                color = AccentGreen,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            ),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(AccentGreen)
+        )
+        
+        Spacer(Modifier.width(8.dp))
+
+        // Player Name - In-line editable
+        var nameText by remember(player.name) { mutableStateOf(player.name) }
+        androidx.compose.foundation.text.BasicTextField(
+            value = nameText,
+            onValueChange = {
+                nameText = it
+                onUpdateName(it)
+            },
+            modifier = Modifier.weight(1f),
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+            singleLine = true,
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(AccentGreen),
+            decorationBox = { innerTextField ->
+                if (nameText.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.player_name_label),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextMuted
+                    )
+                }
+                innerTextField()
+            }
+        )
+        
+        IconButton(onClick = onToggleOnField, modifier = Modifier.size(32.dp)) {
+            Icon(
+                imageVector = if (player.isOnField) Icons.Default.SportsFootball else Icons.Default.Chair,
+                contentDescription = null,
+                tint = if (player.isOnField) AccentGreen else TextMuted,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        TextButton(onClick = onToggleCaptain, modifier = Modifier.width(32.dp), contentPadding = PaddingValues(0.dp)) {
+            Text(text = stringResource(R.string.captain_short), color = if (player.isCaptain) AccentGreen else TextMuted, fontWeight = if (player.isCaptain) FontWeight.Bold else FontWeight.Normal, fontSize = 16.sp)
+        }
+
+        IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun OfficialRow(
+    official: TeamOfficial,
+    onRemove: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = official.role, style = MaterialTheme.typography.labelSmall, color = TextMuted)
+            Text(text = official.name, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+        }
+        IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun HeroHeader(title: String, subtitle: String) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp)) {
+        Text(text = "RefWatch", style = MaterialTheme.typography.labelMedium, color = AccentGreen, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(text = title, style = MaterialTheme.typography.headlineMedium, color = TextPrimary, fontWeight = FontWeight.ExtraBold)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+    }
+}
+
+@Composable
+private fun FormCard(title: String, content: @Composable () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Surface), border = androidx.compose.foundation.BorderStroke(1.dp, Border)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(text = title, style = MaterialTheme.typography.labelLarge, color = AccentGreen, fontWeight = FontWeight.SemiBold)
+            content()
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun darkFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
+    focusedContainerColor = Surface, unfocusedContainerColor = Surface,
+    focusedBorderColor = AccentGreen, unfocusedBorderColor = Border,
+    focusedLabelColor = AccentGreen, unfocusedLabelColor = TextMuted,
+    focusedPlaceholderColor = TextMuted, unfocusedPlaceholderColor = TextMuted,
+    cursorColor = AccentGreen, disabledTextColor = TextMuted,
+    disabledContainerColor = Surface, disabledBorderColor = Border,
+    disabledLabelColor = TextMuted, disabledPlaceholderColor = TextMuted
+)
+
+@Composable
+fun AddEditGameRoute(
+    navController: NavController,
+    addEditViewModel: AddEditGameViewModel = hiltViewModel(),
+) {
+    val context = LocalContext.current
+    val uiState by addEditViewModel.uiState.collectAsStateWithLifecycle()
+    
+    // Use the navigation backstack entry directly to get the current arguments
+    val currentEntry by navController.currentBackStackEntryAsState()
+    val gameId = currentEntry?.arguments?.getString("gameId")
+
+    LaunchedEffect(gameId) {
+        Log.d("AddEditGameRoute", "Initializing form for gameId: $gameId")
+        addEditViewModel.initializeForm(gameId)
+    }
+
+    LaunchedEffect(uiState.saveSuccess) {
+        if (uiState.saveSuccess) {
+            Log.d("AddEditGameRoute", "Save success detected. Navigating back.")
+            Toast.makeText(context, "Spiel erfolgreich gespeichert!", Toast.LENGTH_SHORT).show()
+            navController.popBackStack()
+        }
+    }
+
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let {
+            Log.e("AddEditGameRoute", "Error detected: $it")
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    AddEditGameScreen(
+        uiState = uiState,
+        onNavigateBack = { navController.popBackStack() },
+        onHomeTeamNameChange = addEditViewModel::onHomeTeamNameChange,
+        onAwayTeamNameChange = addEditViewModel::onAwayTeamNameChange,
+        onHomeTeamAbbrChange = addEditViewModel::onHomeTeamAbbrChange,
+        onAwayTeamAbbrChange = addEditViewModel::onAwayTeamAbbrChange,
+        onHomeCaptainNumberChange = addEditViewModel::onHomeCaptainNumberChange,
+        onAwayCaptainNumberChange = addEditViewModel::onAwayCaptainNumberChange,
+        onFieldNumberChange = addEditViewModel::onFieldNumberChange,
+        onRefereeAssignmentChange = addEditViewModel::onRefereeAssignmentChange,
+        onVenueChange = addEditViewModel::onVenueChange,
+        onCompetitionChange = addEditViewModel::onCompetitionChange,
+        onMainRefereeChange = addEditViewModel::onMainRefereeChange,
+        onAssistantReferee1Change = addEditViewModel::onAssistantReferee1Change,
+        onAssistantReferee2Change = addEditViewModel::onAssistantReferee2Change,
+        onFourthOfficialChange = addEditViewModel::onFourthOfficialChange,
+        onObserverChange = addEditViewModel::onObserverChange,
+        onGameDateTimeChange = addEditViewModel::onGameDateTimeChange,
+        onHalfDurationChange = addEditViewModel::onHalfDurationChange,
+        onHalftimeDurationChange = addEditViewModel::onHalftimeDurationChange,
+        onExtraTimeHalfDurationChange = addEditViewModel::onExtraTimeHalfDurationChange,
+        onMaxSubstitutionsChange = addEditViewModel::onMaxSubstitutionsChange,
+        onHasTemporaryDismissalsChange = addEditViewModel::onHasTemporaryDismissalsChange,
+        onTemporaryDismissalChange = addEditViewModel::onTemporaryDismissalChange,
+        onHasPenaltiesChange = addEditViewModel::onHasPenaltiesChange,
+        onPenaltyKicksPerTeamChange = addEditViewModel::onPenaltyKicksPerTeamChange,
+        onHomeColorSelected = addEditViewModel::onHomeColorSelected,
+        onAwayColorSelected = addEditViewModel::onAwayColorSelected,
+        onNotesChanged = addEditViewModel::onNotesChanged,
+        onHomeScoreChange = addEditViewModel::onHomeScoreChange,
+        onAwayScoreChange = addEditViewModel::onAwayScoreChange,
+        onApplyTemplate = addEditViewModel::applyRosterTemplate,
+        onAddPlayer = addEditViewModel::addPlayer,
+        onRemovePlayer = addEditViewModel::removePlayer,
+        onToggleCaptain = addEditViewModel::toggleCaptain,
+        onToggleOnField = addEditViewModel::toggleOnField,
+        onUpdatePlayerNumber = addEditViewModel::updatePlayerNumber,
+        onUpdatePlayerName = addEditViewModel::updatePlayerName,
+        onAddOfficial = addEditViewModel::addOfficial,
+        onRemoveOfficial = addEditViewModel::removeOfficial,
+        onSaveGame = {
+            Log.d("AddEditGameRoute", "onSaveGame triggered in Route.")
+            Toast.makeText(context, "Speichere Spiel...", Toast.LENGTH_SHORT).show()
+            addEditViewModel.onSaveGame()
+        }
+    )
+}
+
+@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun AddEditGameScreen_Preview() {
+    RefWatchMobileTheme {
+        AddEditGameScreen(
+            uiState = AddEditGameUiState(isEditing = false),
+            onNavigateBack = {},
+            onHomeTeamNameChange = {}, onAwayTeamNameChange = {},
+            onHomeTeamAbbrChange = {}, onAwayTeamAbbrChange = {},
+            onHomeCaptainNumberChange = {}, onAwayCaptainNumberChange = {},
+            onFieldNumberChange = {}, onRefereeAssignmentChange = {},
+            onVenueChange = {}, onCompetitionChange = {},
+            onMainRefereeChange = {}, onAssistantReferee1Change = {},
+            onAssistantReferee2Change = {}, onFourthOfficialChange = {},
+            onObserverChange = {},
+            onGameDateTimeChange = {}, onHalfDurationChange = {},
+            onHalftimeDurationChange = {}, onExtraTimeHalfDurationChange = {},
             onMaxSubstitutionsChange = {},
-            onHomeColorSelected = {},
-            onAwayColorSelected = {},
-            onNotesChanged = {},
-            onHomeScoreChange = {}, // Add dummy handler
-            onAwayScoreChange = {}, // Add dummy handler
+            onHasTemporaryDismissalsChange = {},
+            onTemporaryDismissalChange = {},
+            onHasPenaltiesChange = {},
+            onPenaltyKicksPerTeamChange = {}, onHomeColorSelected = {},
+            onAwayColorSelected = {}, onNotesChanged = {},
+            onHomeScoreChange = {}, onAwayScoreChange = {},
+            onApplyTemplate = { _, _, _ -> }, onAddPlayer = { _, _, _ -> },
+            onRemovePlayer = { _, _ -> }, onToggleCaptain = { _, _ -> },
+            onToggleOnField = { _, _ -> }, onUpdatePlayerNumber = { _, _, _ -> },
+            onUpdatePlayerName = { _, _, _ -> },
+            onAddOfficial = { _, _, _ -> }, onRemoveOfficial = { _, _ -> },
             onSaveGame = {}
         )
     }
 }
 
-// Dummy composable for previewing TimePickerDialog if Material 3 doesn't have a direct one yet
 @Composable
 fun TimePickerDialog(
     onDismissRequest: () -> Unit,
@@ -1848,11 +1146,5 @@ fun TimePickerDialog(
     dismissButton: @Composable () -> Unit,
     content: @Composable () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        title = { Text("Select Time") },
-        text = content,
-        confirmButton = confirmButton,
-        dismissButton = dismissButton
-    )
+    AlertDialog(onDismissRequest = onDismissRequest, title = { Text(stringResource(R.string.select_time)) }, text = content, confirmButton = confirmButton, dismissButton = dismissButton)
 }

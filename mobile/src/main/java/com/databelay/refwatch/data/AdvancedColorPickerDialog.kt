@@ -30,8 +30,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.databelay.refwatch.R
 import com.databelay.refwatch.common.luminance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.window.Dialog
@@ -85,7 +87,7 @@ fun AdvancedColorPickerDialog(
                 // RGB Sliders
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     // Red slider
-                    Text("Red: ${(red * 255).toInt()}", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.color_red, (red * 255).toInt()), style = MaterialTheme.typography.bodyMedium)
                     Slider(
                         value = red,
                         onValueChange = { red = it },
@@ -94,7 +96,7 @@ fun AdvancedColorPickerDialog(
                     )
 
                     // Green slider
-                    Text("Green: ${(green * 255).toInt()}", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.color_green, (green * 255).toInt()), style = MaterialTheme.typography.bodyMedium)
                     Slider(
                         value = green,
                         onValueChange = { green = it },
@@ -103,7 +105,7 @@ fun AdvancedColorPickerDialog(
                     )
 
                     // Blue slider
-                    Text("Blue: ${(blue * 255).toInt()}", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.color_blue, (blue * 255).toInt()), style = MaterialTheme.typography.bodyMedium)
                     Slider(
                         value = blue,
                         onValueChange = { blue = it },
@@ -120,11 +122,11 @@ fun AdvancedColorPickerDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.cancel))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(onClick = { onColorSelected(selectedColor) }) {
-                        Text("Select")
+                        Text(stringResource(R.string.select))
                     }
                 }
             }

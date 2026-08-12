@@ -42,6 +42,7 @@ import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameEvent
 import com.databelay.refwatch.common.PreviewTools.createFirstHalfSampleGame
+import com.databelay.refwatch.common.shouldBeLogged
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -96,13 +97,21 @@ fun GameLogScreen(
                 }
             } else {
                 items(
-                    game.events.asReversed(),
+                    game.events.asReversed().filter { it.phase?.shouldBeLogged() != false },
                     key = { event -> event.id }) { event ->
+                    val removeTitle = stringResource(R.string.remove_log_event_title)
+                    val removeBody = stringResource(R.string.remove_log_event_body)
+                    val yesText = stringResource(R.string.confirm_yes)
+                    val noText = stringResource(R.string.dismiss_no)
                     EventLogItem(
                         event = event,
                         halfDurationMinutes = game.halfDurationMinutes,
                         onLongClick = {
                             activeDialogInfo = ConfirmationDialogInfo.RemoveLogEvent(
+                                title = removeTitle,
+                                text = removeBody,
+                                confirmButtonText = yesText,
+                                dismissButtonText = noText,
                                 onConfirm = { onRemoveEvent(event)},
                                 onDialogClose = onDismiss
                             )
@@ -166,7 +175,7 @@ fun EventLogItem(
             )
             if (matchMinute.isNotEmpty()) {
                 Text(
-                    text = "Minute: $matchMinute",
+                    text = stringResource(R.string.minute_label, matchMinute),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                 )

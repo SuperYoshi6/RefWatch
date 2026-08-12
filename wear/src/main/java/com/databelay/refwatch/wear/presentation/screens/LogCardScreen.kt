@@ -26,6 +26,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,8 +46,11 @@ import androidx.wear.compose.material3.*
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.databelay.refwatch.common.CardType
 import com.databelay.refwatch.common.Team
+import com.databelay.refwatch.common.Player
+import com.databelay.refwatch.common.TeamOfficial
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.R
+import com.databelay.refwatch.wear.presentation.components.PlayerPicker
 import com.databelay.refwatch.wear.presentation.utils.localizedName
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.delay
@@ -55,155 +59,189 @@ import kotlinx.coroutines.delay
 fun LogCardScreen(
     preselectedTeam: Team?,
     cardType: CardType,
-    onLogCard: (team: Team, playerNumber: Int, cardType: CardType) -> Unit,
+    roster: List<Player> = emptyList(),
+    officials: List<TeamOfficial> = emptyList(),
+    hasTemporaryDismissals: Boolean = false,
+    temporaryDismissalMinutes: Int = 0,
+    onLogCard: (team: Team, playerNumber: Int, cardType: CardType, applyDismissal: Boolean, isOfficial: Boolean, officialName: String?) -> Unit,
     onCancel: () -> Unit
 ) {
     var selectedTeam by remember { mutableStateOf(preselectedTeam) }
-//    var selectedCardType by remember { mutableStateOf<CardType?>(CardType.YELLOW) }
     var playerNumberString by remember { mutableStateOf("") }
+    var isManualEntry by remember { mutableStateOf(roster.isEmpty()) }
+    var showDismissalPrompt by remember { mutableStateOf(false) }
+    var confirmedPlayerNumber by remember { mutableIntStateOf(0) }
+
     val context = LocalContext.current
     val focusRequester = remember { FocusRequester() }
-    ScreenScaffold(
-//        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
-    ) {
-        // Request focus when the composable enters the composition
-        LaunchedEffect(Unit) {
-            focusRequester.requestFocus()
-            // Note: Showing the keyboard programmatically can sometimes be tricky
-            // and platform-dependent. FocusRequester.requestFocus() should typically
-            // also trigger the keyboard for a TextField on Wear OS.
-            // If the keyboard doesn't show, you might need to investigate further,
-            // potentially using LocalSoftwareKeyboardController.
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceAround
-        ) {
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(stringResource(R.string.log_card), style = MaterialTheme.typography.titleSmall)
-            preselectedTeam?.let {
-                Text(
-                    "${stringResource(R.string.field_label).replace("Field: %1\$s", "").replace(": %1\$s", "").trim()}: ${it.localizedName()}",
-                    style = MaterialTheme.typography.bodySmall,
-//                    modifier = Modifier.padding(bottom = 4.dp)
+    
+    if (showDismissalPrompt) {
+        AlertDialog(
+            visible = true,
+            onDismissRequest = { showDismissalPrompt = false },
+            title = { Text(stringResource(R.string.apply_temporary_dismissal_q)) },
+            text = { Text("${temporaryDismissalMinutes} min") },
+            confirmButton = {
+                AlertDialogDefaults.ConfirmButton(
+                    onClick = {
+                        if (preselectedTeam != null) {
+                            onLogCard(preselectedTeam, confirmedPlayerNumber, cardType, true, false, null)
+                        }
+                        showDismissalPrompt = false
+                    }
+                )
+            },
+            dismissButton = {
+                AlertDialogDefaults.DismissButton(
+                    onClick = {
+                        if (preselectedTeam != null) {
+                            onLogCard(preselectedTeam, confirmedPlayerNumber, cardType, false, false, null)
+                        }
+                        showDismissalPrompt = false
+                    }
                 )
             }
+        )
+    }
 
-            // Player Number
-            OutlinedTextField( // Using M3 OutlinedTextField
-                value = playerNumberString,
-                onValueChange = {
-                    if (it.length <= 2 && it.all { char -> char.isDigit() }) {
-                        playerNumberString = it
-                    }
-                },
-                label = { Text("") }, // M3 Text
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier
-                    .focusRequester(focusRequester)
-                    .padding(horizontal = 32.dp),
-
-                colors = TextFieldDefaults.colors(
-                    // Focused colors
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    focusedContainerColor = Color.Transparent, // Or MaterialTheme.colorScheme.surface
-
-                    // Unfocused colors
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unfocusedContainerColor = Color.Transparent, // Or MaterialTheme.colorScheme.surface
-
-                    // Disabled colors (optional, but good to define)
-                    disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    disabledContainerColor = Color.Transparent,
-
-                    // Cursor color
-                    cursorColor = MaterialTheme.colorScheme.primary
-                )
-            )
-
-
-            // Action Buttons
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+    ScreenScaffold {
+        if (!isManualEntry && roster.isNotEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-/*                IconButton(
-                    onClick = onCancel,
-                ) {
-                    Icon(imageVector = Icons.Filled.Close, contentDescription = "Cancel")
+                Spacer(modifier = Modifier.height(8.dp))
+                val title = if (cardType == CardType.YELLOW) stringResource(R.string.card_yellow_title) else stringResource(R.string.card_red_title)
+                Text(title, style = MaterialTheme.typography.labelMedium)
+                preselectedTeam?.let {
+                    Text(
+                        text = it.localizedName(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
                 }
-                IconButton (
-                    onClick = {
-                        val playerNum = playerNumberString.toIntOrNull()
-                        // Read selectedTeam into a local immutable variable
-                        val currentSelectedTeam =
-                            selectedTeam // selectedTeam is MutableState<Team?>
-                        if (currentSelectedTeam != null && playerNum != null && playerNum > 0) {
-                            // Now currentSelectedTeam can be smart-cast to Team
-                            onLogCard(currentSelectedTeam, playerNum, cardType)
-                        } else {
-                            if (currentSelectedTeam == null) {
-                                Toast.makeText(context, "No team selected", Toast.LENGTH_SHORT)
-                                    .show()
-                            } else { // playerNum is null or not > 0
-                                Toast.makeText(
-                                    context,
-                                    "Enter a valid player number",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+
+                val combinedList = remember(roster, officials) {
+                    roster + officials.map { 
+                        Player(name = "[TR] ${it.name}", number = it.number ?: 0, isOnField = false) 
+                    }
+                }
+
+                PlayerPicker(
+                    players = combinedList,
+                    onPlayerSelected = { selection ->
+                        if (preselectedTeam != null) {
+                            val isOfficial = selection.name.startsWith("[TR]")
+                            if (!isOfficial && hasTemporaryDismissals && cardType == CardType.YELLOW && temporaryDismissalMinutes > 0) {
+                                confirmedPlayerNumber = selection.number
+                                showDismissalPrompt = true
+                            } else {
+                                onLogCard(preselectedTeam, selection.number, cardType, false, isOfficial, selection.name.removePrefix("[TR] ").trim())
                             }
                         }
                     },
-                    enabled = selectedTeam != null && playerNumberString.isNotBlank(),
-                ) {
-//                    AlertDialogDefaults.ConfirmIcon
-                    Icon(imageVector = Icons.Filled.Check, contentDescription = "Log card")
-
-                }*/
-                AlertDialogDefaults.DismissButton(
-                    onClick = onCancel,
+                    onManualEntry = { isManualEntry = true }
                 )
-                if (selectedTeam != null && playerNumberString.isNotBlank())
-                    AlertDialogDefaults.ConfirmButton(
+            }
+        } else {
+            // Standard manual entry UI
+            LaunchedEffect(Unit) {
+                focusRequester.requestFocus()
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceAround
+            ) {
+                Spacer(modifier = Modifier.height(4.dp))
+
+                val title = if (cardType == CardType.YELLOW) stringResource(R.string.card_yellow_title) else stringResource(R.string.card_red_title)
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                preselectedTeam?.let {
+                    Text(
+                        it.localizedName(),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+
+                // Player Number
+                OutlinedTextField(
+                    value = playerNumberString,
+                    onValueChange = {
+                        if (it.length <= 3 && it.all { char -> char.isDigit() }) {
+                            playerNumberString = it
+                        }
+                    },
+                    label = { Text("") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier
+                        .focusRequester(focusRequester)
+                        .padding(horizontal = 32.dp),
+
+                    colors = TextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        disabledContainerColor = Color.Transparent,
+                        cursorColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+
+
+                // Action Buttons
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AlertDialogDefaults.DismissButton(
                         onClick = {
-                            val playerNum = playerNumberString.toIntOrNull()
-                            // Read selectedTeam into a local immutable variable
-                            val currentSelectedTeam =
-                                selectedTeam // selectedTeam is MutableState<Team?>
-                            if (currentSelectedTeam != null && playerNum != null && playerNum > 0) {
-                                // Now currentSelectedTeam can be smart-cast to Team
-                                onLogCard(currentSelectedTeam, playerNum, cardType)
-                            } else {
-                                if (currentSelectedTeam == null) {
-                                    Toast.makeText(context, "No team selected", Toast.LENGTH_SHORT)
-                                        .show()
-                                } else { // playerNum is null or not > 0
-                                    Toast.makeText(
-                                        context,
-                                        "Enter a valid player number",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
+                            if (roster.isNotEmpty()) isManualEntry = false else onCancel()
                         },
                     )
-                else
-                    AlertDialogDefaults.ConfirmButton(
-                        onClick = {},
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                    if (selectedTeam != null && playerNumberString.isNotBlank())
+                        AlertDialogDefaults.ConfirmButton(
+                            onClick = {
+                                val playerNum = playerNumberString.toIntOrNull()
+                                val currentSelectedTeam = selectedTeam 
+                                if (currentSelectedTeam != null && playerNum != null && playerNum > 0) {
+                                    if (hasTemporaryDismissals && cardType == CardType.YELLOW && temporaryDismissalMinutes > 0) {
+                                        confirmedPlayerNumber = playerNum
+                                        showDismissalPrompt = true
+                                    } else {
+                                        onLogCard(currentSelectedTeam, playerNum, cardType, false, false, null)
+                                    }
+                                } else {
+                                    if (currentSelectedTeam == null) {
+                                        Toast.makeText(context, context.getString(R.string.no_team_selected), Toast.LENGTH_SHORT)
+                                            .show()
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.enter_valid_player_number),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            },
                         )
-                    )
+                    else
+                        AlertDialogDefaults.ConfirmButton(
+                            onClick = {},
+                            colors = IconButtonDefaults.iconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                            )
+                        )
+
+                }
+                Spacer(modifier = Modifier.height(12.dp))
 
             }
-            Spacer(modifier = Modifier.height(12.dp))
-
         }
     }
 }
@@ -220,7 +258,7 @@ fun LogCardScreenPreview_Yellow_Home() {
         LogCardScreen(
             preselectedTeam = Team.HOME,
             cardType = CardType.YELLOW,
-            onLogCard = { _, _, _ -> },
+            onLogCard = { _, _, _, _, _, _ -> },
             onCancel = {}
         )
     }

@@ -8,11 +8,14 @@ import com.databelay.refwatch.common.CardIssuedEvent
 import com.databelay.refwatch.common.GoalScoredEvent
 import com.databelay.refwatch.common.PenaltyEvent
 import com.databelay.refwatch.common.GenericLogEvent
+import com.databelay.refwatch.common.PhaseChangedEvent
+import com.databelay.refwatch.common.SubstitutionEvent
 import com.databelay.refwatch.common.CardType
 import com.databelay.refwatch.common.GoalType
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.formatTime
 import com.databelay.refwatch.R
+import com.databelay.refwatch.common.shouldBeLogged
 
 @Composable
 fun GamePhase.localizedName(): String {
@@ -30,6 +33,7 @@ fun GamePhase.localizedName(): String {
         GamePhase.EXTRA_TIME_SECOND_HALF -> R.string.phase_extra_time_second_half
         GamePhase.PENALTIES -> R.string.phase_penalties
         GamePhase.GAME_ENDED -> R.string.phase_game_ended
+        GamePhase.ABORTED -> R.string.phase_aborted
     }
     return stringResource(resId)
 }
@@ -70,40 +74,56 @@ fun GameEvent.getMatchMinute(halfDurationMinutes: Int): String {
     val phase = this.phase ?: return ""
     val elapsedMillis = this.gameTimeMillis.toLong()
     val regMillis = halfDurationMinutes * 60 * 1000L
-    
+
     return when (phase) {
         GamePhase.FIRST_HALF -> {
             if (elapsedMillis >= regMillis) {
-                val added = (elapsedMillis - regMillis) / 60000 + 1
-                "$halfDurationMinutes' + $added"
+                val addedMinutes = (elapsedMillis - regMillis) / 60000
+                if (addedMinutes > 0) {
+                    "$halfDurationMinutes+$addedMinutes"
+                } else {
+                    "$halfDurationMinutes'"
+                }
             } else {
-                "${elapsedMillis / 60000 + 1}'"
+                "${elapsedMillis / 60000}'"
             }
         }
         GamePhase.SECOND_HALF -> {
             if (elapsedMillis >= regMillis) {
-                val added = (elapsedMillis - regMillis) / 60000 + 1
-                "${halfDurationMinutes * 2}' + $added"
+                val addedMinutes = (elapsedMillis - regMillis) / 60000
+                if (addedMinutes > 0) {
+                    "${halfDurationMinutes * 2}+$addedMinutes"
+                } else {
+                    "${halfDurationMinutes * 2}'"
+                }
             } else {
-                "${halfDurationMinutes + elapsedMillis / 60000 + 1}'"
+                "${halfDurationMinutes + elapsedMillis / 60000}'"
             }
         }
         GamePhase.EXTRA_TIME_FIRST_HALF -> {
             val base = halfDurationMinutes * 2
             if (elapsedMillis >= 15 * 60 * 1000L) {
-                val added = (elapsedMillis - 15 * 60 * 1000L) / 60000 + 1
-                "${base + 15}' + $added"
+                val addedMinutes = (elapsedMillis - 15 * 60 * 1000L) / 60000
+                if (addedMinutes > 0) {
+                    "$base+$addedMinutes"
+                } else {
+                    "$base'"
+                }
             } else {
-                "${base + elapsedMillis / 60000 + 1}'"
+                "${base + elapsedMillis / 60000}'"
             }
         }
         GamePhase.EXTRA_TIME_SECOND_HALF -> {
             val base = halfDurationMinutes * 2 + 15 + 15
             if (elapsedMillis >= 15 * 60 * 1000L) {
-                val added = (elapsedMillis - 15 * 60 * 1000L) / 60000 + 1
-                "${base}' + $added"
+                val addedMinutes = (elapsedMillis - 15 * 60 * 1000L) / 60000
+                if (addedMinutes > 0) {
+                    "$base+$addedMinutes"
+                } else {
+                    "$base'"
+                }
             } else {
-                "${base - 15 + elapsedMillis / 60000 + 1}'"
+                "${base - 15 + elapsedMillis / 60000}'"
             }
         }
         else -> ""
@@ -112,12 +132,16 @@ fun GameEvent.getMatchMinute(halfDurationMinutes: Int): String {
 
 @Composable
 fun GameEvent.localizedDisplayString(): String {
+    if (phase?.shouldBeLogged() == false) {
+        return ""
+    }
     return when (this) {
         is GoalScoredEvent -> {
+            val teamLabel = teamDisplayName?.takeIf { it.isNotBlank() } ?: team.localizedName()
             stringResource(
                 R.string.goal_event_template,
                 goalType.localizedName(),
-                team.localizedName(),
+                teamLabel,
                 playerNumber?.toString() ?: "--",
                 homeScoreAtTime,
                 awayScoreAtTime
@@ -127,7 +151,8 @@ fun GameEvent.localizedDisplayString(): String {
             stringResource(
                 R.string.penalty_event_template,
                 team.localizedName(),
-                if (scored) stringResource(R.string.scored) else stringResource(R.string.missed_saved)
+                if (scored) stringResource(R.string.scored) else stringResource(R.string.missed_saved),
+                kickerNumber?.toString() ?: "--"
             )
         }
         is CardIssuedEvent -> {
@@ -140,6 +165,16 @@ fun GameEvent.localizedDisplayString(): String {
             )
         }
         is GenericLogEvent -> message
+        is PhaseChangedEvent -> newPhase.localizedName()
+        is SubstitutionEvent -> {
+            val name = teamDisplayName?.takeIf { it.isNotBlank() } ?: team.localizedName()
+            stringResource(
+                R.string.event_sub_template,
+                name,
+                outgoingPlayerNumber,
+                incomingPlayerNumber
+            )
+        }
         else -> displayString
     }
 }

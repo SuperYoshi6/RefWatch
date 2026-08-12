@@ -32,7 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.databelay.refwatch.R
 import androidx.compose.ui.window.Dialog
 
 @Composable
@@ -78,7 +80,7 @@ fun ColorPickerDialog(
                     onClick = onDismiss,
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         }
@@ -106,7 +108,7 @@ private fun ColorPickerItem(
         if (isSelected) {
             Icon(
                 imageVector = Icons.Default.Check,
-                contentDescription = "Selected",
+                contentDescription = stringResource(R.string.selected),
                 tint = if (color.luminance() > 0.5f) Color.Black else Color.White,
                 modifier = Modifier.size(24.dp)
             )

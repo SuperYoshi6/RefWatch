@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.databelay.refwatch.R
 import com.databelay.refwatch.common.WearSyncConstants
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
@@ -64,10 +65,12 @@ class AuthViewModel @Inject constructor(
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     private val _isLoading = MutableStateFlow(true)
     private val _authError = MutableStateFlow<String?>(null)
+    private val _authMessage = MutableStateFlow<String?>(null)
 
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val authError: StateFlow<String?> = _authError.asStateFlow()
+    val authMessage: StateFlow<String?> = _authMessage.asStateFlow()
 
     init {
         Log.d(TAG, "AuthViewModel initialized.")
@@ -98,12 +101,9 @@ class AuthViewModel @Inject constructor(
                 Log.i(TAG, "Successfully fetched custom token from server.")
                 sendAuthDataToWatch(user.uid, customToken)
             }.onFailure { exception ->
-                Log.e(TAG, "Failed to fetch custom token from server", exception)
-                // Handle the error appropriately - maybe show an error message to the user
-                // or retry. For now, we won't send anything to the watch if token fetching fails.
-                _authError.value = "Failed to prepare watch sign-in: ${exception.localizedMessage}"
-                // Optionally, you could still try to send a "login without token" signal
-                // or a specific error signal to the watch if that's part of your design.
+                Log.w(TAG, "Watch pairing via custom token skipped or failed. Using direct login instead.")
+                // Silenced: We no longer show an error here because the user is using direct email login (Option C)
+                // _authError.value = application.getString(R.string.error_watch_signin_failed, exception.localizedMessage ?: "")
             }
         }
     }
@@ -136,7 +136,7 @@ class AuthViewModel @Inject constructor(
 
     fun signInWithEmailPassword(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
-            _authError.value = "Email and password cannot be empty."
+            _authError.value = application.getString(R.string.error_email_password_empty)
             _isLoading.value = false
             return
         }
@@ -144,13 +144,18 @@ class AuthViewModel @Inject constructor(
             _isLoading.value = true
             _authState.value = AuthState.Loading
             _authError.value = null
+            _authMessage.value = null
             val result = authRepository.signInWithEmailPassword(email, password)
             result.onSuccess {
                 // AuthStateListener will handle Authenticated state and triggering data send to watch
                 Log.d(TAG, "Sign-in successful via repository.")
             }.onFailure { e ->
                 Log.e(TAG, "Sign-in failed via repository", e)
-                val errorMessage = e.message ?: "Sign-in failed."
+                val errorMessage = when {
+                    e is com.google.firebase.auth.FirebaseAuthInvalidUserException -> application.getString(R.string.error_user_not_found)
+                    e is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException -> application.getString(R.string.error_wrong_password)
+                    else -> e.message ?: application.getString(R.string.error_signin_failed)
+                }
                 _authError.value = errorMessage
                 _authState.value = AuthState.Error(errorMessage)
                 _isLoading.value = false // Ensure loading is stopped on failure
@@ -158,9 +163,28 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun signInWithGoogle(idToken: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _authState.value = AuthState.Loading
+            _authError.value = null
+            _authMessage.value = null
+            val result = authRepository.signInWithGoogle(idToken)
+            result.onSuccess {
+                Log.d(TAG, "Google Sign-in successful via repository.")
+            }.onFailure { e ->
+                Log.e(TAG, "Google Sign-in failed via repository", e)
+                val errorMessage = e.message ?: application.getString(R.string.error_signin_failed)
+                _authError.value = errorMessage
+                _authState.value = AuthState.Error(errorMessage)
+                _isLoading.value = false
+            }
+        }
+    }
+
     fun signUpWithEmailPassword(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
-            val errorMsg = "Email and password cannot be empty."
+            val errorMsg = application.getString(R.string.error_email_password_empty)
             _authError.value = errorMsg
             _isLoading.value = false
             return
@@ -169,6 +193,7 @@ class AuthViewModel @Inject constructor(
             _isLoading.value = true
             _authState.value = AuthState.Loading
             _authError.value = null
+            _authMessage.value = null
             try {
                 // authRepository.signUpWithEmailPassword internally calls Firebase
                 // The AuthStateListener will detect the new user and trigger data send.
@@ -176,7 +201,7 @@ class AuthViewModel @Inject constructor(
                 Log.d(TAG, "Firebase signUpWithEmailAndPassword task initiated via repository.")
             } catch (e: Exception) { // Catching from repository call if it throws directly
                 Log.e(TAG, "Sign-up initiation failed", e)
-                val errorMessage = e.message ?: "Sign-up failed. Please try again."
+                val errorMessage = e.message ?: application.getString(R.string.error_signup_failed)
                 _authError.value = errorMessage
                 _authState.value = AuthState.Error(errorMessage)
                 _isLoading.value = false
@@ -187,6 +212,7 @@ class AuthViewModel @Inject constructor(
     fun signOut() {
         Log.d(TAG, "signOut called.")
         _authError.value = null
+        _authMessage.value = null
         authRepository.signOut()
         // AuthStateListener will handle Unauthenticated state and triggering data send to watch.
         // No need to set _isLoading to true for a local signOut operation.
@@ -206,11 +232,90 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun sendPasswordResetEmail(email: String, languageCode: String? = null) {
+        if (email.isBlank()) {
+            _authError.value = application.getString(R.string.error_enter_email_first)
+            return
+        }
+        viewModelScope.launch {
+            _isLoading.value = true
+            _authError.value = null
+            _authMessage.value = null
+            val result = authRepository.sendPasswordResetEmail(email, languageCode)
+            result.onSuccess {
+                _authMessage.value = application.getString(R.string.password_reset_sent)
+                _isLoading.value = false
+            }.onFailure { e ->
+                Log.e(TAG, "Password reset failed", e)
+                _authError.value = e.message ?: application.getString(R.string.error_password_reset_failed)
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun sendEmailVerification() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val result = authRepository.sendEmailVerification()
+            result.onSuccess {
+                _authMessage.value = application.getString(R.string.verification_email_sent)
+            }.onFailure { e ->
+                _authError.value = e.localizedMessage
+            }
+            _isLoading.value = false
+        }
+    }
+
+    fun updateUserEmail(newEmail: String) {
+        if (newEmail.isBlank()) return
+        viewModelScope.launch {
+            _isLoading.value = true
+            _authError.value = null
+            val result = authRepository.updateEmail(newEmail)
+            result.onSuccess {
+                _authMessage.value = application.getString(R.string.verification_email_sent)
+            }.onFailure { e ->
+                Log.e(TAG, "Failed to update email", e)
+                _authError.value = e.localizedMessage
+            }
+            _isLoading.value = false
+        }
+    }
+
+    fun reauthenticateAndChangeEmail(password: String, newEmail: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _authError.value = null
+            val reauthResult = authRepository.reauthenticate(password)
+            if (reauthResult.isSuccess) {
+                val updateResult = authRepository.updateEmail(newEmail)
+                updateResult.onSuccess {
+                    _authMessage.value = application.getString(R.string.verification_email_sent)
+                }.onFailure { e ->
+                    _authError.value = e.localizedMessage
+                }
+            } else {
+                _authError.value = application.getString(R.string.error_wrong_password)
+            }
+            _isLoading.value = false
+        }
+    }
+
+    fun reloadUser() {
+        viewModelScope.launch {
+            currentUser.value?.reload()?.await()
+            // AuthStateListener will automatically pick up changes if the user object changes
+            // although for isEmailVerified we might need to manually trigger a state update
+            // if the listener doesn't fire. But usually, it does on reload.
+        }
+    }
+
     // `deleteUserAccount` function will use `authRepository`
     fun deleteUserAccount() {
         viewModelScope.launch {
             _isLoading.value = true
             _authError.value = null // Clear previous errors
+            _authMessage.value = null
 
             Log.d(TAG, "Attempting to delete user account via repository.")
             val deleteResult = authRepository.deleteUserAccount()
@@ -223,7 +328,10 @@ class AuthViewModel @Inject constructor(
                 // No need to directly set _authState or _isLoading here upon success of this call.
             }.onFailure { exception ->
                 Log.e(TAG, "Failed to delete user account via repository.", exception)
-                _authError.value = "Failed to delete account: ${exception.localizedMessage ?: "Unknown error"}"
+                _authError.value = application.getString(
+                    R.string.error_delete_account_failed,
+                    exception.localizedMessage ?: application.getString(R.string.error_unknown)
+                )
                 _isLoading.value = false // Explicitly stop loading on failure
             }
         }

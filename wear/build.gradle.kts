@@ -1,13 +1,9 @@
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.screenshot)
-    kotlin("plugin.serialization") version "2.1.21"
+    alias(libs.plugins.kotlin.serialization)
     id("com.google.gms.google-services") // If your wear app uses Firebase directly
     id("com.google.devtools.ksp")        // Apply KSP if you use it for Room, etc.
     id("com.google.dagger.hilt.android")
@@ -19,7 +15,6 @@ android {
     experimentalProperties["android.experimental.enableScreenshotTest"] = true
 
     sourceSets {
-        // Add this block for the main source set
         getByName("main") {
             java.srcDirs("src/main/java")
             kotlin.srcDirs("src/main/kotlin", "src/screeshotTest/kotlin")
@@ -35,20 +30,19 @@ android {
         applicationId = "com.databelay.refwatch"
         minSdk = 34
         targetSdk = 36
-//        Version code scheme explained here:  https://developer.android.com/training/wearables/packaging
-        versionCode = 361110001
-        versionName = "1.0.11"
-        val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-        buildConfigField(
-            "String",
-            "BUILD_TIME",
-            "\"$buildTime\""
-        ) // BUILD_TIME becomes accessible in code
+        versionCode = 361160000
+        versionName = "1.6.1"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Enable R8/ProGuard on the wear release. Wear OS has 1.5GB RAM and a
+            // tiny CPU — the full Compose+Material3+Firebase tree is too large
+            // to keep unshrunk. `proguard-android-optimize.txt` is the
+            // standard aggressive starting point; project-specific keeps live
+            // in proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

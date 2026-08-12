@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RefWatch Web Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pitch-bg: #0a1a0a;
+            --pitch-dark: #1a3d1a;
+            --pitch-light: #2d5a2d;
+            --surf: #0d1320;
+            --surf2: #121a2c;
+            --border: #1a2438;
+            --accent: #10b981;
+            --text-primary: #e2e8f0;
+            --text-muted: #94a3b8;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(180deg, var(--pitch-bg) 0%, var(--pitch-dark) 50%, var(--pitch-bg) 100%);
+            background-attachment: fixed;
+            color: var(--text-primary);
+            min-height: 100vh;
+            margin: 0;
+        }
+        .card { background-color: var(--surf); border: 1px solid var(--border); transition: all 0.2s; }
+        .accent-green { color: var(--accent); }
+        .bg-accent-green { background-color: var(--accent); }
+
+        .pitch-line {
+            height: 3px;
+            width: 100%;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--pitch-light) 100%);
+        }
+
+        input, select, textarea {
+            background-color: #0f172a !important;
+            border: 1px solid #1a2438 !important;
+            color: white !important;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: var(--accent) !important; outline: none; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1); }
+
+        .btn-primary {
+            background-color: var(--accent);
+            color: #0a1a0a;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .btn-hover:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        .btn-hover:active { transform: translateY(0); }
+
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+    </style>
+</head>
+<body class="flex flex-col">
+    <!-- Auth Overlay -->
+    <div id="auth-overlay" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+        <div class="card w-full max-w-md rounded-3xl p-8 shadow-2xl border-white/10">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-black text-white tracking-tighter">Ref<span class="accent-green">Watch</span></h1>
+                <p class="text-xs font-bold uppercase tracking-widest text-slate-500 mt-2">Web Management Portal</p>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">E-Mail</label>
+                    <input type="email" id="email" placeholder="name@beispiel.de" class="w-full rounded-xl p-3.5 text-sm">
+                </div>
+                <div class="relative">
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Passwort</label>
+                    <input type="password" id="password" placeholder="••••••••" class="w-full rounded-xl p-3.5 text-sm pr-12">
+                    <button onclick="togglePassword()" class="absolute right-4 top-9 text-slate-500 hover:text-white transition-colors">
+                        <span id="pass-eye" class="text-lg">👁️</span>
+                    </button>
+                </div>
+                <button id="login-btn" class="w-full rounded-2xl btn-primary p-4 btn-hover shadow-lg shadow-emerald-900/20">
+                    Anmelden
+                </button>
+
+                <div class="relative flex items-center gap-4 py-4">
+                    <div class="h-px flex-1 bg-white/5"></div>
+                    <span class="text-[10px] font-black text-slate-600 uppercase tracking-widest">Social</span>
+                    <div class="h-px flex-1 bg-white/5"></div>
+                </div>
+
+                <button id="google-btn" class="w-full flex items-center justify-center gap-3 rounded-2xl border border-slate-800 p-3.5 font-bold text-white hover:bg-white/5 transition-all btn-hover">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" class="w-5 h-5" alt="Google">
+                    Mit Google einloggen
+                </button>
+
+                <div id="protocol-warning" class="hidden text-center text-[10px] text-amber-500 font-bold bg-amber-900/10 p-3 rounded-xl border border-amber-500/20">
+                    ⚠️ Firebase Login erfordert eine Web-Umgebung (http/https). Bitte lade den Manager auf GitHub hoch.
+                </div>
+
+                <p id="auth-error" class="hidden text-center text-xs text-red-400 font-bold bg-red-900/10 p-3 rounded-xl border border-red-500/20"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- App UI -->
+    <div id="main-content" class="hidden flex flex-col min-h-screen">
+        <nav class="sticky top-0 z-50 border-b border-white/5 bg-[#06090f]/80 backdrop-blur-xl">
+            <div class="mx-auto flex max-w-7xl items-center justify-between p-4 px-6">
+                <div class="flex items-center gap-3">
+                    <img src="../landingpage/logo-optimized.jpg" class="w-9 h-9 rounded-xl shadow-lg shadow-emerald-500/20" alt="RefWatch Logo">
+                    <span class="text-xl font-black tracking-tight text-white">RefWatch <span class="text-slate-500 font-medium text-sm ml-1 uppercase tracking-widest">Manager</span></span>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="hidden sm:flex flex-col items-end">
+                        <span id="user-display" class="text-xs font-bold text-white"></span>
+                        <span class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Verbunden</span>
+                    </div>
+                    <button id="logout-btn" class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-red-400 transition-colors border border-slate-800 rounded-lg px-3 py-2">Logout</button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="mx-auto w-full max-w-7xl flex-1 grid gap-8 lg:grid-cols-12 p-4 lg:p-8">
+            <!-- Sidebar -->
+            <div class="lg:col-span-3 space-y-6">
+                <div class="flex items-center justify-between px-2">
+                    <h2 class="text-xs font-black uppercase tracking-[0.25em] text-emerald-500">Spielplan</h2>
+                    <button onclick="openGameModal()" class="w-10 h-10 rounded-xl bg-accent-green text-black flex items-center justify-center font-black text-xl btn-hover shadow-lg shadow-emerald-900/40">+</button>
+                </div>
+                <div id="games-list" class="space-y-4 overflow-y-auto max-h-[calc(100vh-180px)] pr-2 custom-scroll"></div>
+            </div>
+
+            <!-- Editor -->
+            <div class="lg:col-span-9">
+                <div id="editor-empty" class="flex h-full min-h-[500px] flex-col items-center justify-center rounded-[2.5rem] border-2 border-dashed border-white/5 text-slate-600 bg-black/20">
+                    <div class="mb-6 text-6xl opacity-10">⚽</div>
+                    <p class="font-bold uppercase tracking-widest text-sm text-center">Wähle ein Spiel aus oder erstelle ein neues.</p>
+                </div>
+
+                <div id="editor-active" class="hidden space-y-6 animate-in fade-in duration-500">
+                    <div class="card overflow-hidden rounded-[2.5rem] shadow-2xl border-white/10">
+                        <div class="relative p-10 pb-12 border-b border-white/5">
+                            <div class="pitch-line absolute top-0 left-0"></div>
+                            <div id="active-game-header"></div>
+                            <div class="absolute top-8 right-10 flex gap-3">
+                                <button id="edit-details-btn" class="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all text-xl" title="Einstellungen">⚙️</button>
+                                <button id="delete-game-btn" class="w-12 h-12 rounded-2xl bg-red-500/5 flex items-center justify-center text-red-500/60 hover:bg-red-500/20 transition-all text-xl" title="Löschen">🗑️</button>
+                            </div>
+                        </div>
+
+                        <!-- Roster -->
+                        <div class="grid md:grid-cols-2 bg-black/10">
+                            <div class="p-8 border-r border-white/5">
+                                <div class="mb-8 flex items-center justify-between">
+                                    <div class="flex items-center gap-4">
+                                        <div id="home-color-dot" class="w-4 h-4 rounded-full border-2 border-white/20"></div>
+                                        <h3 id="home-team-label" class="text-2xl font-black text-white">Heim</h3>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button onclick="applyTemplate('home', 11, 5)" class="rounded-lg bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-white/10">11+5</button>
+                                        <button onclick="addPlayer('home')" class="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-[10px] font-black text-emerald-500 hover:bg-emerald-500/30">+</button>
+                                    </div>
+                                </div>
+                                <div id="home-roster" class="space-y-2.5"></div>
+                            </div>
+
+                            <div class="p-8">
+                                <div class="mb-8 flex items-center justify-between">
+                                    <div class="flex items-center gap-4">
+                                        <div id="away-color-dot" class="w-4 h-4 rounded-full border-2 border-white/20"></div>
+                                        <h3 id="away-team-label" class="text-2xl font-black text-white">Gast</h3>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button onclick="applyTemplate('away', 11, 5)" class="rounded-lg bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-white/10">11+5</button>
+                                        <button onclick="addPlayer('away')" class="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-[10px] font-black text-emerald-500 hover:bg-emerald-500/30">+</button>
+                                    </div>
+                                </div>
+                                <div id="away-roster" class="space-y-2.5"></div>
+                            </div>
+                        </div>
+
+                        <!-- Officials -->
+                        <div class="p-8 border-t border-white/5 bg-black/30">
+                            <div class="grid md:grid-cols-2 gap-12">
+                                <div>
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">Offizielle (Heim)</h4>
+                                        <button onclick="addOfficial('home')" class="text-[10px] font-black text-emerald-500 hover:underline uppercase">+ Hinzufügen</button>
+                                    </div>
+                                    <div id="home-officials" class="space-y-2"></div>
+                                </div>
+                                <div>
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">Offizielle (Gast)</h4>
+                                        <button onclick="addOfficial('away')" class="text-[10px] font-black text-emerald-500 hover:underline uppercase">+ Hinzufügen</button>
+                                    </div>
+                                    <div id="away-officials" class="space-y-2"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Save Footer -->
+                        <div class="flex items-center justify-between bg-black/60 p-10 border-t border-white/10">
+                            <div id="save-status" class="text-sm font-black text-emerald-400"></div>
+                            <button id="save-btn" class="rounded-2xl bg-accent-green px-16 py-5 font-black text-black btn-hover shadow-2xl shadow-emerald-900/40 uppercase tracking-widest text-sm">Speichern</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="game-modal" class="fixed inset-0 z-[110] hidden flex items-center justify-center bg-black/95 p-4 backdrop-blur-md">
+        <div class="card w-full max-w-3xl rounded-[2.5rem] p-12 shadow-2xl border-white/10 max-h-[95vh] overflow-y-auto custom-scroll">
+            <div class="flex justify-between items-center mb-10">
+                <h2 id="modal-title" class="text-4xl font-black text-white tracking-tighter uppercase">Spieldetails</h2>
+                <button onclick="closeGameModal()" class="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all text-2xl">✕</button>
+            </div>
+
+            <form id="game-form" class="space-y-12">
+                <!-- Teams Section -->
+                <div class="grid grid-cols-2 gap-12">
+                    <div class="space-y-6">
+                        <h3 class="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Heim-Team</h3>
+                        <div class="space-y-4">
+                            <input type="text" id="m-home-name" placeholder="Vollständiger Name" class="w-full rounded-2xl p-4 font-bold" required>
+                            <div class="flex gap-4">
+                                <input type="text" id="m-home-abbr" placeholder="FCB" maxlength="3" class="w-24 rounded-2xl p-4 font-black text-center text-lg uppercase">
+                                <input type="color" id="m-home-color" class="flex-1 h-16 rounded-2xl cursor-pointer bg-slate-900 border-none p-1" value="#ffffff">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-6">
+                        <h3 class="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Gast-Team</h3>
+                        <div class="space-y-4">
+                            <input type="text" id="m-away-name" placeholder="Vollständiger Name" class="w-full rounded-2xl p-4 font-bold" required>
+                            <div class="flex gap-4">
+                                <input type="text" id="m-away-abbr" placeholder="BVB" maxlength="3" class="w-24 rounded-2xl p-4 font-black text-center text-lg uppercase">
+                                <input type="color" id="m-away-color" class="flex-1 h-16 rounded-2xl cursor-pointer bg-slate-900 border-none p-1" value="#ef4444">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="h-px bg-white/5"></div>
+
+                <!-- Match Info -->
+                <div class="space-y-8">
+                    <h3 class="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Allgemeine Infos</h3>
+                    <div class="grid grid-cols-2 gap-8">
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-500 uppercase ml-1">Anstoßzeit</label>
+                            <input type="datetime-local" id="m-datetime" class="w-full rounded-2xl p-4 font-bold" required>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-500 uppercase ml-1">Spiel-Nummer</label>
+                            <input type="text" id="m-number" placeholder="z.B. 12345" class="w-full rounded-2xl p-4 font-bold">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-8">
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-500 uppercase ml-1">Spielort / Ort</label>
+                            <input type="text" id="m-venue" placeholder="z.B. Sportplatz Mitte" class="w-full rounded-2xl p-4 font-bold">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-black text-slate-500 uppercase ml-1">Feld / Platz-Nr.</label>
+                            <input type="text" id="m-field" placeholder="z.B. Platz 2" class="w-full rounded-2xl p-4 font-bold">
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black text-slate-500 uppercase ml-1">Ansetzung / Wettbewerb</label>
+                        <input type="text" id="m-assignment" placeholder="z.B. Kreisliga A / Kreispokal" class="w-full rounded-2xl p-4 font-bold">
+                    </div>
+                </div>
+
+                <div class="h-px bg-white/5"></div>
+
+                <!-- Referee Team -->
+                <div class="space-y-8">
+                    <h3 class="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Schiedsrichter-Gespann</h3>
+                    <div class="grid grid-cols-2 gap-8">
+                        <input type="text" id="m-ref-main" placeholder="Hauptschiedsrichter" class="w-full rounded-2xl p-4 font-bold">
+                        <input type="text" id="m-ref-fourth" placeholder="4. Offizieller" class="w-full rounded-2xl p-4 font-bold">
+                    </div>
+                    <div class="grid grid-cols-2 gap-8">
+                        <input type="text" id="m-ref-ar1" placeholder="Assistent 1 (AR1)" class="w-full rounded-2xl p-4 font-bold">
+                        <input type="text" id="m-ref-ar2" placeholder="Assistent 2 (AR2)" class="w-full rounded-2xl p-4 font-bold">
+                    </div>
+                    <input type="text" id="m-ref-obs" placeholder="Beobachter / Coach" class="w-full rounded-2xl p-4 font-bold">
+                </div>
+
+                <div class="h-px bg-white/5"></div>
+
+                <!-- Rules & Times -->
+                <div class="space-y-8">
+                    <h3 class="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Regeln & Zeiten</h3>
+                    <div class="grid grid-cols-3 gap-6">
+                        <div class="space-y-2 text-center">
+                            <label class="block text-[10px] font-black text-slate-500 uppercase">Dauer HZ</label>
+                            <input type="number" id="m-half-dur" value="45" class="w-full rounded-2xl p-4 text-center font-black text-xl">
+                        </div>
+                        <div class="space-y-2 text-center">
+                            <label class="block text-[10px] font-black text-slate-500 uppercase">Pause</label>
+                            <input type="number" id="m-break-dur" value="15" class="w-full rounded-2xl p-4 text-center font-black text-xl opacity-60">
+                        </div>
+                        <div class="space-y-2 text-center">
+                            <label class="block text-[10px] font-black text-slate-500 uppercase">Wechsel</label>
+                            <input type="number" id="m-subs-max" value="5" class="w-full rounded-2xl p-4 text-center font-black text-xl">
+                        </div>
+                    </div>
+
+                    <!-- Toggles and Extra Inputs -->
+                    <div class="space-y-6 bg-white/5 p-8 rounded-[2rem] border border-white/5">
+                        <div class="grid grid-cols-2 gap-12">
+                            <div class="space-y-4">
+                                <div class="flex items-center gap-4">
+                                    <input type="checkbox" id="m-penalties" onchange="toggleExtraInputs()" class="w-6 h-6 rounded-lg accent-emerald-500 cursor-pointer">
+                                    <label for="m-penalties" class="text-sm font-black uppercase tracking-widest text-white cursor-pointer">Elfmeterschießen</label>
+                                </div>
+                                <div id="m-extratime-box" class="hidden animate-in slide-in-from-top duration-300">
+                                    <label class="block text-[9px] font-black text-slate-500 uppercase mb-2 ml-1">Verlängerung (Min je HZ)</label>
+                                    <input type="number" id="m-extra-dur" value="15" class="w-full rounded-xl p-3 font-bold text-emerald-400">
+                                </div>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="flex items-center gap-4">
+                                    <input type="checkbox" id="m-zeitstrafen" onchange="toggleExtraInputs()" class="w-6 h-6 rounded-lg accent-emerald-500 cursor-pointer">
+                                    <label for="m-zeitstrafen" class="text-sm font-black uppercase tracking-widest text-white cursor-pointer">Zeitstrafen</label>
+                                </div>
+                                <div id="m-z-dur-box" class="hidden animate-in slide-in-from-top duration-300">
+                                    <label class="block text-[9px] font-black text-slate-500 uppercase mb-2 ml-1">Dauer Strafe (Min)</label>
+                                    <input type="number" id="m-z-dur" value="5" class="w-full rounded-xl p-3 font-bold text-emerald-400">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-4 pt-6">
+                    <button type="button" onclick="closeGameModal()" class="flex-1 rounded-[1.5rem] border border-slate-800 p-5 font-bold text-slate-500 hover:text-white transition-all">Abbrechen</button>
+                    <button type="submit" class="flex-[2] rounded-[1.5rem] btn-primary p-5 shadow-2xl shadow-emerald-900/40 btn-hover">Spiel Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- Firebase Config ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBgCT2Fqnj54wY5LNVQ6JgF9c0YhyX7Tv8",
+            authDomain: "refwatch-1938a.firebaseapp.com",
+            projectId: "refwatch-1938a",
+            storageBucket: "refwatch-1938a.firebasestorage.app",
+            messagingSenderId: "35000564665",
+            appId: "1:35000564665:android:28e44fa05283c697615468"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        let currentUser = null;
+        let selectedGameId = null;
+        let activeRosterData = { home: [], away: [] };
+        let activeOfficialsData = { home: [], away: [] };
+        let editingModalGameId = null;
+
+        if (window.location.protocol === 'file:') document.getElementById('protocol-warning').classList.remove('hidden');
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('auth-overlay').classList.add('hidden');
+                document.getElementById('main-content').classList.remove('hidden');
+                document.getElementById('user-display').innerText = user.email;
+                loadGames();
+            } else {
+                document.getElementById('auth-overlay').classList.remove('hidden');
+                document.getElementById('main-content').classList.add('hidden');
+            }
+        });
+
+        document.getElementById('login-btn').onclick = () => {
+            auth.signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('password').value).catch(err => showError(err.message));
+        };
+        document.getElementById('google-btn').onclick = () => {
+            auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(err => showError(err.message));
+        };
+        document.getElementById('logout-btn').onclick = () => { selectedGameId = null; auth.signOut(); };
+
+        function showError(msg) { const el = document.getElementById('auth-error'); el.innerText = msg; el.classList.remove('hidden'); }
+        function togglePassword() { const i = document.getElementById('password'); i.type = i.type === 'password' ? 'text' : 'password'; }
+
+        function loadGames() {
+            db.collection('users').doc(currentUser.uid).collection('games').orderBy('gameDateTimeEpochMillis', 'desc').onSnapshot(snap => {
+                const list = document.getElementById('games-list');
+                list.innerHTML = '';
+                snap.forEach(doc => {
+                    const g = doc.data();
+                    const d = new Date(g.gameDateTimeEpochMillis);
+                    const div = document.createElement('div');
+                    div.className = `card group cursor-pointer rounded-3xl overflow-hidden transition-all hover:scale-[1.02] ${selectedGameId === doc.id ? 'border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500/20' : 'hover:border-white/20'}`;
+                    div.innerHTML = `
+                        <div class="h-1 ${g.currentPhase === 'GAME_ENDED' ? 'bg-emerald-500' : 'bg-blue-500'}"></div>
+                        <div class="p-6">
+                            <div class="flex justify-between mb-2"><span class="text-[10px] font-black text-slate-500 tracking-widest uppercase">${d.toLocaleDateString()} · ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span></div>
+                            <h4 class="font-black text-white text-lg leading-tight truncate">${g.homeTeamName} - ${g.awayTeamName}</h4>
+                            <div class="text-[11px] text-slate-500 font-bold mt-2 uppercase tracking-widest">Feld: ${g.fieldNumber || '--'} · #${g.gameNumber}</div>
+                        </div>
+                    `;
+                    div.onclick = () => selectGame(doc.id, g);
+                    list.appendChild(div);
+                });
+            });
+        }
+
+        function selectGame(id, g) {
+            selectedGameId = id;
+            activeRosterData = { home: g.homeRoster || [], away: g.awayRoster || [] };
+            activeOfficialsData = { home: g.homeOfficials || [], away: g.awayOfficials || [] };
+            document.getElementById('editor-empty').classList.add('hidden');
+            document.getElementById('editor-active').classList.remove('hidden');
+            document.getElementById('home-team-label').innerText = g.homeTeamName;
+            document.getElementById('away-team-label').innerText = g.awayTeamName;
+            document.getElementById('home-color-dot').style.backgroundColor = colorToHex(g.homeTeamColorArgb) || '#fff';
+            document.getElementById('away-color-dot').style.backgroundColor = colorToHex(g.awayTeamColorArgb) || '#ef4444';
+            document.getElementById('active-game-header').innerHTML = `
+                <h2 class="text-5xl font-black text-white tracking-tighter mb-4">${g.homeTeamName} – ${g.awayTeamName}</h2>
+                <p class="text-xs font-black text-emerald-500 uppercase tracking-[0.3em]">${g.assignment || 'Ohne Ansetzung'} · #${g.gameNumber}</p>
+            `;
+            document.getElementById('edit-details-btn').onclick = () => openGameModal(id, g);
+            document.getElementById('delete-game-btn').onclick = () => deleteGame(id);
+            renderRosters();
+            renderOfficials();
+        }
+
+        function renderRosters() {
+            ['home', 'away'].forEach(s => {
+                const c = document.getElementById(`${s}-roster`);
+                c.innerHTML = '';
+
+                const players = [...activeRosterData[s]].sort((a,b)=>a.number-b.number);
+                const onField = players.filter(p => p.isOnField);
+                const bench = players.filter(p => !p.isOnField);
+
+                if (onField.length > 0) {
+                    const header = document.createElement('div');
+                    header.className = 'text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-2 mt-4 ml-1';
+                    header.innerText = 'Startelf';
+                    c.appendChild(header);
+                    onField.forEach(p => c.appendChild(createPlayerRow(p, s)));
+                }
+
+                if (bench.length > 0) {
+                    const header = document.createElement('div');
+                    header.className = 'text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 mt-4 ml-1';
+                    header.innerText = 'Ersatzbank';
+                    c.appendChild(header);
+                    bench.forEach(p => c.appendChild(createPlayerRow(p, s)));
+                }
+            });
+        }
+
+        function createPlayerRow(p, s) {
+            const originalIndex = activeRosterData[s].findIndex(player => player.number === p.number && player.name === p.name);
+
+            const d = document.createElement('div');
+            d.className = `flex items-center gap-3 p-1.5 rounded-2xl group transition-all ${p.isOnField ? 'bg-emerald-500/5 border border-emerald-500/10' : 'bg-black/20'}`;
+            d.innerHTML = `
+                <input type="number" value="${p.number}" onchange="activeRosterData['${s}'][${originalIndex}].number=parseInt(this.value)" class="w-12 h-10 rounded-xl text-center font-black text-emerald-400 !bg-slate-900 border-none">
+                <input type="text" value="${p.name}" onchange="activeRosterData['${s}'][${originalIndex}].name=this.value" placeholder="Spielername" class="flex-1 h-10 px-2 text-sm font-bold !bg-transparent border-none">
+                <button onclick="toggleC('${s}',${originalIndex})" class="w-10 h-10 rounded-xl font-black text-[10px] ${p.isCaptain?'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-slate-600 hover:text-white'}" title="Kapitän">C</button>
+                <button onclick="toggleF('${s}',${originalIndex})" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all ${p.isOnField ? 'bg-emerald-500/20 text-emerald-500' : 'bg-slate-800 text-slate-400 hover:text-white'}" title="${p.isOnField ? 'Auf dem Feld' : 'Auf der Bank'}">
+                    ${p.isOnField ? '⚽' : '🪑'}
+                </button>
+                <button onclick="activeRosterData['${s}'].splice(${originalIndex},1);renderRosters()" class="w-10 h-10 text-red-500/30 group-hover:opacity-100 opacity-0 transition-opacity">✕</button>
+            `;
+            return d;
+        }
+
+        function renderOfficials() {
+            ['home', 'away'].forEach(s => {
+                const c = document.getElementById(`${s}-officials`);
+                c.innerHTML = '';
+                activeOfficialsData[s].forEach((o,i) => {
+                    const d = document.createElement('div');
+                    d.className = 'flex items-center gap-3 bg-white/5 p-2 rounded-xl';
+                    d.innerHTML = `<input type="text" value="${o.role}" onchange="activeOfficialsData['${s}'][${i}].role=this.value" class="w-24 rounded-lg px-2 text-[10px] font-black uppercase !bg-slate-900 border-none"><input type="text" value="${o.name}" onchange="activeOfficialsData['${s}'][${i}].name=this.value" class="flex-1 text-xs font-bold !bg-transparent border-none"><button onclick="activeOfficialsData['${s}'].splice(${i},1);renderOfficials()" class="text-red-500/50">✕</button>`;
+                    c.appendChild(d);
+                });
+            });
+        }
+
+        window.toggleC = (s,i) => { activeRosterData[s].forEach(p=>p.isCaptain=false); activeRosterData[s][i].isCaptain=true; renderRosters(); };
+        window.toggleF = (s,i) => { activeRosterData[s][i].isOnField = !activeRosterData[s][i].isOnField; renderRosters(); };
+        window.addPlayer = (s) => { activeRosterData[s].push({name:'', number:activeRosterData[s].length+1, isOnField:true, isCaptain:false}); renderRosters(); };
+        window.addOfficial = (s) => { activeOfficialsData[s].push({name:'', role:'Trainer'}); renderOfficials(); };
+        window.applyTemplate = (s, starters, subs) => {
+            activeRosterData[s] = [];
+            for(let i=1; i<=starters; i++) activeRosterData[s].push({name:'', number:i, isOnField:true, isCaptain: i===1});
+            for(let i=1; i<=subs; i++) activeRosterData[s].push({name:'', number:starters+i, isOnField:false, isCaptain:false});
+            renderRosters();
+        };
+
+        const modal = document.getElementById('game-modal');
+        window.openGameModal = (id=null, g=null) => {
+            editingModalGameId = id;
+            if(g) {
+                document.getElementById('m-home-name').value = g.homeTeamName;
+                document.getElementById('m-home-abbr').value = g.homeTeamAbbr || '';
+                document.getElementById('m-home-color').value = colorToHex(g.homeTeamColorArgb) || '#ffffff';
+                document.getElementById('m-away-name').value = g.awayTeamName;
+                document.getElementById('m-away-abbr').value = g.awayTeamAbbr || '';
+                document.getElementById('m-away-color').value = colorToHex(g.awayTeamColorArgb) || '#ef4444';
+                document.getElementById('m-datetime').value = new Date(g.gameDateTimeEpochMillis - (new Date().getTimezoneOffset()*60000)).toISOString().slice(0, 16);
+                document.getElementById('m-venue').value = g.venue || '';
+                document.getElementById('m-field').value = g.fieldNumber || '';
+                document.getElementById('m-assignment').value = g.assignment || '';
+                document.getElementById('m-ref-main').value = g.mainReferee || '';
+                document.getElementById('m-ref-ar1').value = g.assistantReferee1 || '';
+                document.getElementById('m-ref-ar2').value = g.assistantReferee2 || '';
+                document.getElementById('m-ref-fourth').value = g.fourthOfficial || '';
+                document.getElementById('m-ref-obs').value = g.observer || '';
+                document.getElementById('m-half-dur').value = g.halfDurationMinutes;
+                document.getElementById('m-break-dur').value = g.halftimeDurationMinutes;
+                document.getElementById('m-subs-max').value = g.maxSubstitutionsAllowed;
+                document.getElementById('m-penalties').checked = g.hasPenalties;
+                document.getElementById('m-extra-dur').value = g.extraTimeHalfDurationMinutes || 15;
+                document.getElementById('m-zeitstrafen').checked = g.hasTemporaryDismissals;
+                document.getElementById('m-z-dur').value = g.temporaryDismissalMinutes || 5;
+                document.getElementById('m-number').value = g.gameNumber;
+            } else { document.getElementById('game-form').reset(); }
+            toggleExtraInputs();
+            modal.classList.remove('hidden');
+        };
+
+        window.closeGameModal = () => modal.classList.add('hidden');
+        window.toggleExtraInputs = () => {
+            document.getElementById('m-extratime-box').classList.toggle('hidden', !document.getElementById('m-penalties').checked);
+            document.getElementById('m-z-dur-box').classList.toggle('hidden', !document.getElementById('m-zeitstrafen').checked);
+        };
+
+        document.getElementById('game-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const data = {
+                homeTeamName: document.getElementById('m-home-name').value,
+                homeTeamAbbr: document.getElementById('m-home-abbr').value,
+                homeTeamColorArgb: parseInt(document.getElementById('m-home-color').value.replace('#', '0xFF'), 16),
+                awayTeamName: document.getElementById('m-away-name').value,
+                awayTeamAbbr: document.getElementById('m-away-abbr').value,
+                awayTeamColorArgb: parseInt(document.getElementById('m-away-color').value.replace('#', '0xFF'), 16),
+                gameDateTimeEpochMillis: new Date(document.getElementById('m-datetime').value).getTime(),
+                venue: document.getElementById('m-venue').value,
+                fieldNumber: document.getElementById('m-field').value,
+                assignment: document.getElementById('m-assignment').value,
+                mainReferee: document.getElementById('m-ref-main').value,
+                assistantReferee1: document.getElementById('m-ref-ar1').value,
+                assistantReferee2: document.getElementById('m-ref-ar2').value,
+                fourthOfficial: document.getElementById('m-ref-fourth').value,
+                observer: document.getElementById('m-ref-obs').value,
+                halfDurationMinutes: parseInt(document.getElementById('m-half-dur').value),
+                halftimeDurationMinutes: parseInt(document.getElementById('m-break-dur').value),
+                maxSubstitutionsAllowed: parseInt(document.getElementById('m-subs-max').value),
+                hasPenalties: document.getElementById('m-penalties').checked,
+                extraTimeHalfDurationMinutes: parseInt(document.getElementById('m-extra-dur').value),
+                hasTemporaryDismissals: document.getElementById('m-zeitstrafen').checked,
+                temporaryDismissalMinutes: parseInt(document.getElementById('m-z-dur').value),
+                gameNumber: document.getElementById('m-number').value || 'XXXX',
+                lastUpdated: Date.now(), userId: currentUser.uid, currentPhase: 'NOT_STARTED', homeScore:0, awayScore:0, events:[]
+            };
+            try {
+                if (editingModalGameId) await db.collection('users').doc(currentUser.uid).collection('games').doc(editingModalGameId).update(data);
+                else { const id = crypto.randomUUID(); await db.collection('users').doc(currentUser.uid).collection('games').doc(id).set({...data, id}); }
+                closeGameModal();
+            } catch(err) { alert(err.message); }
+        };
+
+        async function deleteGame(id) {
+            if(confirm('Spiel löschen?')) {
+                await db.collection('users').doc(currentUser.uid).collection('games').doc(id).delete();
+                document.getElementById('editor-active').classList.add('hidden');
+                document.getElementById('editor-empty').classList.remove('hidden');
+                selectedGameId = null;
+            }
+        }
+
+        function colorToHex(argb) { return argb ? '#' + (argb & 0xFFFFFF).toString(16).padStart(6, '0') : null; }
+        String.prototype.take = function(n) { return this.substring(0, n); };
+    </script>
+</body>
+</html>

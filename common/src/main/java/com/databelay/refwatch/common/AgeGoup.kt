@@ -9,25 +9,26 @@ enum class AgeGroup(
     val displayName: String,
     val defaultHalfDurationMinutes: Int,
     val defaultHalftimeDurationMinutes: Int = 10, // Common default, can be overridden
+    val defaultTemporaryDismissalMinutes: Int = 0, // Default duration for yellow card penalty
     val players: Int? = null, // Optional: Number of players per side on field
     val notes: String? = null // Optional: Specific rules like ball size, headers
 ) {
     // User-defined age groups
-    U8("8U", 25, players = 4, notes = "Size 3 ball."),
-    U10("10U", 25, players = 7, notes = "Size 4 ball. Build-out line may apply."),
-    U11("11U", 30, players = 9, notes = "Size 4 ball. No intentional heading."),
-    U12("12U", 30, players = 9, notes = "Size 4 ball. No intentional heading."),
-    U13("13U", 35, players = 11, notes = "Size 5 ball."),
-    U14("14U", 35, players = 11, notes = "Size 5 ball."),
-    U15("15U", 40, players = 11),
-    U16("16U", 40, players = 11),
-    U17("17U", 45, players = 11),
-    U18("18U", 45, players = 11),
-    U19("19U", 45, players = 11),
+    U8("8U", 25, players = 4, notes = "Ballgröße 3."),
+    U10("10U", 25, players = 7, notes = "Ballgröße 4. Abseits der Mittellinie möglich."),
+    U11("11U", 30, players = 9, notes = "Ballgröße 4. Kein absichtliches Köpfen."),
+    U12("12U", 30, players = 9, notes = "Ballgröße 4. Kein absichtliches Köpfen."),
+    U13("13U", 35, players = 11, notes = "Ballgröße 5."),
+    U14("14U", 35, players = 11, notes = "Ballgröße 5."),
+    U15("15U", 40, players = 11, defaultTemporaryDismissalMinutes = 5),
+    U16("16U", 40, players = 11, defaultTemporaryDismissalMinutes = 5),
+    U17("17U", 45, players = 11, defaultTemporaryDismissalMinutes = 10),
+    U18("18U", 45, players = 11, defaultTemporaryDismissalMinutes = 10),
+    U19("19U", 45, players = 11, defaultTemporaryDismissalMinutes = 10),
     // Fallback/Generic
-    GENERIC_YOUTH("Youth Generic", 30, players = 11),
-    GENERIC_ADULT("Adult Generic", 45, players = 11),
-    UNKNOWN("Unknown", 30, defaultHalftimeDurationMinutes = 5); // A sensible default if truly unknown
+    GENERIC_YOUTH("Jugend Generisch", 30, players = 11, defaultTemporaryDismissalMinutes = 5),
+    GENERIC_ADULT("Erwachsene Generisch", 45, players = 11, defaultTemporaryDismissalMinutes = 10),
+    UNKNOWN("Unbekannt", 30, defaultHalftimeDurationMinutes = 5, defaultTemporaryDismissalMinutes = 0); // A sensible default if truly unknown
 
     companion object {
         /**

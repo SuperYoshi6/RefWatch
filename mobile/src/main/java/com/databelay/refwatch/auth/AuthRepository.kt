@@ -27,7 +27,12 @@ interface AuthRepository {
     fun observeCurrentUser(): StateFlow<FirebaseUser?> // Keep your existing currentUserFlow logic
     suspend fun fetchCustomTokenFromServer(): Result<String>
     suspend fun signInWithEmailPassword(email: String, pass: String): Result<FirebaseUser>
+    suspend fun signInWithGoogle(idToken: String): Result<FirebaseUser>
     suspend fun signUpWithEmailPassword(email: String, pass: String, displayName: String? = null): Result<FirebaseUser>
+    suspend fun sendEmailVerification(): Result<Unit>
+    suspend fun updateEmail(newEmail: String): Result<Unit>
+    suspend fun reauthenticate(password: String): Result<Unit>
+    suspend fun sendPasswordResetEmail(email: String, languageCode: String? = null): Result<Unit>
     fun signOut()
     suspend fun deleteUserAccount(): Result<Unit> // <<< ADDED METHOD
 }
@@ -121,7 +126,12 @@ class FirebaseAuthRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error calling generateCustomToken Cloud Function", e)
-            Result.failure(e)
+            val msg = e.localizedMessage ?: "Unknown Error"
+            if (msg.contains("NOT_FOUND", ignoreCase = true)) {
+                Result.failure(Exception("Cloud Function 'generateCustomToken' not found. Ensure it is deployed with 'firebase deploy --only functions'.", e))
+            } else {
+                Result.failure(e)
+            }
         }
     }
 
@@ -129,6 +139,16 @@ class FirebaseAuthRepository @Inject constructor(
         return try {
             val authResult = firebaseAuth.signInWithEmailAndPassword(email, pass).await()
             // FirebaseUser will be non-null on success from signInWithEmailAndPassword
+            Result.success(authResult.user!!)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun signInWithGoogle(idToken: String): Result<FirebaseUser> {
+        return try {
+            val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+            val authResult = firebaseAuth.signInWithCredential(credential).await()
             Result.success(authResult.user!!)
         } catch (e: Exception) {
             Result.failure(e)
@@ -143,6 +163,14 @@ class FirebaseAuthRepository @Inject constructor(
                 ?: return Result.failure(Exception("Sign-up failed: FirebaseUser is null after creation."))
 
             Log.i(TAG, "Sign-up successful for email: $email, UID: ${firebaseUser.uid}")
+
+            // Send verification email automatically on sign-up
+            try {
+                firebaseUser.sendEmailVerification().await()
+                Log.i(TAG, "Verification email sent to: $email")
+            } catch (e: Exception) {
+                Log.w(TAG, "Sign-up successful, but failed to send verification email.", e)
+            }
 
             if (displayName != null && displayName.isNotBlank()) {
                 try {
@@ -159,6 +187,65 @@ class FirebaseAuthRepository @Inject constructor(
             Result.success(firebaseUser)
         } catch (e: Exception) {
             Log.e(TAG, "Sign-up failed for email: $email", e)
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun sendEmailVerification(): Result<Unit> {
+        val user = firebaseAuth.currentUser ?: return Result.failure(Exception("No user logged in"))
+        Log.d(TAG, "Attempting to send verification email to: ${user.email}")
+        return try {
+            user.sendEmailVerification().await()
+            Log.i(TAG, "Verification email sent successfully.")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send verification email", e)
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updateEmail(newEmail: String): Result<Unit> {
+        return try {
+            // Modern way: verifyBeforeUpdateEmail sends a link to the NEW email
+            // The email only changes AFTER the link is clicked.
+            firebaseAuth.currentUser?.verifyBeforeUpdateEmail(newEmail)?.await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun reauthenticate(password: String): Result<Unit> {
+        val user = firebaseAuth.currentUser ?: return Result.failure(Exception("No user logged in"))
+        val email = user.email ?: return Result.failure(Exception("User has no email"))
+        return try {
+            val credential = com.google.firebase.auth.EmailAuthProvider.getCredential(email, password)
+            user.reauthenticate(credential).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun sendPasswordResetEmail(email: String, languageCode: String?): Result<Unit> {
+        Log.d(TAG, "Attempting to send password reset email to: $email with language: $languageCode")
+        return try {
+            val languageWasOverridden = !languageCode.isNullOrBlank() &&
+                languageCode != firebaseAuth.languageCode
+            if (languageWasOverridden) {
+                Log.d(TAG, "Overriding language code to: ${languageCode!!}")
+                firebaseAuth.setLanguageCode(languageCode)
+            }
+
+            firebaseAuth.sendPasswordResetEmail(email).await()
+            Log.i(TAG, "Firebase reported success for password reset email to: $email")
+
+            if (languageWasOverridden) {
+                firebaseAuth.useAppLanguage()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Firebase failed to send password reset email to: $email", e)
             Result.failure(e)
         }
     }

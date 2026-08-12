@@ -27,10 +27,21 @@ import androidx.wear.compose.material3.*
 import com.databelay.refwatch.R
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
+import com.databelay.refwatch.common.PenaltyEvent
 import com.databelay.refwatch.common.hasTimer
-import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.wear.presentation.utils.localizedName
+
+/**
+ * Returns true when the current game has just ended a penalty shootout
+ * (i.e. the phase was advanced to GAME_ENDED by checkShootoutEndCondition,
+ * not by a normal end-of-regulation). Used to restrict the in-game settings
+ * menu after a shootout — the only allowed actions are viewing the log,
+ * resetting the game, or finishing it.
+ */
+private fun Game.isPostShootout(): Boolean =
+    currentPhase == GamePhase.GAME_ENDED &&
+            events.any { it is PenaltyEvent }
 
 @Composable
 fun GameSettingsScreen(
@@ -39,8 +50,10 @@ fun GameSettingsScreen(
     onAttemptResetPeriodTimer: () -> Unit,
     onAttemptResetFullGame: () -> Unit,
     onViewLog: () -> Unit,
+    onShowRoster: () -> Unit,
     onToggleTimer: () -> Unit,
     onAttemptEndPhase: () -> Unit,
+    onAttemptAbortGame: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberScalingLazyListState()
@@ -65,13 +78,15 @@ fun GameSettingsScreen(
 
             item {
                 Text(
-                    "Spiel Menü",
+                    text = if (game.isPostShootout()) stringResource(R.string.post_shootout_menu_title)
+                           else stringResource(R.string.sp_menu),
                     style = MaterialTheme.typography.displaySmall,
                     textAlign = TextAlign.Center
                 )
             }
 
-            if (game.currentPhase.hasTimer()) {
+            // In-game controls are hidden once the shootout is over.
+            if (!game.isPostShootout() && game.currentPhase.hasTimer()) {
                 item {
                     Button(
                         onClick = onToggleTimer,
@@ -82,7 +97,7 @@ fun GameSettingsScreen(
                     ) {
                         Icon(
                             imageVector = if (game.isTimerRunning) Icons.Filled.PauseCircleFilled else Icons.Filled.PlayCircleFilled,
-                            contentDescription = if (game.isTimerRunning) "Pause Timer" else "Start Timer",
+                            contentDescription = if (game.isTimerRunning) stringResource(R.string.timer_pause_content_desc) else stringResource(R.string.timer_play_content_desc),
                         )
                     }
                 }
@@ -105,32 +120,7 @@ fun GameSettingsScreen(
                 }
             }
 
-            item {
-                Button(
-                    onClick = onAttemptFinishGame,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        "Spiel beenden",
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            item {
-                Button(
-                    onClick = onAttemptResetPeriodTimer,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        "Halbzeit zurücksetzen",
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
+            // --- NAVIGATION ACTIONS ---
 
             item {
                 Button(
@@ -138,10 +128,53 @@ fun GameSettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        "Spielprotokoll anzeigen",
+                        stringResource(R.string.view_log_action),
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+            }
+
+            item {
+                Button(
+                    onClick = onShowRoster,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "Kader anzeigen",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            item {
+                Button(
+                    onClick = onAttemptFinishGame,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        stringResource(R.string.end_match_action),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // --- RESET ACTIONS ---
+
+            if (!game.isPostShootout()) {
+                item {
+                    Button(
+                        onClick = onAttemptResetPeriodTimer,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            stringResource(R.string.reset_period_action),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
 
@@ -155,12 +188,31 @@ fun GameSettingsScreen(
                         horizontalArrangement = Arrangement.Center,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Spiel zurücksetzen")
+                        Text(stringResource(R.string.reset_game_action))
                         Icon(
                             imageVector = Icons.Filled.PriorityHigh,
-                            contentDescription = "Warnung"
+                            contentDescription = stringResource(R.string.warning_icon)
                         )
                     }
+                }
+            }
+
+            // --- CRITICAL ACTIONS ---
+
+            item {
+                Button(
+                    onClick = onAttemptAbortGame,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text(
+                        "Spiel abbrechen",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
@@ -171,15 +223,19 @@ fun GameSettingsScreen(
 private fun PreviewableAlertDialog(
     title: String,
     message: String? = null,
-    confirmButtonText: String = "Ja, zurücksetzen",
-    dismissButtonText: String = "Nein",
+    confirmButtonText: String = "Yes",
+    dismissButtonText: String = "No",
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
     RefWatchWearTheme { // Ensure the dialog is themed
-        ConfirmationDialogInfo.FinishGame(
-            onConfirm = { },
-            onDialogClose = { }
+        UnifiedConfirmationDialog(
+            ConfirmationDialogInfo.FinishGame(
+                title = title,
+                text = message ?: "",
+                onConfirm = onConfirm,
+                onDialogClose = onDismiss
+            )
         )
     }
 }
@@ -286,8 +342,10 @@ fun SettingsPageContentPreview() {
             onAttemptResetPeriodTimer = {},
             onAttemptResetFullGame = {},
             onViewLog = {},
+            onShowRoster = {},
             onToggleTimer = {},
             onAttemptEndPhase = {},
+            onAttemptAbortGame = {},
             modifier = Modifier.fillMaxSize()
         )
     }

@@ -58,6 +58,7 @@
                 <data android:host="*" />
                 <data android:pathPrefix="/games_list_all" />
                 <data android:pathPrefix="/phone_user_id" />
+                <data android:pathPrefix="/game_update_from_watch" />
             </intent-filter>
         </service>
 

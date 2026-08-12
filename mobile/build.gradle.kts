@@ -1,12 +1,8 @@
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    kotlin("plugin.serialization") version "2.1.21"
+    alias(libs.plugins.kotlin.serialization)
     id("com.google.gms.google-services") // If your mobile app uses Firebase directly
     id("com.google.devtools.ksp")        // Apply KSP if you use it for Room, etc.
     id("com.google.dagger.hilt.android")
@@ -20,19 +16,8 @@ android {
         applicationId = "com.databelay.refwatch"
         minSdk = 31
         targetSdk = 36
-//        Version code scheme explained here:  https://developer.android.com/training/wearables/packaging
-//        Here is a suggested version code scheme:
-//
-//        Set the first two digits of the version code to the targetSdkVersion, such as 28.
-//        Set the next three digits to the product version, such as 152 for a product version of 1.5.2.
-//        Set the next two digits to the build or release number, such as 01.
-//        Reserve the last two digits for a multi-APK variant, such as 00.
-//
-//        For example, the sample values here—28, 152, 01, and 00—result in a version code of 281520100.
-        versionCode = 361110000
-        versionName = "1.0.11"
-        val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-        buildConfigField("String", "BUILD_TIME", "\"$buildTime\"") // BUILD_TIME becomes accessible in code
+        versionCode = 361160000
+        versionName = "1.6.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures {

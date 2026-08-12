@@ -1,3 +1,6 @@
 {
-    "java.configuration.updateBuildConfiguration": "interactive"
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "java.import.gradle.java.home": "C:/Program Files/Microsoft/jdk-17.0.19.10-hotspot",
+    "java.import.gradle.wrapper.java.home": "C:/Program Files/Microsoft/jdk-17.0.19.10-hotspot",
+    "java.jdt.ls.java.home": "C:/Program Files/Microsoft/jdk-17.0.19.10-hotspot"
 }

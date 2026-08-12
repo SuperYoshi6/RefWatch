@@ -3,15 +3,9 @@ package com.databelay.refwatch.wear.presentation.screens
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -21,55 +15,51 @@ import com.databelay.refwatch.common.isTied
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.wear.compose.foundation.lazy.items
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.foundation.pager.PagerState
 import androidx.wear.compose.foundation.pager.VerticalPager
 import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material.PageIndicatorState
-import androidx.wear.compose.material3.AlertDialog
-import androidx.wear.compose.material3.AlertDialogDefaults
-import androidx.wear.compose.material3.ButtonDefaults
-import androidx.wear.compose.material3.IconButtonDefaults
-import androidx.wear.compose.material3.MaterialTheme
-import androidx.wear.compose.material3.PagerScaffoldDefaults
-import androidx.wear.compose.material3.ScreenScaffold
-import androidx.wear.compose.material3.TimeText
-import androidx.wear.compose.material3.VerticalPageIndicator
-import androidx.wear.compose.material3.VerticalPagerScaffold
-import androidx.wear.compose.material3.Text
+import androidx.wear.compose.material3.*
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import com.android.tools.screenshot.PreviewTest
-import com.databelay.refwatch.common.CardType
-import com.databelay.refwatch.common.Game
-import com.databelay.refwatch.common.GamePhase
-import com.databelay.refwatch.common.Team
-import com.databelay.refwatch.common.hasTimer
-import com.databelay.refwatch.common.logBackStack
-import com.databelay.refwatch.common.readable
+import com.databelay.refwatch.R
+import com.databelay.refwatch.common.*
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.wear.TimerDisplayMode
+import com.databelay.refwatch.wear.data.TimerState
 import com.databelay.refwatch.wear.presentation.utils.localizedName
 import com.google.android.horologist.compose.layout.ColumnItemType
 import com.google.android.horologist.compose.layout.ColumnItemType.Companion.EdgeButtonPadding
 import com.google.android.horologist.compose.layout.rememberResponsiveColumnPadding
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
 
 // Sealed class to define the information for different confirmation dialogs
+// All string parameters must be pre-localized (call stringResource before constructing).
 sealed class ConfirmationDialogInfo(
     val title: String,
     val text: String? = null,
-    val confirmButtonText: String = "Bestätigen",
-    val dismissButtonText: String = "Abbrechen",
-    val onConfirmAction: () -> Unit, // Action for confirm button
-    val onDismissDialogAction: () -> Unit // Action for dismiss button AND onDismissRequest
+    val confirmButtonText: String,
+    val dismissButtonText: String,
+    val onConfirmAction: () -> Unit,
+    val onDismissDialogAction: () -> Unit
 ) {
     class EndPhase(
-        gamePhaseReadable: String,
+        title: String,
         onConfirm: () -> Unit,
-        onDialogClose: () -> Unit // Common action for closing dialog (e.g., animate, clear state)
+        onDialogClose: () -> Unit
     ) : ConfirmationDialogInfo(
-        title = "$gamePhaseReadable beenden?",
+        title = title,
+        confirmButtonText = "",
+        dismissButtonText = "",
         onConfirmAction = { 
             onConfirm()
             onDialogClose()
@@ -78,11 +68,15 @@ sealed class ConfirmationDialogInfo(
     )
 
     class FinishGame(
+        title: String,
+        text: String?,
         onConfirm: () -> Unit, 
         onDialogClose: () -> Unit
     ) : ConfirmationDialogInfo(
-        title = "Spiel beenden?",
-        text = "Bist du sicher, dass du dieses Spiel beenden und speichern möchtest?",
+        title = title,
+        text = text,
+        confirmButtonText = "",
+        dismissButtonText = "",
         onConfirmAction = {
             onConfirm()
             onDialogClose()
@@ -91,12 +85,15 @@ sealed class ConfirmationDialogInfo(
     )
 
     class ResetPeriodTimer(
-        gamePhaseReadable: String,
+        title: String,
+        text: String,
         onConfirm: () -> Unit,
         onDialogClose: () -> Unit
     ) : ConfirmationDialogInfo(
-        title = "Spielzeit zurücksetzen?",
-        text = "Spielzeit für $gamePhaseReadable zurücksetzen?",
+        title = title,
+        text = text,
+        confirmButtonText = "",
+        dismissButtonText = "",
         onConfirmAction = {
             onConfirm()
             onDialogClose()
@@ -105,13 +102,17 @@ sealed class ConfirmationDialogInfo(
     )
 
     class ResetFullGame(
+        title: String,
+        text: String,
+        confirmButtonText: String,
+        dismissButtonText: String,
         onConfirm: () -> Unit,
-        onDialogClose: () -> Unit // Even if no animation, good to have consistent close logic
+        onDialogClose: () -> Unit
     ) : ConfirmationDialogInfo(
-        title = "Vollständiges Spiel zurücksetzen?",
-        text = "Diese Aktion wird alle Ergebnisse und das komplette Protokoll dieses Spiels löschen. Bist du sicher?",
-        confirmButtonText = "Ja, zurücksetzen",
-        dismissButtonText = "Nein",
+        title = title,
+        text = text,
+        confirmButtonText = confirmButtonText,
+        dismissButtonText = dismissButtonText,
         onConfirmAction = {
             onConfirm()
             onDialogClose()
@@ -120,13 +121,16 @@ sealed class ConfirmationDialogInfo(
     )
 
     class EndOfMainTime(
-        onSetExtraTimeAndPenalties: () -> Unit, // Specific action for confirm
-        onEndPhaseWithoutExtraTime: () -> Unit,   // Specific action for dismiss
-        onDialogClose: () -> Unit // Common action for closing dialog
+        title: String,
+        confirmButtonText: String,
+        dismissButtonText: String,
+        onSetExtraTimeAndPenalties: () -> Unit,
+        onEndPhaseWithoutExtraTime: () -> Unit,
+        onDialogClose: () -> Unit
     ) : ConfirmationDialogInfo(
-        title = "Verlängerung?",
-        confirmButtonText = "Ja, Verlängerung",
-        dismissButtonText = "Nein, Spiel beenden",
+        title = title,
+        confirmButtonText = confirmButtonText,
+        dismissButtonText = dismissButtonText,
         onConfirmAction = {
             onSetExtraTimeAndPenalties()
             onDialogClose()
@@ -138,13 +142,34 @@ sealed class ConfirmationDialogInfo(
     )
 
     class RemoveLogEvent(
+        title: String,
+        text: String,
+        confirmButtonText: String,
+        dismissButtonText: String,
         onConfirm: () -> Unit,
-        onDialogClose: () -> Unit // Even if no animation, good to have consistent close logic
+        onDialogClose: () -> Unit
     ) : ConfirmationDialogInfo(
-        title = "Protokoll-Ereignis löschen?",
-        text = "Diese Aktion wird das Ereignis löschen und möglicherweise den Spielstand aktualisieren. Bist du sicher?",
-        confirmButtonText = "Ja",
-        dismissButtonText = "Nein",
+        title = title,
+        text = text,
+        confirmButtonText = confirmButtonText,
+        dismissButtonText = dismissButtonText,
+        onConfirmAction = {
+            onConfirm()
+            onDialogClose()
+        },
+        onDismissDialogAction = onDialogClose
+    )
+
+    class AbortGame(
+        title: String,
+        text: String,
+        onConfirm: () -> Unit,
+        onDialogClose: () -> Unit
+    ) : ConfirmationDialogInfo(
+        title = title,
+        text = text,
+        confirmButtonText = "",
+        dismissButtonText = "",
         onConfirmAction = {
             onConfirm()
             onDialogClose()
@@ -158,9 +183,13 @@ sealed class ConfirmationDialogInfo(
 @Composable
 fun GameScreenWithPager(
     game: Game,
+    timerState: TimerState,
     isAmbient: Boolean = false,
     kickoffCountdownSeconds: Int? = null,
     timerDisplayMode: TimerDisplayMode = TimerDisplayMode.REMAINING,
+    activeDismissals: List<TemporaryDismissalEvent> = emptyList(),
+    pendingReturnConfirmations: List<TemporaryDismissalEvent> = emptyList(),
+    onConfirmReturn: (TemporaryDismissalEvent) -> Unit = {},
     onToggleTimerDisplayMode: () -> Unit = {},
     horizontalPagerState: PagerState,
     verticalPagerState: PagerState,
@@ -173,12 +202,13 @@ fun GameScreenWithPager(
     onNavigateToLogGoal: (Team, com.databelay.refwatch.common.GoalType) -> Unit,
     onNavigateToLogCard: (team: Team, cardType: CardType) -> Unit,
     onNavigateToLogSubstitution: (Team) -> Unit,
+    onQuickSubstitution: (Team, Int, Int) -> Unit = { _, _, _ -> },
     onNavigateToGameLog: () -> Unit,
     onEndPhase: () -> Unit,
+    onAbortMatch: () -> Unit,
     onResetPeriodTimer: () -> Unit, // For current period's timer
     onConfirmEndMatch: () -> Unit, // For finishing the game
-    onPenaltyAttemptRecorded: (scored: Boolean) -> Unit,
-    onQuickGoal: (Team) -> Unit = {},
+    onPenaltyAttemptRecorded: (scored: Boolean, kickerNumber: Int?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -260,9 +290,13 @@ fun GameScreenWithPager(
                     0 -> {
                         GamePagerContent(
                             game = game,
+                            timerState = timerState,
                             isAmbient = isAmbient,
                             kickoffCountdownSeconds = kickoffCountdownSeconds,
                             timerDisplayMode = timerDisplayMode,
+                            activeDismissals = activeDismissals,
+                            pendingReturnConfirmations = pendingReturnConfirmations,
+                            onConfirmReturn = onConfirmReturn,
                             onToggleTimerDisplayMode = onToggleTimerDisplayMode,
                             pagerState = horizontalPagerState,
                             pageIndicatorState = pageIndicatorState,
@@ -270,15 +304,12 @@ fun GameScreenWithPager(
                             onNavigateToLogGoal = onNavigateToLogGoal,
                             onNavigateToLogCard = onNavigateToLogCard,
                             onNavigateToLogSubstitution = onNavigateToLogSubstitution,
+                            onQuickSubstitution = onQuickSubstitution,
                             onPenaltyAttemptRecorded = onPenaltyAttemptRecorded,
                             onToggleTimer = onToggleTimer,
                             onToggleStoppageTimer = onToggleStoppageTimer,
                             onOpenGameMenu = {
                                 coroutineScope.launch { verticalPagerState.scrollToPage(1) }
-                            },
-                            onQuickGoal = { team ->
-                                onQuickGoal(team)
-                                Toast.makeText(context, "Tor für ${if (team == Team.HOME) game.homeTeamName else game.awayTeamName} hinzugefügt!", Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.fillMaxSize()
                         )
@@ -288,10 +319,119 @@ fun GameScreenWithPager(
                             coroutineScope.launch { verticalPagerState.scrollToPage(0) }
                         }
                         val currentPhaseLocalized = game.currentPhase.localizedName()
+                        val finishTitle = stringResource(R.string.finish_game_title)
+                        val finishMsg = stringResource(R.string.finish_game_msg)
+                        val resetTimerTitle = stringResource(R.string.reset_timer_title)
+                        val fullResetTitle = stringResource(R.string.full_reset_title)
+                        val fullResetMsg = stringResource(R.string.full_reset_msg)
+                        val yesResetText = stringResource(R.string.confirm_yes_reset)
+                        val noText = stringResource(R.string.dismiss_no)
+                        val extraTimeQuestion = stringResource(R.string.extra_time_question)
+                        val extraTimeConfirm = stringResource(R.string.extra_time_confirm)
+                        val endGameDismiss = stringResource(R.string.dismiss_end_game)
+                        val resetTimerMsg = stringResource(R.string.reset_timer_msg, game.currentPhase.localizedName())
+                        val endPhaseTitle = stringResource(R.string.end_phase_confirm_title, currentPhaseLocalized)
+                        val abortTitle = stringResource(R.string.abort_game_title)
+                        val abortMsg = stringResource(R.string.abort_game_msg)
+                        
+                        var showRosterSelection by remember { mutableStateOf(false) }
+                        var selectedRosterTeam by remember { mutableStateOf<Team?>(null) }
+                        
+                        if (showRosterSelection) {
+                            Dialog(visible = true, onDismissRequest = { showRosterSelection = false }) {
+                                Column(
+                                    modifier = Modifier.fillMaxSize().padding(12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text("Kader wählen", style = MaterialTheme.typography.titleSmall)
+                                    Spacer(Modifier.height(8.dp))
+                                    Button(
+                                        onClick = { 
+                                            selectedRosterTeam = Team.HOME
+                                            showRosterSelection = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text(game.homeTeamName) }
+                                    Spacer(Modifier.height(4.dp))
+                                    Button(
+                                        onClick = { 
+                                            selectedRosterTeam = Team.AWAY
+                                            showRosterSelection = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text(game.awayTeamName) }
+                                    Spacer(Modifier.height(8.dp))
+                                    TextButton(onClick = { showRosterSelection = false }) { Text("Zurück") }
+                                }
+                            }
+                        }
+
+                        if (selectedRosterTeam != null) {
+                            val roster = if (selectedRosterTeam == Team.HOME) game.homeRoster else game.awayRoster
+                            Dialog(visible = true, onDismissRequest = { selectedRosterTeam = null }) {
+                                val listState = rememberTransformingLazyColumnState()
+                                TransformingLazyColumn(
+                                    state = listState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    contentPadding = PaddingValues(top = 32.dp, bottom = 32.dp, start = 8.dp, end = 8.dp)
+                                ) {
+                                    item {
+                                        Text(
+                                            text = if (selectedRosterTeam == Team.HOME) game.homeTeamName else game.awayTeamName,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            modifier = Modifier.padding(bottom = 8.dp)
+                                        )
+                                    }
+                                    
+                                    val sortedRoster = roster.sortedBy { it.number }
+                                    items(sortedRoster) { player ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = player.number.toString(),
+                                                fontWeight = FontWeight.Black,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.width(28.dp),
+                                                textAlign = TextAlign.Center
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = player.name.ifBlank { "Spieler" },
+                                                style = MaterialTheme.typography.bodySmall,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                text = if (player.isOnField) "⚽" else "🪑",
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
+                                        }
+                                    }
+                                    
+                                    item {
+                                        Button(
+                                            onClick = { selectedRosterTeam = null },
+                                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                        ) {
+                                            Text("Schließen")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         GameSettingsScreen(
                             game = game,
                             onAttemptFinishGame = {
                                 activeDialogInfo = ConfirmationDialogInfo.FinishGame(
+                                    title = finishTitle,
+                                    text = finishMsg,
                                     onConfirm = onConfirmEndMatch,
                                     onDialogClose = createDialogCloseHandler(true)
                                 )
@@ -299,26 +439,35 @@ fun GameScreenWithPager(
                             onAttemptResetPeriodTimer = {
                                 if (game.currentPhase.hasTimer()) {
                                     activeDialogInfo = ConfirmationDialogInfo.ResetPeriodTimer(
-                                        gamePhaseReadable = currentPhaseLocalized,
+                                        title = resetTimerTitle,
+                                        text = resetTimerMsg,
                                         onConfirm = onResetPeriodTimer,
                                         onDialogClose = createDialogCloseHandler(true)
                                     )
                                 } else {
-                                    Toast.makeText(context, "No timer in this phase.", Toast.LENGTH_SHORT).show()
-                                    animateToMainPage() 
+                                    Toast.makeText(context, context.getString(R.string.no_timer_in_phase), Toast.LENGTH_SHORT).show()
+                                    animateToMainPage()
                                 }
                             },
                             onAttemptResetFullGame = {
                                 activeDialogInfo = ConfirmationDialogInfo.ResetFullGame(
+                                    title = fullResetTitle,
+                                    text = fullResetMsg,
+                                    confirmButtonText = yesResetText,
+                                    dismissButtonText = noText,
                                     onConfirm = onResetGame,
-                                    onDialogClose = createDialogCloseHandler(false) // No animation for full game reset
+                                    onDialogClose = createDialogCloseHandler(false)
                                 )
                             },
                             onViewLog = onNavigateToGameLog,
+                            onShowRoster = { showRosterSelection = true },
                             onToggleTimer = onToggleTimer,
                             onAttemptEndPhase = {
                                 if (game.currentPhase == GamePhase.SECOND_HALF && game.isTied) {
                                     activeDialogInfo = ConfirmationDialogInfo.EndOfMainTime(
+                                        title = extraTimeQuestion,
+                                        confirmButtonText = extraTimeConfirm,
+                                        dismissButtonText = endGameDismiss,
                                         onSetExtraTimeAndPenalties = {
                                             onSetToHaveExtraTime()
                                             onSetToHavePenalties()
@@ -331,11 +480,19 @@ fun GameScreenWithPager(
                                     )
                                 } else {
                                     activeDialogInfo = ConfirmationDialogInfo.EndPhase(
-                                        gamePhaseReadable = currentPhaseLocalized,
+                                        title = endPhaseTitle,
                                         onConfirm = onEndPhase,
                                         onDialogClose = createDialogCloseHandler(true)
                                     )
                                 }
+                            },
+                            onAttemptAbortGame = {
+                                activeDialogInfo = ConfirmationDialogInfo.AbortGame(
+                                    title = abortTitle,
+                                    text = abortMsg,
+                                    onConfirm = onAbortMatch,
+                                    onDialogClose = createDialogCloseHandler(true)
+                                )
                             },
                             modifier = Modifier.fillMaxSize()
                         )
@@ -347,7 +504,22 @@ fun GameScreenWithPager(
 
     // Unified Confirmation Dialog
     activeDialogInfo?.let { dialogInfo ->
-        UnifiedConfirmationDialog(dialogInfo = dialogInfo)
+        if (dialogInfo is ConfirmationDialogInfo.AbortGame) {
+             AlertDialog(
+                visible = true,
+                onDismissRequest = dialogInfo.onDismissDialogAction,
+                title = { Text(dialogInfo.title) },
+                text = { dialogInfo.text?.let { Text(it) } },
+                confirmButton = {
+                    AlertDialogDefaults.ConfirmButton(onClick = dialogInfo.onConfirmAction)
+                },
+                dismissButton = {
+                    AlertDialogDefaults.DismissButton(onClick = dialogInfo.onDismissDialogAction)
+                }
+            )
+        } else {
+            UnifiedConfirmationDialog(dialogInfo = dialogInfo)
+        }
     }
 }
 
@@ -368,6 +540,7 @@ fun GameScreenWithPagerPreviewSmallRegulationTime() {
     RefWatchWearTheme {
         GameScreenWithPager(
             game = sampleGame,
+            timerState = TimerState(),
             horizontalPagerState = horizontalPagerState,
             verticalPagerState = verticalPagerState,
             onKickOff = {},
@@ -380,109 +553,11 @@ fun GameScreenWithPagerPreviewSmallRegulationTime() {
             onNavigateToLogCard = { _: Team, _: CardType -> },
             onNavigateToGameLog = {},
             onEndPhase = {},
+            onAbortMatch = {},
             onResetPeriodTimer = {},
             onConfirmEndMatch = {},
-            onPenaltyAttemptRecorded = {},
+            onPenaltyAttemptRecorded = { _, _ -> },
             onNavigateToLogSubstitution = {}
         )
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Preview(device = "id:wearos_large_round", name = "Settings Page Open", showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
-@Composable
-fun GameScreenWithPagerPreviewSettingsOpen() {
-    val sampleGame = Game.defaults().copy(currentPhase = GamePhase.FIRST_HALF)
-    val horizontalPagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
-    val verticalPagerState = rememberPagerState(initialPage = 1, pageCount = { 2 }) // Start on settings page
-
-    RefWatchWearTheme {
-        GameScreenWithPager(
-            game = sampleGame,
-            horizontalPagerState = horizontalPagerState,
-            verticalPagerState = verticalPagerState,
-            onKickOff = {},
-            onResetGame = {},
-            onSetToHaveExtraTime = {},
-            onSetToHavePenalties = {},
-            onToggleTimer = {},
-            onToggleStoppageTimer = {},
-            onNavigateToLogGoal = { _, _ -> },
-            onNavigateToLogCard = { _: Team, _: CardType -> },
-            onNavigateToGameLog = {},
-            onEndPhase = {},
-            onResetPeriodTimer = {},
-            onConfirmEndMatch = {},
-            onPenaltyAttemptRecorded = {},
-            onNavigateToLogSubstitution = {}
-        )
-    }
-}
-
-//@Preview(device = "id:wearos_small_round",name = "AddedTime SmRnd",showBackground = true)
-//@Preview(device = "id:wearos_square",name = "AddedTime Sqr",showBackground = true)
-@Preview(device = "id:wearos_large_round",name = "AddedTime LrgRnd",showSystemUi = true, backgroundColor = 0xff000000, showBackground = true)
-//@WearPreviewFontScales
-@Composable
-fun Preview_MainGameDisplay_Penalties() {
-    val sampleGame = Game.defaults().copy(currentPhase = GamePhase.PENALTIES)
-    val horizontalPagerState = rememberPagerState(initialPage = 1, pageCount = { 1 })
-    val verticalPagerState = rememberPagerState(initialPage = 0, pageCount = { 2 }) // Start on settings page
-
-    RefWatchWearTheme {
-        GameScreenWithPager(
-            game = sampleGame,
-            horizontalPagerState = horizontalPagerState,
-            verticalPagerState = verticalPagerState,
-            onKickOff = {},
-            onResetGame = {},
-            onSetToHaveExtraTime = {},
-            onSetToHavePenalties = {},
-            onToggleTimer = {},
-            onToggleStoppageTimer = {},
-            onNavigateToLogGoal = { _, _ -> },
-            onNavigateToLogCard = { _: Team, _: CardType -> },
-            onNavigateToGameLog = {},
-            onEndPhase = {},
-            onResetPeriodTimer = {},
-            onConfirmEndMatch = {},
-            onPenaltyAttemptRecorded = {},
-            onNavigateToLogSubstitution = {}
-        )
-    }
-}
-
-@Composable
-fun Test() {
-    val sampleGame = Game.Companion.defaults().copy(
-        currentPhase = GamePhase.FIRST_HALF,
-        isTimerRunning = true,
-        actualTimeElapsedInPeriodMillis = (10 * 60000L)
-    )
-    val horizontalPagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
-    val verticalPagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
-
-
-    val scrollState = rememberTransformingLazyColumnState()
-
-    /* If you have enough items in your list, use [TransformingLazyColumn] which is an optimized
-     * version of LazyColumn for wear devices with some added features. For more information,
-     * see d.android.com/wear/compose.
-     */
-    ScreenScaffold(
-        scrollState = scrollState,
-        contentPadding =
-            rememberResponsiveColumnPadding(
-                first = ColumnItemType.ListHeader,
-                last = EdgeButtonPadding
-            )
-    ) { contentPadding ->
-        // Use workaround from Horologist for padding or wait until fix lands
-        TransformingLazyColumn(
-            state = scrollState,
-            contentPadding = contentPadding
-        ) {
-            item { Text("Header") }
-        }
     }
 }

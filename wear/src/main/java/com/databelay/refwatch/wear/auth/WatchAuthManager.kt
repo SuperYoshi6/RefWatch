@@ -70,6 +70,18 @@ class WatchAuthManager @Inject constructor(
         }
     }
 
+    suspend fun signInWithEmail(email: String, pass: String): Result<FirebaseUser> {
+        return try {
+            Log.d(tag, "Attempting sign-in with email: $email")
+            val authResult = firebaseAuth.signInWithEmailAndPassword(email, pass).await()
+            Log.i(tag, "Sign-in successful. Watch User: ${authResult.user?.uid}")
+            Result.success(authResult.user!!)
+        } catch (e: Exception) {
+            Log.e(tag, "Sign-in failed for email: $email", e)
+            Result.failure(e)
+        }
+    }
+
     fun signOut() {
         authScope.launch {
             val currentUid = _firebaseUser.value?.uid

@@ -34,19 +34,14 @@ import androidx.navigation.navArgument
 import com.databelay.refwatch.auth.AuthState
 import com.databelay.refwatch.auth.AuthViewModel
 import com.databelay.refwatch.common.Game
-import com.databelay.refwatch.common.GoalScoredEvent
-import com.databelay.refwatch.common.GoalType
 import com.databelay.refwatch.common.SimpleIcsEvent
 import com.databelay.refwatch.common.SimpleIcsParser
-import com.databelay.refwatch.common.SubstitutionEvent
-import com.databelay.refwatch.common.Team
-import com.databelay.refwatch.common.opposite
 import com.databelay.refwatch.screens.AddEditGameRoute
 import com.databelay.refwatch.data.AddEditGameViewModel
 import com.databelay.refwatch.screens.AuthScreenRoute
-import com.databelay.refwatch.screens.MatchScreen
 import com.databelay.refwatch.screens.GameListScreen
 import com.databelay.refwatch.screens.GameLogScreen
+import com.databelay.refwatch.screens.StatisticsScreen
 import com.databelay.refwatch.data.MobileGameViewModel
 import com.databelay.refwatch.data.OnboardingStep
 import com.databelay.refwatch.data.OnboardingViewModel
@@ -94,7 +89,8 @@ fun RefWatchNavHost() {
             is AuthState.Authenticated -> {
                 if (currentRoute != MobileNavRoutes.GAME_LIST_SCREEN &&
                     currentRoute?.startsWith(MobileNavRoutes.ADD_EDIT_GAME_SCREEN.substringBefore("?")) != true &&
-                    currentRoute != MobileNavRoutes.SETTINGS_SCREEN && // Ensure settings screen doesn't cause re-navigation
+                    currentRoute != MobileNavRoutes.SETTINGS_SCREEN && 
+                    currentRoute != MobileNavRoutes.STATISTICS_SCREEN && // Ensure statistics screen doesn't cause re-navigation
                     currentRoute?.startsWith(MobileNavRoutes.GAME_LOG_SCREEN.substringBefore("?")) != true // Ensure game log doesn't cause re-navigation
                 ) {
                     Log.d(TAG, "Navigating to GAME_LIST_SCREEN due to Authenticated state from $currentRoute.")
@@ -162,12 +158,18 @@ fun RefWatchNavHost() {
         composable(MobileNavRoutes.SETTINGS_SCREEN) {
             SettingsScreen(
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateToStatistics = { navController.navigate(MobileNavRoutes.STATISTICS_SCREEN) },
                 onDeleteAccountConfirmed = {
                     authViewModel.deleteUserAccount()
                 },
                 onDeleteAllCompletedGames = {
                     mobileGameViewModel.deleteAllCompletedGames()
                 }
+            )
+        }
+        composable(MobileNavRoutes.STATISTICS_SCREEN) {
+            StatisticsScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
         composable(MobileNavRoutes.LOADING_SCREEN) {
@@ -227,15 +229,13 @@ fun RefWatchNavHost() {
                     navController.navigate(MobileNavRoutes.addEditGameRoute(null))
                 },
                 onEditGame = { gameToEdit ->
+                    // Navigate to AddEditGameScreen for an existing game
                     navController.navigate(MobileNavRoutes.addEditGameRoute(gameToEdit.id))
                 },
                 onViewLog = { gameToView -> // <-- This correctly handles navigation for completed games
                     navController.navigate(MobileNavRoutes.gameLogRoute(gameToView.id))
                 },
                 onDeleteGame = { gameToDelete -> mobileGameViewModel.deleteGame(gameToDelete) },
-                onStartMatch = { gameToStart ->
-                    navController.navigate(MobileNavRoutes.matchRoute(gameToStart.id))
-                },
                 onSignOut = { authViewModel.signOut()},
                 onImportGames = {filePickerLauncher.launch("text/calendar")},
                 onNavigateToSettings = { navController.navigate(MobileNavRoutes.SETTINGS_SCREEN) },
@@ -287,68 +287,8 @@ fun RefWatchNavHost() {
                 type = NavType.StringType
                 nullable = true
             })
-        ) { backStackEntry ->
-            val addEditViewModel: AddEditGameViewModel = hiltViewModel()
-            val gameId = backStackEntry.arguments?.getString("gameId")
-            LaunchedEffect(gameId) {
-                addEditViewModel.initializeForm(gameId) // Initialize with game data
-            }
-
+        ) {
             AddEditGameRoute(navController = navController)
-        }
-        composable(
-            route = "${MobileNavRoutes.MATCH_SCREEN}?gameId={gameId}",
-            arguments = listOf(navArgument("gameId") {
-                type = NavType.StringType
-                nullable = false
-            })
-        ) { backStackEntry ->
-            val gameId = backStackEntry.arguments?.getString("gameId")
-
-            // Find the game from the ViewModel
-            val allGames by mobileGameViewModel.gamesList.collectAsStateWithLifecycle()
-            val selectedGame = remember(allGames, gameId) {
-                allGames.find { it.id == gameId }
-            }
-
-            if (selectedGame != null) {
-                MatchScreen(
-                    game = selectedGame,
-                    onNavigateBack = { navController.popBackStack() },
-                    onTakeCurrentTime = { /* TODO: implement */ },
-                    onHalfTime = { /* TODO: implement */ },
-                    onRecordGoal = { team, goalType ->
-                        val scoringTeam = if (goalType == GoalType.OWN_GOAL) team.opposite() else team
-                        val homeScoreAtTime = if (scoringTeam == Team.HOME) selectedGame.homeScore + 1 else selectedGame.homeScore
-                        val awayScoreAtTime = if (scoringTeam == Team.AWAY) selectedGame.awayScore + 1 else selectedGame.awayScore
-                        val goalEvent = GoalScoredEvent(
-                            team = team,
-                            goalType = goalType,
-                            playerNumber = null,
-                            gameTimeMillis = selectedGame.actualTimeElapsedInPeriodMillis.toDouble(),
-                            homeScoreAtTime = homeScoreAtTime,
-                            awayScoreAtTime = awayScoreAtTime,
-                            phase = selectedGame.currentPhase
-                        )
-                        mobileGameViewModel.addGameEvent(selectedGame, goalEvent)
-                    },
-                    onLogSubstitution = { team, outgoingPlayerNumber, incomingPlayerNumber ->
-                        val substitutionEvent = SubstitutionEvent(
-                            team = team,
-                            outgoingPlayerNumber = outgoingPlayerNumber,
-                            incomingPlayerNumber = incomingPlayerNumber,
-                            gameTimeMillis = selectedGame.actualTimeElapsedInPeriodMillis.toDouble(),
-                            phase = selectedGame.currentPhase
-                        )
-                        mobileGameViewModel.addGameEvent(selectedGame, substitutionEvent)
-                    }
-                )
-            } else {
-                // Handle game not found
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Spiel nicht gefunden")
-                }
-            }
         }
     }
 }

@@ -12,6 +12,7 @@ import com.databelay.refwatch.common.jsonObjectToMap
 import com.databelay.refwatch.common.mapToJsonObject
 import com.databelay.refwatch.common.parseGameEventsFromDocument
 import com.databelay.refwatch.common.toFirestoreMap
+import com.databelay.refwatch.BuildConfig
 import com.databelay.refwatch.wear.auth.WatchAuthManager
 import com.databelay.refwatch.wear.util.ConnectivityObserver // Import ConnectivityObserver
 import com.google.firebase.firestore.FirebaseFirestore
@@ -80,12 +81,16 @@ class GameStorageWear @Inject constructor(
     private var firestoreListenerRegistration: ListenerRegistration? = null
 
     init {
-        Log.d(tag, "Initializing GameStorageWear.")
+        if (BuildConfig.DEBUG) {
+            Log.d(tag, "Initializing GameStorageWear.")
+        }
 
         // Observe network status
         connectivityObserver.observe()
             .onEach { status ->
-                Log.i(tag, "Network status changed: $status")
+                if (BuildConfig.DEBUG) {
+                    Log.i(tag, "Network status changed: $status")
+                }
                 _networkStatusFlow.value = status
             }
             .launchIn(storageScope) // Observe in storageScope
@@ -97,24 +102,23 @@ class GameStorageWear @Inject constructor(
             }
             .distinctUntilChanged() // Only react if userId or networkStatus actually changes
             .onEach { (userId, networkStatus) ->
-                Log.d(tag, "User ID or Network status change detected. User: $userId, Network: $networkStatus")
+                if (BuildConfig.DEBUG) {
+                    Log.d(tag, "User ID or Network status change detected. User: $userId, Network: $networkStatus")
+                }
                 if (currentUserId != userId) {
                     val oldUserId = currentUserId
                     currentUserId = userId
                     onUserChanged(newUserId = userId, oldUserId = oldUserId, isOnline = networkStatus == ConnectivityObserver.Status.AVAILABLE)
                 } else if (userId != null && networkStatus == ConnectivityObserver.Status.AVAILABLE) {
                     // User is the same, but network might have come online
-                    Log.i(tag, "Network became available for user $userId. Triggering pending sync.")
                     syncPendingGames(userId)
                     // Re-attach listener if it was detached due to prior network unavailability
                     if (firestoreListenerRegistration == null) {
-                         Log.i(tag, "Network reconnected, re-attaching Firestore listener for user $userId.")
-                         attachFirestoreListener(userId)
+                        attachFirestoreListener(userId)
                     }
                 } else if (userId != null) { // Simplified condition: user same, network not available
-                    Log.w(tag, "Network became unavailable for user $userId. Detaching Firestore listener.")
                     detachFirestoreListener() // Detach listener when offline to prevent errors/retries
-                     _dataFetchStatusFlow.value = DataFetchStatus.ERROR_NETWORK // Reflect that we are offline
+                    _dataFetchStatusFlow.value = DataFetchStatus.ERROR_NETWORK // Reflect that we are offline
                 }
             }
             .launchIn(storageScope) // Observe in storageScope for long-lived operations
@@ -146,74 +150,43 @@ class GameStorageWear @Inject constructor(
     }
 
     private fun attachFirestoreListener(userId: String) {
-        // ... (existing setup and error handling for listener) ...
-        Log.d(tag, "Attempting to attach Firestore listener for user: $userId (Wear)")
-
+        if (BuildConfig.DEBUG) {
+            Log.d(tag, "Attempting to attach Firestore listener for user: $userId (Wear)")
+        }
 
         val gamesCollection = firestore.collection("users").document(userId).collection("games")
         firestoreListenerRegistration = gamesCollection.addSnapshotListener { snapshots, e ->
             // Check if snapshots is null before accessing its properties**
             if (snapshots == null) {
-                Log.w(tag, "Firestore snapshots were null for user $userId. Not updating game list.")
-                // It's often better not to clear the list here if it might have been loaded from cache,
-                // unless you specifically want to indicate no data from Firestore means absolutely no data.
-                // _gamesListFlow.value = emptyList() // Optional: depends on desired behavior
-                // storageScope.launch { saveGamesToCache(emptyList(), userId) } // Optional
                 _dataFetchStatusFlow.value = DataFetchStatus.NO_DATA_AVAILABLE // Or ERROR_FIREBASE_OPERATION
                 return@addSnapshotListener
             }
 
-            Log.d(tag, "Firestore listener (Wear) received ${snapshots?.size()} documents for user $userId.")
-
             val gamesFromFirestore = snapshots.documents.mapNotNull { doc ->
                 try {
-                    val gameId = doc.id
-                    Log.d(tag, "Listener (Wear) processing doc ID: $gameId. Raw data from Firestore: ${doc.data}")
-
-                    // 1. Convert to Game object for basic fields.
-                    //    If Game.events has @Exclude in its definition for Firestore's toObject,
-                    //    this 'gameBase' will have an empty events list or default.
-                    //    Or, you can map basic fields manually if toObject is problematic.
                     val gameBase = doc.toObject(Game::class.java) // For non-event fields
-                    if (gameBase == null) {
-                        Log.w(tag, "Listener (Wear): Failed to convert document ${doc.id} to Game base object. Skipping.")
-                        return@mapNotNull null
-                    }
-                    Log.d(tag, "Listener (Wear): Game base for ${doc.id}: Status=${gameBase.status}, Score=${gameBase.homeScore}-${gameBase.awayScore}")
-
-
-                    // 2. Manually parse the events from the document data, similar to Mobile
-                    val parsedEvents = parseGameEventsFromDocument(doc) // New helper function
-                    Log.v(tag, "Listener (Wear): Parsed ${parsedEvents.size} events for game ${doc.id}")
-
-
-                    // 3. Return a new Game object with the manually parsed events
-                    //    and ensure the Firestore document ID is used.
-                    val finalGame = gameBase.copy(
+                    if (gameBase == null) return@mapNotNull null
+                    val parsedEvents = parseGameEventsFromDocument(doc)
+                    gameBase.copy(
                         id = doc.id, // Ensure Firestore document ID is used as the game's ID
                         events = parsedEvents
                     )
-                    Log.i(tag, "Listener (Wear): Successfully processed game ${finalGame.id}, Status: ${finalGame.status}, Score: ${finalGame.homeScore}-${finalGame.awayScore}, Events PARSED: ${finalGame.events.size}")
-                    finalGame
-
                 } catch (docEx: Exception) {
-                    Log.e(tag, "Listener (Wear): Error processing document ${doc.id}", docEx)
-                    null // Skip this document on error
+                    if (BuildConfig.DEBUG) {
+                        Log.e(tag, "Listener (Wear): Error processing document ${doc.id}", docEx)
+                    }
+                    null
                 }
             }
 
             // Update the flow with the newly processed list of games
             if (_gamesListFlow.value != gamesFromFirestore) {
-                Log.d(tag, "Firestore listener (Wear): Updating _gamesListFlow. New list size: ${gamesFromFirestore.size}. First game events: ${gamesFromFirestore.firstOrNull()?.events?.size}")
                 _gamesListFlow.value = gamesFromFirestore
                 storageScope.launch { saveGamesToCache(gamesFromFirestore, userId) }
-            } else {
-                Log.d(tag, "Firestore listener (Wear): gamesFromFirestore is same as current _gamesListFlow.value. No update emitted.")
             }
 
             _dataFetchStatusFlow.value = if (gamesFromFirestore.isEmpty()) DataFetchStatus.NO_DATA_AVAILABLE else DataFetchStatus.SUCCESS
         }
-        Log.i(tag, "Firestore listener attached (Wear) for user: $userId")
     }
 
     private fun detachFirestoreListener() {

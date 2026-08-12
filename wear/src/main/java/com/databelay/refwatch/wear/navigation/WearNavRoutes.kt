@@ -27,6 +27,8 @@ object WearNavRoutes {
     const val LOG_CARD_SCREEN = "log_card"
     const val LOG_GOAL_SCREEN = "log_goal"
     const val LOG_SUBSTITUTION_SCREEN = "log_substitution"
+    const val PAIRING_SCREEN = "pairing"
+    const val LOGIN_SCREEN = "login"
     // --- Route Helper Functions ---
 
     /**

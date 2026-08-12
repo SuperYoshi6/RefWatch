@@ -1,5 +1,6 @@
 package com.databelay.refwatch.data
 
+import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,14 +24,17 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.databelay.refwatch.R
 import com.databelay.refwatch.common.Game
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,9 +44,10 @@ import javax.inject.Inject
 
 @HiltViewModel // <-- ADD THIS ANNOTATION
 class OnboardingViewModel @Inject constructor( // <-- ADD @Inject
+    @ApplicationContext private val context: Context,
     private val prefs: SharedPreferences
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(OnboardingUiState())
+    private val _uiState = MutableStateFlow(OnboardingUiState(steps = OnboardingStepsProvider.create(context)))
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
 
     init {
@@ -78,30 +83,39 @@ class OnboardingViewModel @Inject constructor( // <-- ADD @Inject
 }
 
 data class OnboardingUiState @OptIn(ExperimentalMaterial3Api::class) constructor(
-    val steps: List<OnboardingStep> = listOf(
-        OnboardingStep(
-            title = "Create New Game",
-            message = "Tap here to add a new game to your schedule.",
-            targetTag = "add_game_fab", // <-- Tag for the FloatingActionButton
-            nextButtonLabel = "Next"
-        ),
-        OnboardingStep(
-            title = "Import Calendar",
-            message = "You can also import games from an .ics calendar file.",
-            targetTag = "import_ics_button", // <-- Tag for the Import IconButton
-            nextButtonLabel = "Next"
-        ),
-        OnboardingStep(
-            title = "Sign Out",
-            message = "Tap here to sign out of your account.",
-            targetTag = "sign_out_button", // <-- Tag for the Sign Out Button
-            nextButtonLabel = "Finish"
-        ),
-    ),
+    val steps: List<OnboardingStep>,
     val currentStepIndex: Int = 0
 ) {
     val isTourActive: Boolean
         get() = currentStepIndex < steps.size
+}
+
+/**
+ * Factory for [OnboardingUiState] that resolves localized strings from string resources.
+ * Use this from the ViewModel so the data class stays free of Context.
+ */
+object OnboardingStepsProvider {
+    @OptIn(ExperimentalMaterial3Api::class)
+    fun create(context: Context): List<OnboardingStep> = listOf(
+        OnboardingStep(
+            title = context.getString(R.string.onb_create_new_game_title),
+            message = context.getString(R.string.onb_create_new_game_msg),
+            targetTag = "add_game_fab",
+            nextButtonLabel = context.getString(R.string.onb_next)
+        ),
+        OnboardingStep(
+            title = context.getString(R.string.onb_import_calendar_title),
+            message = context.getString(R.string.onb_import_calendar_msg),
+            targetTag = "import_ics_button",
+            nextButtonLabel = context.getString(R.string.onb_next)
+        ),
+        OnboardingStep(
+            title = context.getString(R.string.onb_signout_title),
+            message = context.getString(R.string.onb_signout_msg),
+            targetTag = "sign_out_button",
+            nextButtonLabel = context.getString(R.string.onb_finish)
+        ),
+    )
 }
 
 
@@ -112,7 +126,7 @@ data class OnboardingStep(
     val title: String,
     val message: String,
     val targetTag: String,
-    val nextButtonLabel: String = "Next",
+    val nextButtonLabel: String = "",
     val tooltipState: TooltipState = TooltipState(isPersistent = true, initialIsVisible = false)
 )
 
@@ -149,7 +163,7 @@ fun ExplanationArea(
                             horizontalArrangement = Arrangement.End
                         ) {
                             TextButton(onClick = onDismiss) {
-                                Text("Dismiss")
+                                Text(stringResource(R.string.game_log_close))
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(onClick = onNext) {
@@ -222,7 +236,7 @@ fun OnboardingTooltipContent(
                 horizontalArrangement = Arrangement.End
             ) {
                 TextButton(onClick = onDismiss) {
-                    Text("Dismiss")
+                    Text(stringResource(R.string.game_log_close))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = onNext) {

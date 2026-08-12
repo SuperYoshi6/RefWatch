@@ -24,7 +24,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.databelay.refwatch.R
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -47,16 +49,22 @@ import com.databelay.refwatch.common.CardIssuedEvent
 import com.databelay.refwatch.common.CardType
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GamePhase
+import com.databelay.refwatch.common.GameStatus
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.isPlayablePhase
 import com.databelay.refwatch.wear.WearGameViewModel
+import com.databelay.refwatch.wear.data.TimerState
 import com.databelay.refwatch.wear.presentation.screens.GameListScreen
 import com.databelay.refwatch.wear.presentation.screens.GameLogScreen
 import com.databelay.refwatch.wear.presentation.screens.GameScreenWithPager
 import com.databelay.refwatch.wear.presentation.screens.KickOffSelectionScreen
 import com.databelay.refwatch.wear.presentation.screens.LogCardScreen
 import com.databelay.refwatch.wear.presentation.screens.LogSubstitutionScreen
+import com.databelay.refwatch.wear.presentation.screens.PairingScreen
+import com.databelay.refwatch.wear.presentation.screens.WatchLoginScreen
 import com.databelay.refwatch.wear.presentation.screens.PreGameSetupRoute
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
 
 const val TAG = "NavigationRoutes"
@@ -66,11 +74,22 @@ const val TAG = "NavigationRoutes"
 fun NavigationRoutes(isAmbient: Boolean = false) {
     val navController = rememberSwipeDismissableNavController()
     val gameViewModel: WearGameViewModel = hiltViewModel()
+    
+    // Select ONLY the phase for navigation purposes. This prevents the entire
+    // NavHost from recomposing every second when the timer ticks or any other
+    // field in the Game object changes.
+    val activeGamePhase by remember(gameViewModel) {
+        gameViewModel.activeGame.map { it?.currentPhase }.distinctUntilChanged()
+    }.collectAsStateWithLifecycle(null)
+
     val activeGame by gameViewModel.activeGame.collectAsStateWithLifecycle()
+    val timerState by gameViewModel.timerDisplayState.collectAsStateWithLifecycle()
     val allGames by gameViewModel.gamesList.collectAsStateWithLifecycle() // Assuming gamesList is the correct source
     val isOnline by gameViewModel.isOnline.collectAsStateWithLifecycle()
     val timerDisplayMode by gameViewModel.timerDisplayMode.collectAsStateWithLifecycle()
     val kickoffCountdownSeconds by gameViewModel.kickoffCountdownSeconds.collectAsStateWithLifecycle()
+    val activeDismissals by gameViewModel.activeDismissals.collectAsStateWithLifecycle()
+    val pendingReturnConfirmations by gameViewModel.pendingReturnConfirmations.collectAsStateWithLifecycle()
     val context = LocalContext.current // Get the context
     // State to track if the permission has been explicitly denied by the user.
     var showPermissionDeniedDialog by remember { mutableStateOf(false) }
@@ -134,16 +153,16 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
             icon = {
                 Icon(
                     imageVector = Icons.Default.Report,
-                    contentDescription = "Warning Icon",
+                    contentDescription = stringResource(R.string.warning_icon),
                     modifier = Modifier.size(ConfirmationDialogDefaults.IconSize)
                 )
             },
             title = {
-                Text("Permission Required")
+                Text(stringResource(R.string.permission_required))
             },
             text = {
                 Text(
-                    "Notifications are needed for the timer to run reliably in the background. Please enable them in settings.",
+                    stringResource(R.string.permission_notif_msg),
                     style = MaterialTheme.typography.bodySmall
                 )
             },
@@ -164,13 +183,13 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
         )
     }
 
-    val startDestination = remember(activeGame) {
-        activeGame?.let {
+    val startDestination = remember(activeGamePhase) {
+        activeGamePhase?.let {
             Log.d(
                 TAG,
-                "Determined start destination based on active game phase: ${activeGame?.currentPhase}"
+                "Determined start destination based on active game phase: $it"
             )
-            mapGamePhaseToRoute(it.currentPhase)
+            mapGamePhaseToRoute(it)
         } ?: WearNavRoutes.GAME_LIST_SCREEN
     }
 
@@ -190,14 +209,22 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                     isOnline = isOnline,
                     onGameSelected = { selectedGame ->
                         gameViewModel.selectGameToStart(selectedGame)
-                        gameViewModel.activeGame.value?.let { game ->
-                            gameViewModel.proceedToNextPhaseManager(game.copy())
-                        } ?: Log.w(
-                            TAG,
-                            "onGameSelected: Cannot proceed, active game is null after selection."
-                        )
-                        // Consider navigating only after activeGame is confirmed non-null or phase has progressed
-                        navController.navigate(WearNavRoutes.PRE_GAME_SETUP_SCREEN)
+                        
+                        // AUTO-JOIN: If the game is already in progress, skip setup
+                        if (selectedGame.status == GameStatus.IN_PROGRESS) {
+                             navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
+                                popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        } else {
+                            gameViewModel.activeGame.value?.let { game ->
+                                gameViewModel.proceedToNextPhaseManager(game.copy())
+                            } ?: Log.w(
+                                TAG,
+                                "onGameSelected: Cannot proceed, active game is null after selection."
+                            )
+                            navController.navigate(WearNavRoutes.PRE_GAME_SETUP_SCREEN)
+                        }
                     },
                     onViewLog = { gameId ->
                         navController.navigate(WearNavRoutes.gameLogRoute(gameId))
@@ -211,6 +238,32 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                             "onNavigateToNewGame: Cannot proceed, active game is null after creating new game."
                         )
                         navController.navigate(WearNavRoutes.PRE_GAME_SETUP_SCREEN)
+                    },
+                    onNavigateToPairing = {
+                        navController.navigate(WearNavRoutes.PAIRING_SCREEN)
+                    },
+                    onNavigateToLogin = {
+                        navController.navigate(WearNavRoutes.LOGIN_SCREEN)
+                    }
+                )
+            }
+            composable(WearNavRoutes.PAIRING_SCREEN) {
+                PairingScreen(
+                    onPairingSuccess = {
+                        navController.popBackStack(WearNavRoutes.GAME_LIST_SCREEN, false)
+                    },
+                    onCancel = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+            composable(WearNavRoutes.LOGIN_SCREEN) {
+                WatchLoginScreen(
+                    onLoginSuccess = {
+                        navController.popBackStack(WearNavRoutes.GAME_LIST_SCREEN, false)
+                    },
+                    onCancel = {
+                        navController.popBackStack()
                     }
                 )
             }
@@ -244,7 +297,8 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                 val isPlayableRegularPhase = activeGame?.currentPhase?.isPlayablePhase() == true &&
                         activeGame?.currentPhase != GamePhase.PENALTIES
                 
-                val canToggleStoppageTimer = activeGame?.isTimerRunning == true && isPlayableRegularPhase
+                val canToggleStoppageTimer = isPlayableRegularPhase &&
+                    (timerState.isTimerRunning || timerState.isStoppageTimerRunning)
 
                 val horizontalPagerState = rememberPagerState(
                     initialPage = 1,
@@ -256,8 +310,12 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                     GameScreenWithPager(
                         modifier = Modifier.fillMaxSize(),
                         game = activeGame!!,
+                        timerState = timerState,
                         isAmbient = isAmbient,
                         kickoffCountdownSeconds = kickoffCountdownSeconds,
+                        activeDismissals = activeDismissals,
+                        pendingReturnConfirmations = pendingReturnConfirmations,
+                        onConfirmReturn = { gameViewModel.dismissReturnConfirmation(it) },
                         timerDisplayMode = timerDisplayMode,
                         onToggleTimerDisplayMode = { gameViewModel.toggleTimerDisplayMode() },
                         horizontalPagerState = horizontalPagerState,
@@ -281,6 +339,9 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                         onNavigateToLogSubstitution = { team ->
                             navController.navigate(WearNavRoutes.logSubstitutionRoute(team))
                         },
+                        onQuickSubstitution = { team, outgoing, incoming ->
+                            gameViewModel.logSubstitution(team, outgoing, incoming)
+                        },
                         onNavigateToGameLog = {
                             activeGame?.let { game ->
                                 navController.navigate(WearNavRoutes.gameLogRoute(game.id))
@@ -293,6 +354,13 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                                 TAG,
                                 "GameScreenWithPager onEndPhase: Cannot proceed, active game is null."
                             )
+                        },
+                        onAbortMatch = {
+                            gameViewModel.abortGame()
+                            navController.navigate(WearNavRoutes.GAME_LIST_SCREEN) {
+                                popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         },
                         onResetPeriodTimer = { gameViewModel.resetTimer() },
                         onConfirmEndMatch = {
@@ -311,16 +379,13 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                                 navController.popBackStack(WearNavRoutes.GAME_LIST_SCREEN, false)
                             }
                         },
-                        onPenaltyAttemptRecorded = { scored ->
-                            gameViewModel.recordPenaltyAttempt(scored)
-                        },
-                        onQuickGoal = { team ->
-                            gameViewModel.addGoal(team)
+                        onPenaltyAttemptRecorded = { scored, kickerNumber ->
+                            gameViewModel.recordPenaltyAttempt(scored, kickerNumber)
                         }
                     )
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Loading Game Details...")
+                        Text(stringResource(R.string.loading_game_details))
                     }
                 }
             }
@@ -343,14 +408,20 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                 var confirmedRedPlayerNumber by remember { mutableStateOf<Int?>(null) }
                 var showRedCardConfirmationDialog by remember { mutableStateOf(false) }
                 if (team != null && cardType != null) {
+                    val roster = if (team == Team.HOME) activeGame?.homeRoster else activeGame?.awayRoster
+                    val officials = if (team == Team.HOME) activeGame?.homeOfficials else activeGame?.awayOfficials
                     LogCardScreen(
                         preselectedTeam = team,
                         cardType = cardType,
-                        onLogCard = { loggedTeam, playerNum, loggedCardType ->
+                        roster = roster ?: emptyList(),
+                        officials = officials ?: emptyList(),
+                        hasTemporaryDismissals = activeGame?.hasTemporaryDismissals ?: false,
+                        temporaryDismissalMinutes = activeGame?.temporaryDismissalMinutes ?: 0,
+                        onLogCard = { loggedTeam, playerNum, loggedCardType, applyDismissal, isOfficial, officialName ->
                             var autoRedCardIssued = false
 
                             // Log the original card (yellow or direct red)
-                            gameViewModel.addCard(loggedTeam, playerNum, loggedCardType)
+                            gameViewModel.addCard(loggedTeam, playerNum, loggedCardType, applyDismissal, isOfficial, officialName)
 
                             // --- Logic for two yellows leading to a red ---
                             if (loggedCardType == CardType.YELLOW) {
@@ -403,7 +474,7 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                         },
                         text = {
                             Text(
-                                text = "Second yellow for player $confirmedRedPlayerNumber of team $team. Auto red card issued.",
+                                text = stringResource(R.string.second_yellow_auto_red, confirmedRedPlayerNumber ?: 0, team.name),
                                 color = MaterialTheme.colorScheme.onError
 
                             )
@@ -420,7 +491,7 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                         )
                     }
                 } else {
-                    Text("Error: Invalid navigation arguments for Log Card.")
+                    Text(stringResource(R.string.error_invalid_nav_args))
                     LaunchedEffect(Unit) {
                         delay(2000)
                         navController.popBackStack()
@@ -441,9 +512,11 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                 val goalType = goalTypeString?.let { com.databelay.refwatch.common.GoalType.valueOf(it.uppercase()) }
 
                 if (team != null && goalType != null) {
+                    val roster = if (team == Team.HOME) activeGame?.homeRoster else activeGame?.awayRoster
                     com.databelay.refwatch.wear.presentation.screens.LogGoalScreen(
                         preselectedTeam = team,
                         goalType = goalType,
+                        roster = roster ?: emptyList(),
                         onLogGoal = { loggedTeam, playerNum, loggedGoalType ->
                             gameViewModel.addGoal(loggedTeam, playerNum, loggedGoalType)
                             navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
@@ -471,8 +544,10 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                 val team = teamId?.let { Team.valueOf(it.uppercase()) }
 
                 if (team != null) {
+                    val roster = if (team == Team.HOME) activeGame?.homeRoster else activeGame?.awayRoster
                     LogSubstitutionScreen(
                         team = team,
+                        roster = roster ?: emptyList(),
                         onLogSubstitution = { outgoing, incoming ->
                             gameViewModel.logSubstitution(team, outgoing, incoming)
                             navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
@@ -534,7 +609,7 @@ fun mapGamePhaseToRoute(phase: GamePhase): String {
     return when (phase) {
         GamePhase.FIRST_HALF, GamePhase.HALF_TIME, GamePhase.SECOND_HALF,
         GamePhase.EXTRA_TIME_FIRST_HALF, GamePhase.EXTRA_TIME_HALF_TIME, GamePhase.EXTRA_TIME_SECOND_HALF,
-        GamePhase.PENALTIES, GamePhase.GAME_ENDED -> WearNavRoutes.GAME_IN_PROGRESS_SCREEN
+        GamePhase.PENALTIES, GamePhase.GAME_ENDED, GamePhase.ABORTED -> WearNavRoutes.GAME_IN_PROGRESS_SCREEN
 
         GamePhase.NOT_STARTED -> WearNavRoutes.GAME_LIST_SCREEN
         GamePhase.PRE_GAME -> WearNavRoutes.PRE_GAME_SETUP_SCREEN

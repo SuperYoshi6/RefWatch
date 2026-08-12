@@ -26,7 +26,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.databelay.refwatch.R
 import com.databelay.refwatch.common.GoalType
 import com.databelay.refwatch.common.Team
 
@@ -51,9 +53,9 @@ fun GoalInputDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Torart für $teamName")
+                Text(stringResource(R.string.goal_input_title, teamName))
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = "Schließen")
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.goal_input_close))
                 }
             }
         },
@@ -64,7 +66,7 @@ fun GoalInputDialog(
             ) {
                 // Überschrift
                 Text(
-                    "Bitte wählen Sie die Torart:",
+                    stringResource(R.string.goal_input_choose),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -72,10 +74,13 @@ fun GoalInputDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Radio Button Optionen
+                val openPlayLabel = stringResource(R.string.goal_type_open_play)
+                val penaltyLabel = stringResource(R.string.goal_penalty)
+                val ownGoalLabel = stringResource(R.string.goal_own_goal)
                 val goalTypes = listOf(
-                    GoalType.OPEN_PLAY to "Feldtor",
-                    GoalType.PENALTY to "Strafstoß",
-                    GoalType.OWN_GOAL to "Eigentor"
+                    GoalType.OPEN_PLAY to openPlayLabel,
+                    GoalType.PENALTY to penaltyLabel,
+                    GoalType.OWN_GOAL to ownGoalLabel
                 )
 
                 goalTypes.forEach { (goalType, label) ->
@@ -108,12 +113,12 @@ fun GoalInputDialog(
                 },
                 enabled = selectedGoalType != null
             ) {
-                Text("Bestätigen")
+                Text(stringResource(R.string.goal_input_confirm))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Abbrechen")
+                Text(stringResource(R.string.goal_input_dismiss))
             }
         }
     )

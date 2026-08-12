@@ -1,0 +1,6 @@
+- [x] Research save issue
+- [x] Create implementation plan
+- [x] Refactor `GameStorageMobile.kt` to use single-call "Upsert" (`set` with merge)
+- [x] Ensure basic types in `Game.kt`'s `toSnapshotForStorage`
+- [x] Guide user on Firestore Rules
+- [ ] Final build verification

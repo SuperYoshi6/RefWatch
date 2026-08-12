@@ -85,14 +85,18 @@ fun PreGameSetupScreen(
     onSetHalftimeDuration: (Int) -> Unit,
     onSetExtraTimeDuration: (Int) -> Unit,
     onSetMaxSubstitutions: (Int) -> Unit,
+    onToggleHasTemporaryDismissals: (Boolean) -> Unit,
+    onSetTemporaryDismissalMinutes: (Int) -> Unit,
+    onToggleHasPenalties: (Boolean) -> Unit,
+    onSetPenaltyKicksPerTeam: (Int) -> Unit,
     onCreateMatchClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberScalingLazyListState()
     val homeTeamName = game?.homeTeamName ?: stringResource(R.string.home)
     val awayTeamName = game?.awayTeamName ?: stringResource(R.string.away)
-    val homeTeamAbbr = game?.homeTeamAbbr ?: "HOM"
-    val awayTeamAbbr = game?.awayTeamAbbr ?: "AWA"
+    val homeTeamAbbr = game?.homeTeamAbbr ?: stringResource(R.string.home_abbr_default)
+    val awayTeamAbbr = game?.awayTeamAbbr ?: stringResource(R.string.away_abbr_default)
     val homeCaptain = game?.homeCaptainNumber?.toString() ?: stringResource(R.string.none)
     val awayCaptain = game?.awayCaptainNumber?.toString() ?: stringResource(R.string.none)
     val homeTeamColor = game?.homeTeamColor ?: Color.Gray
@@ -101,7 +105,11 @@ fun PreGameSetupScreen(
     val halftimeDurationMinutes = game?.halftimeDurationMinutes ?: 15
     val extraTimeHalfDurationMinutes = game?.extraTimeHalfDurationMinutes ?: 15
     val maxSubstitutionsAllowed = game?.maxSubstitutionsAllowed ?: 5
+    val hasTemporaryDismissals = game?.hasTemporaryDismissals ?: false
+    val temporaryDismissalMinutes = game?.temporaryDismissalMinutes ?: 0
     val kickOffTeam = game?.kickOffTeam ?: Team.HOME
+    val hasPenalties = game?.hasPenalties ?: false
+    val penaltyKicksPerTeam = game?.penaltyKicksPerTeam ?: 5
 
     ScreenScaffold(
         scrollIndicator = {
@@ -269,7 +277,7 @@ fun PreGameSetupScreen(
                         onClick = onEditHomeCaptainClick,
                         label = {
                             Text(
-                                "C: $homeCaptain",
+                                stringResource(R.string.captain_chip, homeCaptain),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -287,7 +295,7 @@ fun PreGameSetupScreen(
                         onClick = onEditAwayCaptainClick,
                         label = {
                             Text(
-                                "C: $awayCaptain",
+                                stringResource(R.string.captain_chip, awayCaptain),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -375,6 +383,49 @@ fun PreGameSetupScreen(
                 )
             }
 
+            // Zeitstrafen (Temporary Dismissals)
+            item {
+                MatchRuleToggle(
+                    label = stringResource(R.string.temporary_dismissal_enabled),
+                    enabled = hasTemporaryDismissals,
+                    onToggle = onToggleHasTemporaryDismissals
+                )
+            }
+            if (hasTemporaryDismissals) {
+                item {
+                    DurationSettingStepper(
+                        label = stringResource(R.string.temporary_dismissal_minutes),
+                        currentValue = temporaryDismissalMinutes,
+                        onValueChange = onSetTemporaryDismissalMinutes,
+                        valueRange = 1..60,
+                        step = 1
+                    )
+                }
+            }
+
+            // Penalty Shootout: on/off + number of kicks per team
+            // The on/off drives `hasPenalties`, which the watch phase flow
+            // (WearGameViewModel#proceedToNextPhaseManager) checks at the end
+            // of extra time to decide whether to enter the shootout.
+            item {
+                MatchRuleToggle(
+                    label = stringResource(R.string.penalty_shootout_enabled),
+                    enabled = hasPenalties,
+                    onToggle = onToggleHasPenalties
+                )
+            }
+            if (hasPenalties) {
+                item {
+                    DurationSettingStepper(
+                        label = stringResource(R.string.penalty_kicks_per_team),
+                        currentValue = penaltyKicksPerTeam,
+                        onValueChange = onSetPenaltyKicksPerTeam,
+                        valueRange = 1..20,
+                        step = 1
+                    )
+                }
+            }
+
             // Create Match Button
             item {
                 EdgeButton(
@@ -422,7 +473,7 @@ fun TeamNameEditDialogContent(
             trailingIcon = {
                 Icon(
                     Icons.Filled.Check,
-                    contentDescription = "Save",
+                    contentDescription = stringResource(R.string.save),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable {
                         val cleaned = text.trim()
@@ -440,7 +491,7 @@ fun TeamNameEditDialogContent(
                 unfocusedIndicatorColor = MaterialTheme.colorScheme.outline
             ),
             keyboardOptions = KeyboardOptions.Default.copy(
-                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.None,
+                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Characters,
                 autoCorrectEnabled = false,
                 imeAction = ImeAction.Done
             ),
@@ -508,7 +559,7 @@ fun NumberEditDialogContent(
             trailingIcon = {
                 Icon(
                     Icons.Filled.Check,
-                    contentDescription = "Save",
+                    contentDescription = stringResource(R.string.save),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable { onSave(text.toIntOrNull()) }
                 )
@@ -672,7 +723,7 @@ fun SimpleColorPickerDialog(
                                 if (color == selectedColor) {
                                     Icon(
                                         imageVector = Icons.Default.Check,
-                                        contentDescription = "Selected",
+                                        contentDescription = stringResource(R.string.selected),
                                         tint = if (color.luminance() > 0.5f) Color.Black else Color.White,
                                         modifier = Modifier.size(24.dp)
                                     )
@@ -741,6 +792,47 @@ fun DurationSettingStepper(
     }
 }
 
+/**
+ * Generic On/off toggle for match rules. Wear Material 3 has no Switch, so
+ * we use a single large Button whose label flips between "AN" and "AUS" with
+ * a tinted background. The state is owned by the parent — we just render.
+ */
+@Composable
+fun MatchRuleToggle(
+    label: String,
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleSmall,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(2.dp))
+        Button(
+            onClick = { onToggle(!enabled) },
+            modifier = Modifier.fillMaxWidth(0.6f),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (enabled) MaterialTheme.colorScheme.primary
+                                 else MaterialTheme.colorScheme.surfaceContainer,
+                contentColor = if (enabled) MaterialTheme.colorScheme.onPrimary
+                               else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        ) {
+            Text(
+                text = if (enabled) stringResource(R.string.toggle_on)
+                       else stringResource(R.string.toggle_off),
+                style = MaterialTheme.typography.labelLarge,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
 // --------------------------------------- Previews ----------------------------------------
 @Preview(device = "id:wearos_small_round", showBackground = true)
 @Preview(device = "id:wearos_square", showBackground = true)
@@ -770,6 +862,10 @@ fun PreviewPreGameSetupScreen() {
             onSetHalftimeDuration = {},
             onSetExtraTimeDuration = {},
             onSetMaxSubstitutions = {},
+            onToggleHasTemporaryDismissals = {},
+            onSetTemporaryDismissalMinutes = {},
+            onToggleHasPenalties = {},
+            onSetPenaltyKicksPerTeam = {},
             onCreateMatchClick = {}
         )
     }

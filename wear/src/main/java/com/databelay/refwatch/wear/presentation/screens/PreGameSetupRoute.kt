@@ -52,6 +52,10 @@ fun PreGameSetupRoute(
         onSetHalftimeDuration = { duration -> gameViewModel.setHalftimeDuration(duration) },
         onSetExtraTimeDuration = { duration -> gameViewModel.setExtraTimeDuration(duration) },
         onSetMaxSubstitutions = { max -> gameViewModel.updateMaxSubstitutions(max) },
+        onToggleHasTemporaryDismissals = { enabled -> gameViewModel.setHasTemporaryDismissals(enabled) },
+        onSetTemporaryDismissalMinutes = { mins -> gameViewModel.setTemporaryDismissalMinutes(mins) },
+        onToggleHasPenalties = { enabled -> gameViewModel.setHasPenalties(enabled) },
+        onSetPenaltyKicksPerTeam = { count -> gameViewModel.setPenaltyKicksPerTeam(count) },
         onCreateMatchClick = {
             gameViewModel.activeGame.value?.let { game ->
                 gameViewModel.proceedToNextPhaseManager(game.copy())

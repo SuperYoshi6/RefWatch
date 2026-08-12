@@ -1,9 +1,9 @@
 plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    id("com.android.library")
-    id("org.jetbrains.kotlin.android")
+    alias(libs.plugins.kotlin.serialization)
     id("kotlin-parcelize")
-    kotlin("plugin.serialization") version "2.1.21"
 }
 
 android {

@@ -64,6 +64,7 @@ enum class GamePhase {
     KICK_OFF_SELECTION_PENALTIES,
     PENALTIES,
     GAME_ENDED,
+    ABORTED,
 }
 
 // --- Helper Extension Functions (Place here or in a utils.kt file) ---
@@ -108,19 +109,20 @@ fun GamePhase.usesHalfDuration(): Boolean {
 
 fun GamePhase.readable(): String {
     return when (this) {
-        GamePhase.FIRST_HALF -> "1st Half"
-        GamePhase.HALF_TIME -> "Halftime"
-        GamePhase.SECOND_HALF -> "2nd Half"
-        GamePhase.GAME_ENDED -> "Game Ended"
-        GamePhase.PRE_GAME -> "Pre-Game"
-        GamePhase.KICK_OFF_SELECTION_FIRST_HALF -> "Kick-Off Selection"
-        GamePhase.KICK_OFF_SELECTION_EXTRA_TIME -> "Kick-Off Selection (ET)"
-        GamePhase.KICK_OFF_SELECTION_PENALTIES -> "Kick-Off Selection (Penalties)"
-        GamePhase.EXTRA_TIME_FIRST_HALF -> "1st Half (ET)"
-        GamePhase.EXTRA_TIME_HALF_TIME -> "Halftime (ET)"
-        GamePhase.EXTRA_TIME_SECOND_HALF -> "2nd Half (ET)"
-        GamePhase.PENALTIES -> "Penalty Shootout"
-        GamePhase.NOT_STARTED -> "Not Started"
+        GamePhase.FIRST_HALF -> "1. Halbzeit"
+        GamePhase.HALF_TIME -> "Halbzeitpause"
+        GamePhase.SECOND_HALF -> "2. Halbzeit"
+        GamePhase.GAME_ENDED -> "Spiel beendet"
+        GamePhase.PRE_GAME -> "Spielvorbereitung"
+        GamePhase.KICK_OFF_SELECTION_FIRST_HALF -> "Anstoß wählen"
+        GamePhase.KICK_OFF_SELECTION_EXTRA_TIME -> "Anstoß wählen (Verlängerung)"
+        GamePhase.KICK_OFF_SELECTION_PENALTIES -> "Anstoß wählen (Elfmeterschießen)"
+        GamePhase.EXTRA_TIME_FIRST_HALF -> "1. Halbzeit (Verlängerung)"
+        GamePhase.EXTRA_TIME_HALF_TIME -> "Halbzeit (Verlängerung)"
+        GamePhase.EXTRA_TIME_SECOND_HALF -> "2. Halbzeit (Verlängerung)"
+        GamePhase.PENALTIES -> "Elfmeterschießen"
+        GamePhase.NOT_STARTED -> "Nicht gestartet"
+        GamePhase.ABORTED -> "Spiel abgebrochen"
     }
 }
 
@@ -148,13 +150,25 @@ fun GamePhase.status(): GameStatus {
         GamePhase.EXTRA_TIME_SECOND_HALF,
         GamePhase.KICK_OFF_SELECTION_PENALTIES,
         GamePhase.PENALTIES -> GameStatus.IN_PROGRESS
-        GamePhase.GAME_ENDED -> GameStatus.COMPLETED
+        GamePhase.GAME_ENDED,
+        GamePhase.ABORTED -> GameStatus.COMPLETED
     }
 }
 //
 fun GamePhase.isBreak(): Boolean {
     return this == GamePhase.HALF_TIME ||
             this == GamePhase.EXTRA_TIME_HALF_TIME
+}
+
+fun GamePhase.shouldBeLogged(): Boolean {
+    return this == GamePhase.FIRST_HALF ||
+            this == GamePhase.SECOND_HALF ||
+            this == GamePhase.EXTRA_TIME_FIRST_HALF ||
+            this == GamePhase.EXTRA_TIME_SECOND_HALF ||
+            this == GamePhase.PENALTIES ||
+            this == GamePhase.HALF_TIME ||
+            this == GamePhase.EXTRA_TIME_HALF_TIME ||
+            this == GamePhase.GAME_ENDED
 }
 
 fun GamePhase.isPlayablePhase(): Boolean { // Phases where goals/cards can be recorded
