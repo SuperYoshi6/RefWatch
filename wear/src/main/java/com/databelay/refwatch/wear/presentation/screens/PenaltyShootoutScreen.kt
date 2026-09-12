@@ -39,6 +39,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.wear.compose.material3.AlertDialogDefaults
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.MaterialTheme
@@ -71,174 +74,180 @@ fun PenaltyShootoutScreen(
     var isManualEntry by remember { mutableStateOf(false) }
 
     val currentRoster = remember(game.kickOffTeam, game.homeRoster, game.awayRoster) {
-        if (game.kickOffTeam == Team.HOME) game.homeRoster.filter { it.isOnField }
-        else game.awayRoster.filter { it.isOnField }
+        if (game.kickOffTeam == Team.HOME) game.homeRoster.filter { it.onField }
+        else game.awayRoster.filter { it.onField }
     }
 
-    ScreenScaffold {
-        if (showKickerDialog && currentRoster.isNotEmpty() && !isManualEntry) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = stringResource(R.string.penalty_kicker_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                PlayerPicker(
-                    players = currentRoster,
-                    onPlayerSelected = { 
-                        pendingKicker = it.number
-                        showKickerDialog = false
-                    },
-                    onManualEntry = { isManualEntry = true }
-                )
-            }
-        } else {
-            Column(
-                modifier = modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceAround
-            ) {
+    val listState = rememberScalingLazyListState()
+
+    if (showKickerDialog && currentRoster.isNotEmpty() && !isManualEntry) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(R.string.penalty_kicker_title),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            PlayerPicker(
+                players = currentRoster,
+                onPlayerSelected = { 
+                    pendingKicker = it.number
+                    showKickerDialog = false
+                },
+                onManualEntry = { isManualEntry = true }
+            )
+        }
+    } else {
+        ScalingLazyColumn(
+            modifier = modifier.fillMaxSize(),
+            state = listState,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            contentPadding = PaddingValues(
+                top = 32.dp, // Give more space at top
+                start = 10.dp,
+                end = 10.dp,
+                bottom = 40.dp // Extra space at bottom to allow scrolling buttons into view
+            ),
+            autoCentering = null // Manual control over positioning
+        ) {
+            item {
                 Text(
                     text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center,
                 )
+            }
+// ... rest of ScalingLazyColumn items
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    val homeHasKickOff =
-                        game.kickOffTeam == Team.HOME && game.currentPhase.isPlayablePhase()
-                    ColorIndicator(
-                        color = game.homeTeamColor,
-                        hasKickOffBorder = homeHasKickOff,
-                    )
-                    Text(
-                        "${game.homeScore} - ${game.awayScore}",
-                        style = MaterialTheme.typography.displayLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold
-                    )
-                    val awayHasKickOff =
-                        game.kickOffTeam == Team.AWAY && game.currentPhase.isPlayablePhase()
-                    ColorIndicator(
-                        color = game.awayTeamColor,
-                        hasKickOffBorder = awayHasKickOff
-                    )
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        val homeHasKickOff =
+                            game.kickOffTeam == Team.HOME && game.currentPhase.isPlayablePhase()
+                        ColorIndicator(
+                            color = game.homeTeamColor,
+                            hasKickOffBorder = homeHasKickOff,
+                        )
+                        Text(
+                            "${game.homeScore} - ${game.awayScore}",
+                            style = MaterialTheme.typography.displayMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold
+                        )
+                        val awayHasKickOff =
+                            game.kickOffTeam == Team.AWAY && game.currentPhase.isPlayablePhase()
+                        ColorIndicator(
+                            color = game.awayTeamColor,
+                            hasKickOffBorder = awayHasKickOff
+                        )
+                    }
                 }
 
-                Text(
-                    text = "${game.currentPhase.localizedName()}: ${game.penaltiesTakenHome} - ${game.penaltiesTakenAway}",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.secondary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                val takerName =
-                    if (game.kickOffTeam == Team.HOME) game.homeTeamName else game.awayTeamName
-                Spacer(modifier = Modifier.padding(2.dp))
-                Button(
-                    onClick = { showKickerDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(ButtonDefaults.LargeIconSize),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    )
-                ) {
+                item {
                     Text(
-                        text = pendingKicker?.let { "#$it" }
-                            ?: stringResource(R.string.penalty_kicker_prompt, takerName),
-                        style = MaterialTheme.typography.titleSmall,
+                        text = "${game.currentPhase.localizedName()}: ${game.penaltiesTakenHome} - ${game.penaltiesTakenAway}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary,
                         textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurface
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
 
-                Spacer(modifier = Modifier.padding(2.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.CenterHorizontally),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                item {
+                    val takerName = if (game.kickOffTeam == Team.HOME) game.homeTeamName else game.awayTeamName
                     Button(
-                        onClick = {
-                            val kicker = pendingKicker
-                            if (kicker != null) {
-                                onPenaltyAttemptRecorded(true, kicker)
-                                pendingKicker = null
-                            }
-                        },
-                        enabled = pendingKicker != null,
+                        onClick = { showKickerDialog = true },
                         modifier = Modifier
-                            .weight(1f)
-                            .height(ButtonDefaults.LargeIconSize),
+                            .fillMaxWidth()
+                            .height(48.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer
                         )
                     ) {
                         Text(
-                            stringResource(R.string.penalty_scored),
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.fillMaxWidth(),
+                            text = pendingKicker?.let { "#$it" }
+                                ?: stringResource(R.string.penalty_kicker_prompt, takerName),
+                            style = MaterialTheme.typography.titleSmall,
                             textAlign = TextAlign.Center,
-                        )
-                    }
-                    Text(
-                        text = stringResource(R.string.goal_increment),
-                        modifier = Modifier.padding(horizontal = 6.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Button(
-                        onClick = {
-                            val kicker = pendingKicker
-                            if (kicker != null) {
-                                onPenaltyAttemptRecorded(false, kicker)
-                                pendingKicker = null
-                            }
-                        },
-                        enabled = pendingKicker != null,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(ButtonDefaults.LargeIconSize),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Text(
-                            stringResource(R.string.penalty_missed),
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
-                Spacer(modifier = Modifier.padding(2.dp))
-                Text(
-                    text = stringResource(
-                        R.string.taken_score_inline,
-                        game.penaltiesTakenHome,
-                        game.penaltiesTakenAway
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center
-                )
+
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = {
+                                val kicker = pendingKicker
+                                if (kicker != null) {
+                                    onPenaltyAttemptRecorded(true, kicker)
+                                    pendingKicker = null
+                                }
+                            },
+                            enabled = pendingKicker != null,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(42.dp), // Slightly shorter to fit better
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Text(
+                                stringResource(R.string.penalty_scored),
+                                style = MaterialTheme.typography.labelSmall, // Smaller font
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                        
+                        Button(
+                            onClick = {
+                                val kicker = pendingKicker
+                                if (kicker != null) {
+                                    onPenaltyAttemptRecorded(false, kicker)
+                                    pendingKicker = null
+                                }
+                            },
+                            enabled = pendingKicker != null,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(42.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Text(
+                                stringResource(R.string.penalty_missed),
+                                style = MaterialTheme.typography.labelSmall,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                }
+                
+                item {
+                    Text(
+                        text = stringResource(
+                            R.string.taken_score_inline,
+                            game.penaltiesTakenHome,
+                            game.penaltiesTakenAway
+                        ),
+                        style = MaterialTheme.typography.bodyExtraSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         }
-    }
 
     if (showKickerDialog && (currentRoster.isEmpty() || isManualEntry)) {
         KickerNumberDialog(
@@ -293,13 +302,16 @@ private fun KickerNumberDialog(
             }
             OutlinedTextField(
                 value = number,
-                onValueChange = { number = it.filter { c -> c.isDigit() }.take(3) },
+                onValueChange = { 
+                    val filtered = it.filter { c -> c.isDigit() }
+                    if (filtered.length <= 2) number = filtered // Limit to 2 digits (1-99)
+                },
                 label = { Text(stringResource(R.string.enter_number)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 keyboardActions = KeyboardActions(
                     onDone = {
                         val n = number.toIntOrNull()
-                        if (n != null && n > 0) onConfirm(n) else
+                        if (n != null && n in 1..99) onConfirm(n) else
                             Toast.makeText(context, enterNumberPrompt, Toast.LENGTH_SHORT).show()
                     }
                 ),

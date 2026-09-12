@@ -2,6 +2,7 @@ package com.databelay.refwatch.wear.presentation.utils
 
 import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.GenericLogEvent
+import com.databelay.refwatch.common.getMatchMinute
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

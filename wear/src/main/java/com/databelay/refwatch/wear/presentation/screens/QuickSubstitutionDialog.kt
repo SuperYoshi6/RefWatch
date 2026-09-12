@@ -66,18 +66,18 @@ import com.databelay.refwatch.wear.presentation.components.PlayerPicker
 fun QuickSubstitutionDialog(
     team: Team,
     roster: List<Player> = emptyList(),
-    onConfirm: (outgoing: Int, incoming: Int) -> Unit,
+    onConfirm: (outgoing: String, incoming: String) -> Unit,
     onDismiss: () -> Unit
 ) {
     // The outgoing number captured in window 1, reused when window 2 submits.
-    var outgoingNumber by remember { mutableStateOf<Int?>(null) }
+    var outgoingNumber by remember { mutableStateOf<String?>(null) }
     var isManualEntry by remember { mutableStateOf(roster.isEmpty()) }
 
     val outgoing = outgoingNumber
     if (outgoing == null) {
         OutgoingPlayerDialog(
             team = team,
-            roster = roster.filter { it.isOnField },
+            roster = roster.filter { it.onField },
             isManualEntry = isManualEntry,
             onSetManual = { isManualEntry = true },
             onSubmit = { outNum ->
@@ -90,7 +90,7 @@ fun QuickSubstitutionDialog(
     } else {
         IncomingPlayerDialog(
             team = team,
-            roster = roster.filter { !it.isOnField },
+            roster = roster.filter { !it.onField },
             isManualEntry = isManualEntry,
             onSetManual = { isManualEntry = true },
             onSubmit = { inNum ->
@@ -113,7 +113,7 @@ private fun OutgoingPlayerDialog(
     roster: List<Player>,
     isManualEntry: Boolean,
     onSetManual: () -> Unit,
-    onSubmit: (Int) -> Unit,
+    onSubmit: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -126,7 +126,7 @@ private fun OutgoingPlayerDialog(
                 Text(stringResource(R.string.outgoing_player), style = MaterialTheme.typography.labelMedium)
                 PlayerPicker(
                     players = roster,
-                    onPlayerSelected = { onSubmit(it.number) },
+                    onPlayerSelected = { onSubmit(it.number.toString()) },
                     onManualEntry = onSetManual
                 )
             }
@@ -136,11 +136,10 @@ private fun OutgoingPlayerDialog(
                 title = stringResource(R.string.substitution),
                 prompt = stringResource(R.string.outgoing_player),
                 value = number,
-                onValueChange = { number = it.filter { c -> c.isDigit() }.take(3) },
+                onValueChange = { number = it.filter { c -> c.isDigit() || c == ',' || c == '+' }.take(12) },
                 onSubmit = {
-                    val n = number.toIntOrNull()
-                    if (n != null) {
-                        onSubmit(n)
+                    if (number.isNotBlank()) {
+                        onSubmit(number)
                     } else {
                         Toast.makeText(context, enterNumberPrompt, Toast.LENGTH_SHORT).show()
                     }
@@ -161,7 +160,7 @@ private fun IncomingPlayerDialog(
     roster: List<Player>,
     isManualEntry: Boolean,
     onSetManual: () -> Unit,
-    onSubmit: (Int) -> Unit,
+    onSubmit: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -174,7 +173,7 @@ private fun IncomingPlayerDialog(
                 Text(stringResource(R.string.incoming_player), style = MaterialTheme.typography.labelMedium)
                 PlayerPicker(
                     players = roster,
-                    onPlayerSelected = { onSubmit(it.number) },
+                    onPlayerSelected = { onSubmit(it.number.toString()) },
                     onManualEntry = onSetManual
                 )
             }
@@ -184,11 +183,10 @@ private fun IncomingPlayerDialog(
                 title = stringResource(R.string.substitution),
                 prompt = stringResource(R.string.incoming_player),
                 value = number,
-                onValueChange = { number = it.filter { c -> c.isDigit() }.take(3) },
+                onValueChange = { number = it.filter { c -> c.isDigit() || c == ',' || c == '+' }.take(12) },
                 onSubmit = {
-                    val n = number.toIntOrNull()
-                    if (n != null) {
-                        onSubmit(n)
+                    if (number.isNotBlank()) {
+                        onSubmit(number)
                     } else {
                         Toast.makeText(context, enterNumberPrompt, Toast.LENGTH_SHORT).show()
                     }
@@ -243,7 +241,7 @@ private fun SubstitutionEntryColumn(
             value = value,
             onValueChange = onValueChange,
             label = { Text(stringResource(R.string.enter_number)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             keyboardActions = KeyboardActions(onDone = { onSubmit() }),
             singleLine = true,
             modifier = Modifier

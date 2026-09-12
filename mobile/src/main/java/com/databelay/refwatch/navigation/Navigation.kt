@@ -41,7 +41,6 @@ import com.databelay.refwatch.data.AddEditGameViewModel
 import com.databelay.refwatch.screens.AuthScreenRoute
 import com.databelay.refwatch.screens.GameListScreen
 import com.databelay.refwatch.screens.GameLogScreen
-import com.databelay.refwatch.screens.StatisticsScreen
 import com.databelay.refwatch.data.MobileGameViewModel
 import com.databelay.refwatch.data.OnboardingStep
 import com.databelay.refwatch.data.OnboardingViewModel
@@ -90,7 +89,6 @@ fun RefWatchNavHost() {
                 if (currentRoute != MobileNavRoutes.GAME_LIST_SCREEN &&
                     currentRoute?.startsWith(MobileNavRoutes.ADD_EDIT_GAME_SCREEN.substringBefore("?")) != true &&
                     currentRoute != MobileNavRoutes.SETTINGS_SCREEN && 
-                    currentRoute != MobileNavRoutes.STATISTICS_SCREEN && // Ensure statistics screen doesn't cause re-navigation
                     currentRoute?.startsWith(MobileNavRoutes.GAME_LOG_SCREEN.substringBefore("?")) != true // Ensure game log doesn't cause re-navigation
                 ) {
                     Log.d(TAG, "Navigating to GAME_LIST_SCREEN due to Authenticated state from $currentRoute.")
@@ -158,18 +156,12 @@ fun RefWatchNavHost() {
         composable(MobileNavRoutes.SETTINGS_SCREEN) {
             SettingsScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToStatistics = { navController.navigate(MobileNavRoutes.STATISTICS_SCREEN) },
                 onDeleteAccountConfirmed = {
                     authViewModel.deleteUserAccount()
                 },
                 onDeleteAllCompletedGames = {
                     mobileGameViewModel.deleteAllCompletedGames()
                 }
-            )
-        }
-        composable(MobileNavRoutes.STATISTICS_SCREEN) {
-            StatisticsScreen(
-                onNavigateBack = { navController.popBackStack() }
             )
         }
         composable(MobileNavRoutes.LOADING_SCREEN) {

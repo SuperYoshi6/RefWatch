@@ -19,6 +19,7 @@ import android.os.Vibrator
 import android.os.VibrationEffect
 import com.databelay.refwatch.common.regulationPeriodDurationMillis
 import android.util.Log
+import androidx.compose.runtime.Immutable
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.wear.ongoing.OngoingActivity
@@ -52,6 +53,7 @@ const val ONGOING_NOTIFICATION_ID_VM = 123
 const val COUNTDOWN_INTERVAL_MS = 1000L
 const val MAX_ADDED_TIME_COUNTUP_DURATION = 1000L*60*60
 
+@Immutable
 data class TimerState(
     val actualTimeElapsedInPeriodMillis: Long = 0L,
     val isTimerRunning: Boolean = false,
@@ -138,7 +140,7 @@ class GameTimerService : Service() {
                     startGameTimer(game, initialElapsed, initialElapsed >= currentRegulationDuration)
                 }
             } else {
-                initialElapsed = 0L
+                initialElapsed = game.actualTimeElapsedInPeriodMillis
                 mainTimerJob?.cancel()
             }
 
@@ -175,10 +177,12 @@ class GameTimerService : Service() {
     private fun canPostNotifications(): Boolean = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     fun startGameTimer(game: Game, elapsedMillisAtActivation: Long = 0L, isInAddedTimeInitially: Boolean = false, shouldVibrate: Boolean = true) {
+        // IMMEDIATE UPDATE: Tell everyone we are running NOW, don't wait for coroutine launch.
+        _timerStateFlow.update { it.copy(isTimerRunning = true, currentPhase = game.currentPhase, inAddedTime = isInAddedTimeInitially) }
+
         serviceScope.launch {
             acquireWakeLock()
             val currentRegulationDuration = game.regulationPeriodDurationMillis()
-            _timerStateFlow.update { it.copy(isTimerRunning = true, currentPhase = game.currentPhase, inAddedTime = isInAddedTimeInitially) }
             mainTimerJob?.cancel()
             timerStartTimeRealtime = SystemClock.elapsedRealtime()
 
@@ -207,7 +211,11 @@ class GameTimerService : Service() {
                     val currentTimerState = _timerStateFlow.value
                     val timeThisTickerHasRun = SystemClock.elapsedRealtime() - timerStartTimeRealtime
                     val newActualElapsed = elapsedMillisAtActivation + timeThisTickerHasRun
-                    val newDisplayedMillis = if (currentTimerState.inAddedTime) timeThisTickerHasRun else currentRegulationDuration - newActualElapsed
+                    val newDisplayedMillis = if (currentTimerState.inAddedTime) {
+                        (newActualElapsed - currentRegulationDuration).coerceAtLeast(0L)
+                    } else {
+                        (currentRegulationDuration - newActualElapsed).coerceAtLeast(0L)
+                    }
 
                     _timerStateFlow.update { it.copy(actualTimeElapsedInPeriodMillis = newActualElapsed, displayedMillis = newDisplayedMillis) }
 
@@ -267,7 +275,15 @@ class GameTimerService : Service() {
             val game = currentInternalGame ?: return@launch
             if (finishedPhase.hasTimer() && !(_timerStateFlow.value.inAddedTime)) {
                 val regDur = game.regulationPeriodDurationMillis(finishedPhase)
-                _timerStateFlow.update { it.copy(isTimerRunning = true, actualTimeElapsedInPeriodMillis = regDur, inAddedTime = true) }
+                
+                // NO GAP TRANSITION: Immediately set isTimerRunning=true for added time
+                _timerStateFlow.update { it.copy(
+                    isTimerRunning = true, 
+                    actualTimeElapsedInPeriodMillis = regDur, 
+                    inAddedTime = true,
+                    displayedMillis = 0L // Starts counting up from here
+                ) }
+                
                 startGameTimer(game, regDur, true)
             } else {
                 val state = _timerStateFlow.value
@@ -288,17 +304,18 @@ class GameTimerService : Service() {
 
     fun toggleStoppageTimer() {
         val newState = !_timerStateFlow.value.isStoppageTimerRunning
+        updateStoppageTimerState(newState)
+    }
 
-        if (newState) {
+    private fun updateStoppageTimerState(isRunning: Boolean) {
+        if (isRunning) {
             // Pause the main timer and start the stoppage (green) timer.
-            // The green timer counts the duration of the interruption.
             _timerStateFlow.update { it.copy(isTimerRunning = false, isStoppageTimerRunning = true) }
             mainTimerJob?.cancel()
             startStoppageTimer()
             updateNotificationAndOngoingActivity("Stoppage Time", isOngoing = true)
         } else {
             // Stop the stoppage timer and resume the main timer.
-            // The green timer's accumulated value is preserved for added-time display.
             stopStoppageTimer()
             _timerStateFlow.update { it.copy(isStoppageTimerRunning = false) }
             val game = currentInternalGame ?: return
@@ -308,6 +325,54 @@ class GameTimerService : Service() {
                 val isInAdded = elapsed >= regDur
                 startGameTimer(game, elapsed, isInAdded, shouldVibrate = false)
             }
+        }
+    }
+
+    /**
+     * ATOMIC SYNC: Applies a full timer state from a remote source (Firestore).
+     * This avoids individual field updates/toggles fighting each other.
+     */
+    fun applyRemoteState(
+        remoteGame: Game
+    ) {
+        // ALWAYS update the internal game reference first so we have the latest durations
+        currentInternalGame = remoteGame
+        
+        val regDur = remoteGame.regulationPeriodDurationMillis(remoteGame.currentPhase)
+        val isTimerRunning = remoteGame.isTimerRunning
+        val isStoppageTimerRunning = remoteGame.isStoppageTimerRunning
+        val actualElapsed = remoteGame.actualTimeElapsedInPeriodMillis
+        val stoppageMillis = remoteGame.stoppageTimeMillis
+        
+        // 1. Update the flows SYNC (immediately)
+        _timerStateFlow.update { it.copy(
+            currentPhase = remoteGame.currentPhase,
+            actualTimeElapsedInPeriodMillis = actualElapsed,
+            stoppageTimeMillis = stoppageMillis,
+            isTimerRunning = isTimerRunning,
+            isStoppageTimerRunning = isStoppageTimerRunning,
+            inAddedTime = actualElapsed >= regDur,
+            regulationPeriodDurationMillis = regDur
+        ) }
+
+        // 2. Manage the background jobs in scope
+        serviceScope.launch {
+            if (isStoppageTimerRunning) {
+                mainTimerJob?.cancel()
+                startStoppageTimer()
+            } else {
+                stopStoppageTimer()
+            }
+
+            if (isTimerRunning) {
+                startGameTimer(remoteGame, actualElapsed, actualElapsed >= regDur, shouldVibrate = false)
+            } else {
+                mainTimerJob?.cancel()
+            }
+            
+            // 3. UI Update
+            val text = if (isStoppageTimerRunning) "Stoppage Time" else _timerStateFlow.value.displayedMillis.formatTime()
+            updateNotificationAndOngoingActivity(text, isOngoing = isTimerRunning || isStoppageTimerRunning)
         }
     }
 
@@ -325,9 +390,12 @@ class GameTimerService : Service() {
         if (phase == GamePhase.SECOND_HALF || phase == GamePhase.EXTRA_TIME_SECOND_HALF) {
             // Spielende: 3 Mal stark wie eine Pfeife
             vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 300, 500, 300, 500), -1))
-        } else {
+        } else if (phase == GamePhase.FIRST_HALF || phase == GamePhase.EXTRA_TIME_FIRST_HALF) {
             // Halbzeit (Ende 1. Halbzeit): zweimal stark
             vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 300, 500), -1))
+        } else {
+            // Other phases: single pulse
+            vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
         }
     }
 
@@ -341,12 +409,16 @@ class GameTimerService : Service() {
     }
 
     fun resumeGameTimer(game: Game, shouldVibrate: Boolean = true) {
+        if (_timerStateFlow.value.isTimerRunning || !game.currentPhase.hasTimer()) return
+        
+        currentInternalGame = game
+        val regDur = game.regulationPeriodDurationMillis(game.currentPhase)
+        val isInAdded = game.actualTimeElapsedInPeriodMillis >= regDur
+        
+        // IMMEDIATE UPDATE
+        _timerStateFlow.update { it.copy(currentPhase = game.currentPhase, actualTimeElapsedInPeriodMillis = game.actualTimeElapsedInPeriodMillis, inAddedTime = isInAdded, isTimerRunning = true) }
+
         serviceScope.launch {
-            if (_timerStateFlow.value.isTimerRunning || !game.currentPhase.hasTimer()) return@launch
-            currentInternalGame = game
-            val regDur = game.regulationPeriodDurationMillis(game.currentPhase)
-            val isInAdded = game.actualTimeElapsedInPeriodMillis >= regDur
-            _timerStateFlow.update { it.copy(currentPhase = game.currentPhase, actualTimeElapsedInPeriodMillis = game.actualTimeElapsedInPeriodMillis, inAddedTime = isInAdded) }
             startGameTimer(game, game.actualTimeElapsedInPeriodMillis, isInAdded, shouldVibrate = shouldVibrate)
         }
     }

@@ -29,7 +29,7 @@ import kotlinx.coroutines.delay
 fun LogSubstitutionScreen(
     team: Team,
     roster: List<Player> = emptyList(),
-    onLogSubstitution: (outgoing: Int, incoming: Int) -> Unit,
+    onLogSubstitution: (outgoing: String, incoming: String) -> Unit,
     onCancel: () -> Unit
 ) {
     var outgoingNumber by remember { mutableStateOf("") }
@@ -42,9 +42,9 @@ fun LogSubstitutionScreen(
 
     val currentRosterSource = remember(isEnteringIncoming, roster) {
         if (!isEnteringIncoming) {
-            roster.filter { it.isOnField }
+            roster.filter { it.onField }
         } else {
-            roster.filter { !it.isOnField }
+            roster.filter { !it.onField }
         }
     }
 
@@ -75,7 +75,7 @@ fun LogSubstitutionScreen(
                             outgoingNumber = player.number.toString()
                             isEnteringIncoming = true
                         } else {
-                            onLogSubstitution(outgoingNumber.toInt(), player.number)
+                            onLogSubstitution(outgoingNumber, player.number.toString())
                         }
                     },
                     onManualEntry = { isManualEntry = true }
@@ -98,13 +98,15 @@ fun LogSubstitutionScreen(
                 OutlinedTextField(
                     value = if (!isEnteringIncoming) outgoingNumber else incomingNumber,
                     onValueChange = { newValue ->
-                        if (newValue.length <= 3 && newValue.all { char -> char.isDigit() }) {
-                            if (!isEnteringIncoming) outgoingNumber = newValue else incomingNumber = newValue
+                        // Allow digits, comma and plus for multiple subs
+                        val filtered = newValue.filter { char -> char.isDigit() || char == ',' || char == '+' }
+                        if (filtered.length <= 12) { // Allow more space for "1, 2, 3" etc
+                            if (!isEnteringIncoming) outgoingNumber = filtered else incomingNumber = filtered
                         }
                     },
-                    modifier = Modifier.focusRequester(focusRequester).width(80.dp),
+                    modifier = Modifier.focusRequester(focusRequester).fillMaxWidth(0.8f),
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
+                        keyboardType = KeyboardType.Text, // Need Text for comma/plus
                         imeAction = ImeAction.Done
                     ),
                     keyboardActions = androidx.compose.foundation.text.KeyboardActions(
@@ -115,10 +117,8 @@ fun LogSubstitutionScreen(
                                     if (roster.isNotEmpty()) isManualEntry = false
                                 }
                             } else {
-                                val outNum = outgoingNumber.toIntOrNull()
-                                val inNum = incomingNumber.toIntOrNull()
-                                if (outNum != null && inNum != null) {
-                                    onLogSubstitution(outNum, inNum)
+                                if (outgoingNumber.isNotBlank() && incomingNumber.isNotBlank()) {
+                                    onLogSubstitution(outgoingNumber, incomingNumber)
                                 }
                             }
                         }
@@ -136,41 +136,46 @@ fun LogSubstitutionScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AlertDialogDefaults.DismissButton(onClick = {
-                        if (isEnteringIncoming) {
-                            isEnteringIncoming = false
-                            if (roster.isNotEmpty()) isManualEntry = false
-                        } else if (roster.isNotEmpty() && isManualEntry) {
-                            isManualEntry = false
-                        } else {
-                            onCancel()
-                        }
-                    })
-                    
-                    AlertDialogDefaults.ConfirmButton(
+                    Button(
                         onClick = {
+                            if (isEnteringIncoming) {
+                                isEnteringIncoming = false
+                                if (roster.isNotEmpty()) isManualEntry = false
+                            } else if (roster.isNotEmpty() && isManualEntry) {
+                                isManualEntry = false
+                            } else {
+                                onCancel()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                    ) {
+                        Text(stringResource(R.string.back))
+                    }
+                    
+                    Button(
+                        onClick = {
+                            val enterNumberPrompt = context.getString(R.string.enter_valid_player_number)
                             if (!isEnteringIncoming) {
                                 if (outgoingNumber.isNotBlank()) {
                                     isEnteringIncoming = true
                                     if (roster.isNotEmpty()) isManualEntry = false
                                 } else {
-                                    Toast.makeText(context, context.getString(R.string.enter_number_toast), Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, enterNumberPrompt, Toast.LENGTH_SHORT).show()
                                 }
                             } else {
-                                if (incomingNumber.isNotBlank()) {
-                                    val outNum = outgoingNumber.toIntOrNull()
-                                    val inNum = incomingNumber.toIntOrNull()
-                                    if (outNum != null && inNum != null) {
-                                        onLogSubstitution(outNum, inNum)
-                                    }
+                                if (outgoingNumber.isNotBlank() && incomingNumber.isNotBlank()) {
+                                    onLogSubstitution(outgoingNumber, incomingNumber)
                                 } else {
-                                    Toast.makeText(context, context.getString(R.string.enter_number_toast), Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, enterNumberPrompt, Toast.LENGTH_SHORT).show()
                                 }
                             }
                         }
-                    )
+                    ) {
+                        Text(stringResource(R.string.confirm))
+                    }
                 }
             }
         }

@@ -25,10 +25,15 @@ import java.util.UUID
 @IgnoreExtraProperties
 @Keep
 data class Player(
+    val id: String = UUID.randomUUID().toString(), // Added unique ID
     val name: String = "",
     val number: Int = 0,
-    val isCaptain: Boolean = false,
-    val isOnField: Boolean = true
+    @get:PropertyName("captain")
+    @set:PropertyName("captain")
+    var captain: Boolean = false,
+    @get:PropertyName("onField")
+    @set:PropertyName("onField")
+    var onField: Boolean = true
 )
 
 @Serializable
@@ -85,7 +90,7 @@ data class Game(
     var assistantReferee1: String? = null,
     var assistantReferee2: String? = null,
     // Live State Fields (updated by watch, synced via phone to Firebase)
-    val inAddedTime: Boolean = false, // Is the current playable period in added time?
+    var inAddedTime: Boolean = false, // Is the current playable period in added time?
     var hasExtraTime: Boolean = false, // True if extra time has been initiated
     var hasPenalties: Boolean = false, // True if extra time has been initiated
     var hasTemporaryDismissals: Boolean = false,
@@ -110,27 +115,27 @@ data class Game(
     var displayedTimeMillis: Long = 2700000L,
     var actualTimeElapsedInPeriodMillis: Long = 0L,
     var stoppageTimeMillis: Long = 0L,
+    @get:PropertyName("isTimerRunning")
+    @set:PropertyName("isTimerRunning")
     var isTimerRunning: Boolean = false,
+    @get:PropertyName("isStoppageTimerRunning")
+    @set:PropertyName("isStoppageTimerRunning")
     var isStoppageTimerRunning: Boolean = false,
     @get:Exclude
     val needsSyncWithPhone: Boolean = false, // Store locally on watch, needs sync with phone
     var maxSubstitutionsAllowed: Int = 5,
     var temporaryDismissalMinutes: Int = 0,
+    var kickoffCountdownStartTimeMillis: Long? = null,
     @get:Exclude
     val events: List<GameEvent> = emptyList() // We will sync this one manually
 )  {
     // Computed property for GameStatus
-    // If you use Kotlinx.serialization and don't want this in Firestore,
-    // you might not need @Transient if it's just a getter.
-    // If it were a var with a backing field you didn't want to store, you'd use @Transient.
     @get:Exclude
     val status: GameStatus
         get() {
             return currentPhase.status()
         }
     // Secondary constructor for Firestore deserialization, ensures `id` is always present.
-    // No-argument constructor is required by Firestore for deserialization to a custom object.
-    // It's good practice to initialize all fields to default values.
     constructor() : this(
         id = UUID.randomUUID().toString(), // Generate a new ID if none provided
         userId = "",
@@ -183,6 +188,7 @@ data class Game(
         needsSyncWithPhone = false,
         maxSubstitutionsAllowed = 5,
         temporaryDismissalMinutes = 0,
+        kickoffCountdownStartTimeMillis = null,
         events = emptyList()
     )
 
@@ -235,6 +241,7 @@ data class Game(
                 needsSyncWithPhone = false, // Not typically set in defaults directly
                 maxSubstitutionsAllowed = 5,
                 temporaryDismissalMinutes = 0,
+                kickoffCountdownStartTimeMillis = null,
                 events = emptyList()
             )
         }
@@ -268,6 +275,59 @@ data class Game(
         return this.copy(events = updatedEvents, lastUpdated = System.currentTimeMillis())
     }
 
+    /**
+     * Records a substitution, updates the rosters (moves outgoing player to bench,
+     * incoming player to field), and adds a [SubstitutionEvent] to the history.
+     */
+    fun logSubstitution(team: Team, outgoingNum: Int, incomingNum: Int, gameTimeMillis: Double, currentPhase: GamePhase): Game {
+        val roster = if (team == Team.HOME) homeRoster else awayRoster
+        val teamDisplayName = if (team == Team.HOME) (homeTeamAbbr ?: homeTeamName) else (awayTeamAbbr ?: awayTeamName)
+        
+        val event = SubstitutionEvent(
+            team = team,
+            teamDisplayName = teamDisplayName,
+            outgoingPlayerNumber = outgoingNum,
+            incomingPlayerNumber = incomingNum,
+            gameTimeMillis = gameTimeMillis,
+            phase = currentPhase
+        )
+
+        // PERFORMANCE/UX: If the roster is empty, we are "freestyling". We only log 
+        // the event and DO NOT create a local roster. This keeps the UI in 
+        // numeric-input mode instead of switching to a picker mid-game.
+        if (roster.isEmpty()) {
+            return this.copy(
+                events = events + event, 
+                lastUpdated = System.currentTimeMillis()
+            )
+        }
+        
+        // Find players in the current roster. If not found, they might have been entered manually
+        // and aren't in the list yet. We create them if needed to ensure the list stays complete.
+        val updatedRoster = roster.toMutableList()
+        
+        fun getOrAddPlayer(num: Int, shouldBeOnField: Boolean): Player {
+            val existing = updatedRoster.find { it.number == num }
+            if (existing != null) {
+                updatedRoster.remove(existing)
+                return existing.copy(onField = shouldBeOnField)
+            }
+            return Player(number = num, onField = shouldBeOnField)
+        }
+
+        val outPlayer = getOrAddPlayer(outgoingNum, false)
+        val inPlayer = getOrAddPlayer(incomingNum, true)
+        
+        updatedRoster.add(outPlayer)
+        updatedRoster.add(inPlayer)
+        
+        return if (team == Team.HOME) {
+            this.copy(homeRoster = updatedRoster, events = events + event, lastUpdated = System.currentTimeMillis())
+        } else {
+            this.copy(awayRoster = updatedRoster, events = events + event, lastUpdated = System.currentTimeMillis())
+        }
+    }
+
     // In Game.kt
     fun removeEvent(eventToRemove: GameEvent): Game {
         if (!events.contains(eventToRemove)) {
@@ -285,13 +345,30 @@ data class Game(
                     awayScore = if (scoringTeam == Team.AWAY) gameWithEventRemoved.awayScore - 1 else gameWithEventRemoved.awayScore
                 )
             }
-             is PenaltyEvent -> {
+            is PenaltyEvent -> {
                 gameWithEventRemoved = gameWithEventRemoved.copy(
                     homeScore = if (eventToRemove.team == Team.HOME && eventToRemove.scored) gameWithEventRemoved.homeScore - 1 else gameWithEventRemoved.homeScore,
                     awayScore = if (eventToRemove.team == Team.AWAY && eventToRemove.scored) gameWithEventRemoved.awayScore - 1 else gameWithEventRemoved.awayScore,
                     penaltiesTakenHome = if (eventToRemove.team == Team.HOME) (gameWithEventRemoved.penaltiesTakenHome - 1).coerceAtLeast(0) else gameWithEventRemoved.penaltiesTakenHome,
                     penaltiesTakenAway = if (eventToRemove.team == Team.AWAY) (gameWithEventRemoved.penaltiesTakenAway - 1).coerceAtLeast(0) else gameWithEventRemoved.penaltiesTakenAway
                 )
+            }
+            is SubstitutionEvent -> {
+                // Revert roster change
+                val team = eventToRemove.team
+                val roster = if (team == Team.HOME) gameWithEventRemoved.homeRoster else gameWithEventRemoved.awayRoster
+                val updatedRoster = roster.map { player ->
+                    when (player.number) {
+                        eventToRemove.outgoingPlayerNumber -> player.copy(onField = true)
+                        eventToRemove.incomingPlayerNumber -> player.copy(onField = false)
+                        else -> player
+                    }
+                }
+                gameWithEventRemoved = if (team == Team.HOME) {
+                    gameWithEventRemoved.copy(homeRoster = updatedRoster)
+                } else {
+                    gameWithEventRemoved.copy(awayRoster = updatedRoster)
+                }
             }
             else -> {
 
@@ -343,8 +420,8 @@ fun Game.toSnapshotForStorage(): Map<String, Any?> {
         "awayTeamAbbr" to awayTeamAbbr,
         "homeCaptainNumber" to homeCaptainNumber,
         "awayCaptainNumber" to awayCaptainNumber,
-        "homeRoster" to homeRoster.map { mapOf("name" to it.name, "number" to it.number, "isCaptain" to it.isCaptain, "isOnField" to it.isOnField) },
-        "awayRoster" to awayRoster.map { mapOf("name" to it.name, "number" to it.number, "isCaptain" to it.isCaptain, "isOnField" to it.isOnField) },
+        "homeRoster" to homeRoster.map { mapOf("id" to it.id, "name" to it.name, "number" to it.number, "captain" to it.captain, "onField" to it.onField) },
+        "awayRoster" to awayRoster.map { mapOf("id" to it.id, "name" to it.name, "number" to it.number, "captain" to it.captain, "onField" to it.onField) },
         "homeOfficials" to homeOfficials.map { mapOf("id" to it.id, "name" to it.name, "role" to it.role, "number" to it.number) },
         "awayOfficials" to awayOfficials.map { mapOf("id" to it.id, "name" to it.name, "role" to it.role, "number" to it.number) },
         "ageGroup" to ageGroup?.name,
@@ -378,6 +455,7 @@ fun Game.toSnapshotForStorage(): Map<String, Any?> {
         "isStoppageTimerRunning" to isStoppageTimerRunning,
         "maxSubstitutionsAllowed" to maxSubstitutionsAllowed,
         "temporaryDismissalMinutes" to temporaryDismissalMinutes,
+        "kickoffCountdownStartTimeMillis" to kickoffCountdownStartTimeMillis,
         "events" to events.map { event ->
             val jsonElement = AppJsonConfiguration.encodeToJsonElement(GameEvent.serializer(), event)
             jsonElementToAny(jsonElement)

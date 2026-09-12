@@ -43,6 +43,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,6 +67,8 @@ import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameEvent
 import com.databelay.refwatch.common.GoalScoredEvent
 import com.databelay.refwatch.common.SubstitutionEvent
+import com.databelay.refwatch.common.getMatchMinute
+import com.databelay.refwatch.common.readable
 import com.databelay.refwatch.common.shouldBeLogged
 import com.databelay.refwatch.common.theme.AccentGreen
 import com.databelay.refwatch.common.theme.Border
@@ -160,7 +163,7 @@ fun GameLogScreen(
                             .fillMaxSize()
                             .padding(horizontal = 16.dp)
                     ) {
-                        // Hero / score block — matches the website scoreboard mockup
+                        // Hero / score block
                         item {
                             Column(
                                 modifier = Modifier
@@ -181,6 +184,29 @@ fun GameLogScreen(
                                     fontWeight = FontWeight.ExtraBold
                                 )
                                 Spacer(Modifier.height(6.dp))
+                                val finalScoreSuffix = remember(game.events, game.currentPhase) {
+                                    when {
+                                        game.events.any { it is com.databelay.refwatch.common.PenaltyEvent } || 
+                                        game.currentPhase == com.databelay.refwatch.common.GamePhase.PENALTIES -> " n.E."
+                                        
+                                        game.currentPhase == com.databelay.refwatch.common.GamePhase.EXTRA_TIME_FIRST_HALF ||
+                                        game.currentPhase == com.databelay.refwatch.common.GamePhase.EXTRA_TIME_HALF_TIME ||
+                                        game.currentPhase == com.databelay.refwatch.common.GamePhase.EXTRA_TIME_SECOND_HALF ||
+                                        (game.status == com.databelay.refwatch.common.GameStatus.COMPLETED && 
+                                         game.events.any { it.phase?.name?.contains("EXTRA_TIME") == true }) -> " n.V."
+                                        
+                                        else -> ""
+                                    }
+                                }
+                                
+                                val htScore = remember(game.events) {
+                                    val firstHalfGoals = game.events.filterIsInstance<GoalScoredEvent>()
+                                        .filter { it.phase == com.databelay.refwatch.common.GamePhase.FIRST_HALF }
+                                    val home = firstHalfGoals.lastOrNull()?.homeScoreAtTime ?: 0
+                                    val away = firstHalfGoals.lastOrNull()?.awayScoreAtTime ?: 0
+                                    "HZ $home:$away"
+                                }
+
                                 Row(verticalAlignment = Alignment.Bottom) {
                                     Text(
                                         text = game.homeScore.toString(),
@@ -200,12 +226,22 @@ fun GameLogScreen(
                                         color = AccentGreen,
                                         fontWeight = FontWeight.Black
                                     )
+                                    if (finalScoreSuffix.isNotEmpty()) {
+                                        Text(
+                                            text = finalScoreSuffix,
+                                            style = MaterialTheme.typography.titleLarge,
+                                            color = TextMuted,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+                                        )
+                                    }
                                 }
                                 Spacer(Modifier.height(4.dp))
                                 Text(
-                                    text = stringResource(R.string.final_score, game.homeScore.toString(), game.awayScore.toString()),
+                                    text = htScore,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = TextMuted
+                                    color = TextMuted,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                             HorizontalDivider(color = Border)
@@ -213,7 +249,7 @@ fun GameLogScreen(
 
                         // List of all game events
                         items(game.events.filter { it.phase?.shouldBeLogged() != false }) { event ->
-                            GameLogItem(event = event)
+                            GameLogItem(event = event, game = game)
                             HorizontalDivider(color = Border)
                         }
                     }
@@ -258,7 +294,7 @@ private fun DFBnetTabContent(game: Game) {
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(
-                        imageVector = if (showSummary) Icons.Default.Info else Icons.Default.Info, // Use better icon if needed
+                        imageVector = if (showSummary) Icons.Default.Info else Icons.Default.Info,
                         contentDescription = stringResource(R.string.report_summary)
                     )
                 }
@@ -330,7 +366,7 @@ private fun ReportSummaryCard(
 }
 
 @Composable
-private fun SummarySection(title: String, events: List<GameEvent>) {
+private fun SummarySection(title: String, events: List<com.databelay.refwatch.common.GameEvent>) {
     if (events.isEmpty()) return
     
     Text(text = title, style = MaterialTheme.typography.labelSmall, color = AccentGreen, fontWeight = FontWeight.Bold)
@@ -353,7 +389,13 @@ private fun formatReportSummary(game: Game): String {
     val goals = game.events.filterIsInstance<GoalScoredEvent>()
     if (goals.isNotEmpty()) {
         sb.append("TORE:\n")
-        goals.forEach { sb.append("- ${it.displayString}\n") }
+        goals.forEach { goal ->
+            val scorerStr = goal.playerNumber?.toString() ?: "--"
+            val assistStr = if (goal.assistantNumber != null) " (Assist: #${goal.assistantNumber})" else ""
+            val teamStr = goal.teamDisplayName?.takeIf { it.isNotBlank() } 
+                ?: (if (goal.team == com.databelay.refwatch.common.Team.HOME) game.homeTeamName else game.awayTeamName)
+            sb.append("- ${goal.phase?.readable() ?: ""}: Tor $teamStr #$scorerStr$assistStr [${goal.homeScoreAtTime}:${goal.awayScoreAtTime}]\n")
+        }
         sb.append("\n")
     }
     
@@ -374,13 +416,61 @@ private fun formatReportSummary(game: Game): String {
 }
 
 @Composable
-private fun GameLogItem(event: GameEvent) {
+private fun GameLogItem(event: com.databelay.refwatch.common.GameEvent, game: Game) {
     val sdf = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
     val formattedTimestamp = remember(event.timestamp) { sdf.format(Date(event.timestamp.toLong())) }
+    val matchMinute = remember(event, game.halfDurationMinutes, game.extraTimeHalfDurationMinutes) {
+        event.getMatchMinute(game)
+    }
+
+    val displayTitle = remember(event, game.homeTeamName, game.awayTeamName) {
+        when (event) {
+            is com.databelay.refwatch.common.CardIssuedEvent -> {
+                val teamStr = event.teamDisplayName?.takeIf { it.isNotBlank() }
+                    ?: (if (event.team == com.databelay.refwatch.common.Team.HOME) game.homeTeamName else game.awayTeamName)
+                    .ifBlank { if (event.team == com.databelay.refwatch.common.Team.HOME) "Heim" else "Gast" }
+                
+                val typeStr = when (event.cardType) {
+                    com.databelay.refwatch.common.CardType.YELLOW -> "Gelbe"
+                    com.databelay.refwatch.common.CardType.RED -> "Rote"
+                }
+                
+                if (event.isOfficial) {
+                    "$typeStr Karte (${event.officialName ?: "Offizieller"} $teamStr)"
+                } else {
+                    "$typeStr Karte: $teamStr Nr. ${event.playerNumber}"
+                }
+            }
+            is com.databelay.refwatch.common.GoalScoredEvent -> {
+                val teamStr = event.teamDisplayName?.takeIf { it.isNotBlank() }
+                    ?: (if (event.team == com.databelay.refwatch.common.Team.HOME) game.homeTeamName else game.awayTeamName)
+                    .ifBlank { if (event.team == com.databelay.refwatch.common.Team.HOME) "Heim" else "Gast" }
+                val scorerStr = event.playerNumber?.toString() ?: "--"
+                val assistStr = if (event.assistantNumber != null) " (Assist: #${event.assistantNumber})" else ""
+                
+                "Tor $teamStr: #$scorerStr$assistStr [${event.homeScoreAtTime}:${event.awayScoreAtTime}]"
+            }
+            is com.databelay.refwatch.common.TemporaryDismissalEvent -> {
+                val teamStr = event.teamDisplayName?.takeIf { it.isNotBlank() }
+                    ?: (if (event.team == com.databelay.refwatch.common.Team.HOME) game.homeTeamName else game.awayTeamName)
+                    .ifBlank { if (event.team == com.databelay.refwatch.common.Team.HOME) "Heim" else "Gast" }
+                "Zeitstrafe $teamStr Nr. ${event.playerNumber} (${event.durationMinutes} min)"
+            }
+            else -> event.displayString
+        }
+    }
 
     ListItem(
-        headlineContent = { Text(event.displayString, fontWeight = FontWeight.Medium, color = TextPrimary) },
-        supportingContent = { Text(stringResource(R.string.event_time, formattedTimestamp), color = TextMuted) },
+        headlineContent = { Text(displayTitle, fontWeight = FontWeight.Medium, color = TextPrimary) },
+        supportingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = stringResource(R.string.event_time, formattedTimestamp), color = TextMuted)
+                if (matchMinute.isNotEmpty()) {
+                    Text(text = "  •  ", color = TextMuted)
+                    Text(text = matchMinute, color = AccentGreen, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
     )
 }

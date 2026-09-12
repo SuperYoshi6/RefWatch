@@ -45,6 +45,7 @@
     <string name="phase_game_ended">Game Ended</string>
     <string name="phase_aborted">Aborted</string>
     <string name="abort_game_title">Abort Match?</string>
+    <string name="abort_match">Abort Match</string>
     <string name="abort_game_msg">The match will be ended and marked as aborted.</string>
     <string name="home_away_teams">Teams</string>
     <string name="card_yellow_title">Yellow Card</string>
@@ -54,6 +55,9 @@
     <string name="password_label">Password</string>
     <string name="login_button">Sign In</string>
     <string name="login_failed">Login failed</string>
+    <string name="logout">Logout</string>
+    <string name="logout_question">Abmelden?</string>
+    <string name="logout_msg">Möchtest du dich von diesem Konto abmelden?</string>
     <string name="log_card">Log Card</string>
     <string name="card_yellow">Yellow</string>
     <string name="card_red">Red</string>
@@ -183,4 +187,16 @@
     <string name="timer_play_content_desc">Play timer</string>
     <string name="timer_pause_content_desc">Pause timer</string>
     <string name="manual_entry_button">Manual</string>
+
+    <!-- Navigation and UI -->
+    <string name="select_roster">Select Roster</string>
+    <string name="player_label">Player</string>
+    <string name="close">Close</string>
+    <string name="time_penalties">Time Penalties</string>
+    <string name="no_active_dismissals">No active time penalties</string>
+    <string name="card_yellow_short">YELLOW</string>
+    <string name="card_red_short">RED</string>
+    <string name="subs_label">Subs (%1$d)</string>
+    <string name="undo">Undo</string>
+    <string name="undo_last_event">Undo last event</string>
 </resources>

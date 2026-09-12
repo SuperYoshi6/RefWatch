@@ -12,12 +12,16 @@ android {
     namespace = "com.databelay.refwatch"
     compileSdk = 36
 
+    androidResources {
+        localeFilters += listOf("de", "en")
+    }
+
     defaultConfig {
         applicationId = "com.databelay.refwatch"
         minSdk = 31
         targetSdk = 36
-        versionCode = 361160000
-        versionName = "1.6.1"
+        versionCode = 361160200
+        versionName = "1.6.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures {
@@ -26,11 +30,15 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            ndk {
+                abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
+            }
         }
     }
     compileOptions {

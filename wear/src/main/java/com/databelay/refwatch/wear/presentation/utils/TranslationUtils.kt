@@ -67,68 +67,6 @@ fun Team.localizedName(): String {
     return stringResource(resId)
 }
 
-/**
- * Berechnet die Spielminute für ein Ereignis basierend auf der Phase und der Dauer.
- */
-fun GameEvent.getMatchMinute(halfDurationMinutes: Int): String {
-    val phase = this.phase ?: return ""
-    val elapsedMillis = this.gameTimeMillis.toLong()
-    val regMillis = halfDurationMinutes * 60 * 1000L
-
-    return when (phase) {
-        GamePhase.FIRST_HALF -> {
-            if (elapsedMillis >= regMillis) {
-                val addedMinutes = (elapsedMillis - regMillis) / 60000
-                if (addedMinutes > 0) {
-                    "$halfDurationMinutes+$addedMinutes"
-                } else {
-                    "$halfDurationMinutes'"
-                }
-            } else {
-                "${elapsedMillis / 60000}'"
-            }
-        }
-        GamePhase.SECOND_HALF -> {
-            if (elapsedMillis >= regMillis) {
-                val addedMinutes = (elapsedMillis - regMillis) / 60000
-                if (addedMinutes > 0) {
-                    "${halfDurationMinutes * 2}+$addedMinutes"
-                } else {
-                    "${halfDurationMinutes * 2}'"
-                }
-            } else {
-                "${halfDurationMinutes + elapsedMillis / 60000}'"
-            }
-        }
-        GamePhase.EXTRA_TIME_FIRST_HALF -> {
-            val base = halfDurationMinutes * 2
-            if (elapsedMillis >= 15 * 60 * 1000L) {
-                val addedMinutes = (elapsedMillis - 15 * 60 * 1000L) / 60000
-                if (addedMinutes > 0) {
-                    "$base+$addedMinutes"
-                } else {
-                    "$base'"
-                }
-            } else {
-                "${base + elapsedMillis / 60000}'"
-            }
-        }
-        GamePhase.EXTRA_TIME_SECOND_HALF -> {
-            val base = halfDurationMinutes * 2 + 15 + 15
-            if (elapsedMillis >= 15 * 60 * 1000L) {
-                val addedMinutes = (elapsedMillis - 15 * 60 * 1000L) / 60000
-                if (addedMinutes > 0) {
-                    "$base+$addedMinutes"
-                } else {
-                    "$base'"
-                }
-            } else {
-                "${base - 15 + elapsedMillis / 60000}'"
-            }
-        }
-        else -> ""
-    }
-}
 
 @Composable
 fun GameEvent.localizedDisplayString(): String {
@@ -138,42 +76,37 @@ fun GameEvent.localizedDisplayString(): String {
     return when (this) {
         is GoalScoredEvent -> {
             val teamLabel = teamDisplayName?.takeIf { it.isNotBlank() } ?: team.localizedName()
-            stringResource(
-                R.string.goal_event_template,
-                goalType.localizedName(),
-                teamLabel,
-                playerNumber?.toString() ?: "--",
-                homeScoreAtTime,
-                awayScoreAtTime
-            )
+            val scorerStr = playerNumber?.toString() ?: "--"
+            val assistStr = if (assistantNumber != null) " (Assist: #$assistantNumber)" else ""
+            
+            "$teamLabel: #$scorerStr$assistStr [$homeScoreAtTime:$awayScoreAtTime]"
         }
         is PenaltyEvent -> {
-            stringResource(
-                R.string.penalty_event_template,
-                team.localizedName(),
-                if (scored) stringResource(R.string.scored) else stringResource(R.string.missed_saved),
-                kickerNumber?.toString() ?: "--"
-            )
+            val teamLabel = team.localizedName()
+            val outcome = if (scored) "GETROFFEN" else "VERGEBEN"
+            val kicker = if (kickerNumber != null) " #$kickerNumber" else ""
+            "Elfer $teamLabel$kicker: $outcome"
         }
         is CardIssuedEvent -> {
-            stringResource(
-                R.string.card_event_template,
-                cardType.localizedName(),
-                team.localizedName(),
-                playerNumber,
-                gameTimeMillis.toLong().formatTime()
-            )
+            if (isOfficial) {
+                val type = cardType.localizedName()
+                val teamLabel = team.localizedName()
+                "$type (${officialName ?: "Offizieller"} $teamLabel)"
+            } else {
+                stringResource(
+                    R.string.card_event_template,
+                    cardType.localizedName(),
+                    team.localizedName(),
+                    playerNumber,
+                    gameTimeMillis.toLong().formatTime()
+                )
+            }
         }
         is GenericLogEvent -> message
         is PhaseChangedEvent -> newPhase.localizedName()
         is SubstitutionEvent -> {
             val name = teamDisplayName?.takeIf { it.isNotBlank() } ?: team.localizedName()
-            stringResource(
-                R.string.event_sub_template,
-                name,
-                outgoingPlayerNumber,
-                incomingPlayerNumber
-            )
+            "$name: #$outgoingPlayerNumber ➡️ #$incomingPlayerNumber"
         }
         else -> displayString
     }

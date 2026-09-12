@@ -20,13 +20,13 @@ enum class AgeGroup(
     U12("12U", 30, players = 9, notes = "Ballgröße 4. Kein absichtliches Köpfen."),
     U13("13U", 35, players = 11, notes = "Ballgröße 5."),
     U14("14U", 35, players = 11, notes = "Ballgröße 5."),
-    U15("15U", 40, players = 11, defaultTemporaryDismissalMinutes = 5),
-    U16("16U", 40, players = 11, defaultTemporaryDismissalMinutes = 5),
+    U15("15U", 40, players = 11),
+    U16("16U", 40, players = 11),
     U17("17U", 45, players = 11, defaultTemporaryDismissalMinutes = 10),
     U18("18U", 45, players = 11, defaultTemporaryDismissalMinutes = 10),
     U19("19U", 45, players = 11, defaultTemporaryDismissalMinutes = 10),
     // Fallback/Generic
-    GENERIC_YOUTH("Jugend Generisch", 30, players = 11, defaultTemporaryDismissalMinutes = 5),
+    GENERIC_YOUTH("Jugend Generisch", 30, players = 11),
     GENERIC_ADULT("Erwachsene Generisch", 45, players = 11, defaultTemporaryDismissalMinutes = 10),
     UNKNOWN("Unbekannt", 30, defaultHalftimeDurationMinutes = 5, defaultTemporaryDismissalMinutes = 0); // A sensible default if truly unknown
 

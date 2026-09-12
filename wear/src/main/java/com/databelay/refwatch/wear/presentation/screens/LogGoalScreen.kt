@@ -28,13 +28,15 @@ fun LogGoalScreen(
     preselectedTeam: Team?,
     goalType: GoalType,
     roster: List<Player> = emptyList(),
-    onLogGoal: (team: Team, playerNumber: Int?, goalType: GoalType) -> Unit,
+    onLogGoal: (team: Team, playerNumber: Int?, goalType: GoalType, assistantNumber: Int?) -> Unit,
     onCancel: () -> Unit
 ) {
     var playerNumberString by remember { mutableStateOf("") }
     var isManualEntry by remember { mutableStateOf(roster.isEmpty()) }
     val focusRequester = remember { FocusRequester() }
     val context = LocalContext.current
+
+    val title = "${stringResource(R.string.goal_regular)} - ${goalType.localizedName()}"
 
     ScreenScaffold {
         if (!isManualEntry && roster.isNotEmpty()) {
@@ -43,10 +45,7 @@ fun LogGoalScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "${stringResource(R.string.goal_regular)} - ${goalType.localizedName()}",
-                    style = MaterialTheme.typography.labelMedium
-                )
+                Text(text = title, style = MaterialTheme.typography.labelMedium)
                 preselectedTeam?.let {
                     Text(
                         text = it.localizedName(),
@@ -59,7 +58,7 @@ fun LogGoalScreen(
                     players = roster,
                     onPlayerSelected = { player ->
                         if (preselectedTeam != null) {
-                            onLogGoal(preselectedTeam, player.number, goalType)
+                            onLogGoal(preselectedTeam, player.number, goalType, null)
                         }
                     },
                     onManualEntry = { isManualEntry = true }
@@ -95,8 +94,9 @@ fun LogGoalScreen(
                 OutlinedTextField(
                     value = playerNumberString,
                     onValueChange = {
-                        if (it.length <= 3 && it.all { char -> char.isDigit() }) {
-                            playerNumberString = it
+                        val filtered = it.filter { char -> char.isDigit() }
+                        if (filtered.length <= 2) { // Max 99
+                            playerNumberString = filtered
                         }
                     },
                     label = { Text(stringResource(R.string.player_number_label)) },
@@ -126,7 +126,11 @@ fun LogGoalScreen(
                         onClick = {
                             val playerNum = playerNumberString.toIntOrNull()
                             if (preselectedTeam != null) {
-                                onLogGoal(preselectedTeam, playerNum, goalType)
+                                if (playerNumberString.isBlank() || (playerNum != null && playerNum in 1..99)) {
+                                    onLogGoal(preselectedTeam, playerNum, goalType, null)
+                                } else {
+                                    Toast.makeText(context, context.getString(R.string.enter_valid_player_number), Toast.LENGTH_SHORT).show()
+                                }
                             } else {
                                 Toast.makeText(context, context.getString(R.string.no_team_selected), Toast.LENGTH_SHORT).show()
                             }

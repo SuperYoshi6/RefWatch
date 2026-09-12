@@ -1,5 +1,6 @@
 package com.databelay.refwatch.wear.presentation.screens
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -39,6 +40,9 @@ import com.databelay.refwatch.wear.presentation.utils.localizedName
 import com.google.android.horologist.compose.layout.ColumnItemType
 import com.google.android.horologist.compose.layout.ColumnItemType.Companion.EdgeButtonPadding
 import com.google.android.horologist.compose.layout.rememberResponsiveColumnPadding
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 
@@ -183,7 +187,7 @@ sealed class ConfirmationDialogInfo(
 @Composable
 fun GameScreenWithPager(
     game: Game,
-    timerState: TimerState,
+    timerStateFlow: StateFlow<TimerState>,
     isAmbient: Boolean = false,
     kickoffCountdownSeconds: Int? = null,
     timerDisplayMode: TimerDisplayMode = TimerDisplayMode.REMAINING,
@@ -202,13 +206,14 @@ fun GameScreenWithPager(
     onNavigateToLogGoal: (Team, com.databelay.refwatch.common.GoalType) -> Unit,
     onNavigateToLogCard: (team: Team, cardType: CardType) -> Unit,
     onNavigateToLogSubstitution: (Team) -> Unit,
-    onQuickSubstitution: (Team, Int, Int) -> Unit = { _, _, _ -> },
+    onQuickSubstitution: (Team, String, String) -> Unit = { _, _, _ -> },
     onNavigateToGameLog: () -> Unit,
     onEndPhase: () -> Unit,
     onAbortMatch: () -> Unit,
     onResetPeriodTimer: () -> Unit, // For current period's timer
     onConfirmEndMatch: () -> Unit, // For finishing the game
     onPenaltyAttemptRecorded: (scored: Boolean, kickerNumber: Int?) -> Unit,
+    onUndoLastEvent: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -223,8 +228,7 @@ fun GameScreenWithPager(
     // transitions blink white borders after the confirmation dialog
     //        animatescrolltopage flashing white borders (commented out for now)
     val animateToMainPage: () -> Unit = {
-//        coroutineScope.launch { verticalPagerState.animateScrollToPage(0) }
-        coroutineScope.launch { verticalPagerState.scrollToPage(0) }
+        coroutineScope.launch { verticalPagerState.scrollToPage(1) }
     }
 
     // Common logic for closing any dialog and animating back to the main page (if applicable)
@@ -276,9 +280,11 @@ fun GameScreenWithPager(
                     .onRotaryScrollEvent {
                         coroutineScope.launch {
                             if (it.verticalScrollPixels > 0) {
-                                verticalPagerState.animateScrollToPage(1)
+                                val next = (verticalPagerState.currentPage + 1).coerceAtMost(verticalPagerState.pageCount - 1)
+                                verticalPagerState.animateScrollToPage(next)
                             } else {
-                                verticalPagerState.animateScrollToPage(0)
+                                val prev = (verticalPagerState.currentPage - 1).coerceAtLeast(0)
+                                verticalPagerState.animateScrollToPage(prev)
                             }
                         }
                         true
@@ -288,9 +294,16 @@ fun GameScreenWithPager(
             ) { page ->
                 when (page) {
                     0 -> {
+                        DismissalOverviewPage(
+                            game = game,
+                            activeDismissals = activeDismissals,
+                            timerStateFlow = timerStateFlow
+                        )
+                    }
+                    1 -> {
                         GamePagerContent(
                             game = game,
-                            timerState = timerState,
+                            timerStateFlow = timerStateFlow,
                             isAmbient = isAmbient,
                             kickoffCountdownSeconds = kickoffCountdownSeconds,
                             timerDisplayMode = timerDisplayMode,
@@ -308,15 +321,16 @@ fun GameScreenWithPager(
                             onPenaltyAttemptRecorded = onPenaltyAttemptRecorded,
                             onToggleTimer = onToggleTimer,
                             onToggleStoppageTimer = onToggleStoppageTimer,
+                            onUndoLastEvent = onUndoLastEvent,
                             onOpenGameMenu = {
-                                coroutineScope.launch { verticalPagerState.scrollToPage(1) }
+                                coroutineScope.launch { verticalPagerState.scrollToPage(2) }
                             },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                    1 -> {
+                    2 -> {
                         BackHandler {
-                            coroutineScope.launch { verticalPagerState.scrollToPage(0) }
+                            coroutineScope.launch { verticalPagerState.scrollToPage(1) }
                         }
                         val currentPhaseLocalized = game.currentPhase.localizedName()
                         val finishTitle = stringResource(R.string.finish_game_title)
@@ -344,7 +358,7 @@ fun GameScreenWithPager(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center
                                 ) {
-                                    Text("Kader wählen", style = MaterialTheme.typography.titleSmall)
+                                    Text(stringResource(R.string.select_roster), style = MaterialTheme.typography.titleSmall)
                                     Spacer(Modifier.height(8.dp))
                                     Button(
                                         onClick = { 
@@ -362,7 +376,7 @@ fun GameScreenWithPager(
                                         modifier = Modifier.fillMaxWidth()
                                     ) { Text(game.awayTeamName) }
                                     Spacer(Modifier.height(8.dp))
-                                    TextButton(onClick = { showRosterSelection = false }) { Text("Zurück") }
+                                    TextButton(onClick = { showRosterSelection = false }) { Text(stringResource(R.string.back)) }
                                 }
                             }
                         }
@@ -380,7 +394,7 @@ fun GameScreenWithPager(
                                 ) {
                                     item {
                                         Text(
-                                            text = if (selectedRosterTeam == Team.HOME) game.homeTeamName else game.awayTeamName,
+                                            text = "${stringResource(R.string.player_label)}: ${if (selectedRosterTeam == Team.HOME) game.homeTeamName else game.awayTeamName}",
                                             style = MaterialTheme.typography.titleSmall,
                                             modifier = Modifier.padding(bottom = 8.dp)
                                         )
@@ -401,14 +415,14 @@ fun GameScreenWithPager(
                                             )
                                             Spacer(Modifier.width(8.dp))
                                             Text(
-                                                text = player.name.ifBlank { "Spieler" },
+                                                text = player.name.ifBlank { stringResource(R.string.player_label) },
                                                 style = MaterialTheme.typography.bodySmall,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.weight(1f)
                                             )
                                             Text(
-                                                text = if (player.isOnField) "⚽" else "🪑",
+                                                text = if (player.onField) "⚽" else "🪑",
                                                 style = MaterialTheme.typography.labelSmall
                                             )
                                         }
@@ -419,7 +433,7 @@ fun GameScreenWithPager(
                                             onClick = { selectedRosterTeam = null },
                                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                                         ) {
-                                            Text("Schließen")
+                                            Text(stringResource(R.string.close))
                                         }
                                     }
                                 }
@@ -494,6 +508,7 @@ fun GameScreenWithPager(
                                     onDialogClose = createDialogCloseHandler(true)
                                 )
                             },
+                            onUndoLastEvent = onUndoLastEvent,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -523,6 +538,81 @@ fun GameScreenWithPager(
     }
 }
 
+@Composable
+private fun DismissalOverviewPage(
+    game: Game,
+    activeDismissals: List<TemporaryDismissalEvent>,
+    timerStateFlow: StateFlow<TimerState>
+) {
+    val listState = rememberScalingLazyListState()
+    val timerState by timerStateFlow.collectAsStateWithLifecycle()
+    val currentMatchTime = timerState.actualTimeElapsedInPeriodMillis
+
+    ScalingLazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(top = 32.dp, bottom = 32.dp, start = 8.dp, end = 8.dp)
+    ) {
+        item {
+            Text(
+                stringResource(R.string.time_penalties),
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.Yellow,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+
+        if (activeDismissals.isEmpty()) {
+            item {
+                Text(
+                    stringResource(R.string.no_active_dismissals),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+                )
+            }
+        } else {
+            items(activeDismissals) { dismissal ->
+                val elapsedSinceStart = currentMatchTime - dismissal.startMatchTimeMillis
+                val remainingMillis = (dismissal.durationMinutes * 60 * 1000L - elapsedSinceStart.toLong()).coerceAtLeast(0L)
+                val teamAbbr = if (dismissal.team == Team.HOME) {
+                    game.homeTeamAbbr?.takeIf { it.isNotBlank() } ?: "HEI"
+                } else {
+                    game.awayTeamAbbr?.takeIf { it.isNotBlank() } ?: "GAS"
+                }
+
+                Card(
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.Yellow.copy(alpha = 0.1f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "$teamAbbr #${dismissal.playerNumber}",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = remainingMillis.formatTime(false),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.Yellow
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 // -------------------------------- Previews -----------------------------------------------
 @PreviewTest
 @OptIn(ExperimentalFoundationApi::class)
@@ -540,7 +630,7 @@ fun GameScreenWithPagerPreviewSmallRegulationTime() {
     RefWatchWearTheme {
         GameScreenWithPager(
             game = sampleGame,
-            timerState = TimerState(),
+            timerStateFlow = MutableStateFlow(TimerState()),
             horizontalPagerState = horizontalPagerState,
             verticalPagerState = verticalPagerState,
             onKickOff = {},
@@ -557,7 +647,8 @@ fun GameScreenWithPagerPreviewSmallRegulationTime() {
             onResetPeriodTimer = {},
             onConfirmEndMatch = {},
             onPenaltyAttemptRecorded = { _, _ -> },
-            onNavigateToLogSubstitution = {}
+            onNavigateToLogSubstitution = {},
+            onQuickSubstitution = { _, _, _ -> }
         )
     }
 }

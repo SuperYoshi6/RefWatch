@@ -48,6 +48,7 @@ import com.databelay.refwatch.common.homeTeamColor
 import com.databelay.refwatch.common.awayTeamColor
 import com.databelay.refwatch.common.usesHalfDuration
 import com.databelay.refwatch.wear.data.GameStorageWear
+import com.databelay.refwatch.R
 import com.databelay.refwatch.wear.data.GameTimerService
 import com.databelay.refwatch.wear.data.TimerState
 import com.databelay.refwatch.wear.util.ConnectivityObserver // For network status
@@ -124,6 +125,12 @@ class WearGameViewModel @Inject constructor(
     private val _pendingReturnConfirmations = MutableStateFlow<List<TemporaryDismissalEvent>>(emptyList())
     val pendingReturnConfirmations: StateFlow<List<TemporaryDismissalEvent>> = _pendingReturnConfirmations.asStateFlow()
 
+    // SYNC SHIELD: Prevent local save from overwriting a remote update we JUST received.
+    private var lastRemoteSyncTimestamp = 0L
+    // TIMER SHIELD: Ignore timer running state updates from service/remote for a short window after manual change.
+    private var lastManualTimerToggleTimestamp = 0L
+    private var kickoffCountdownJob: Job? = null
+
     fun dismissReturnConfirmation(event: TemporaryDismissalEvent) {
         _pendingReturnConfirmations.update { it.filterNot { e -> e.id == event.id } }
     }
@@ -169,9 +176,16 @@ class WearGameViewModel @Inject constructor(
                             }
                             if (expired.isNotEmpty()) {
                                 _pendingReturnConfirmations.update { it + expired }
+                                // Log the expiration with Abbreviation and Number
+                                val game = _activeGame.value
                                 expired.forEach { e ->
+                                    val abbr = if (e.team == Team.HOME) {
+                                        game?.homeTeamAbbr?.takeIf { it.isNotBlank() } ?: "HEI"
+                                    } else {
+                                        game?.awayTeamAbbr?.takeIf { it.isNotBlank() } ?: "GAS"
+                                    }
                                     addEvent(GenericLogEvent(
-                                        message = "Zeitstrafe beendet: ${e.team.name} Nr.${e.playerNumber}",
+                                        message = "Zeitstrafe aufgehoben $abbr ${e.playerNumber}",
                                         phase = serviceState.currentPhase,
                                         gameTimeMillis = currentMatchTime.toDouble()
                                     ))
@@ -210,6 +224,11 @@ class WearGameViewModel @Inject constructor(
                     // Timer display fields go through timerDisplayState to avoid
                     // copying the entire 40+ field Game object every second.
                     _activeGame.update { currentGame ->
+                        // TIMER SHIELD: If we recently manually toggled, ignore the service state
+                        // until it stabilizes.
+                        val isRecentManualToggle = System.currentTimeMillis() - lastManualTimerToggleTimestamp < 3000
+                        if (isRecentManualToggle) return@update currentGame
+
                         if (currentGame?.isTimerRunning != serviceState.isTimerRunning) {
                             currentGame?.copy(isTimerRunning = serviceState.isTimerRunning)
                         } else {
@@ -259,45 +278,107 @@ class WearGameViewModel @Inject constructor(
 
             // SIDELINE SUPPORT: Monitor the background games list for updates to the ACTIVE game.
             // If another device (e.g. Papa) adds an event or changes something, we merge it.
-            gamesList.collect { latestGames ->
-                val activeId = _activeGame.value?.id ?: return@collect
-                val remoteGame = latestGames.find { it.id == activeId } ?: return@collect
-                
-                _activeGame.update { current ->
-                    if (current == null) return@update remoteGame
+            // PERFORMANCE: Move collection and comparison to a background thread to prevent UI lag.
+            launch(kotlinx.coroutines.Dispatchers.Default) {
+                gamesList.collect { latestGames ->
+                    val activeId = _activeGame.value?.id ?: return@collect
+                    val remoteGame = latestGames.find { it.id == activeId } ?: return@collect
                     
-                    // PERFORMANCE: Use a very strict "deep change" check to avoid redundant UI work
-                    // especially critical for Galaxy Watch 4 smoothness.
-                    if (remoteGame.lastUpdated > current.lastUpdated) {
-                        val localEventIds = current.events.map { it.id }.toSet()
-                        val newRemoteEvents = remoteGame.events.filter { it.id !in localEventIds }
+                    _activeGame.update { current ->
+                        if (current == null) return@update remoteGame
                         
-                        val scoreChanged = remoteGame.homeScore != current.homeScore || remoteGame.awayScore != current.awayScore
-                        val phaseChanged = remoteGame.currentPhase != current.currentPhase
-                        val rosterChanged = remoteGame.homeRoster != current.homeRoster || remoteGame.awayRoster != current.awayRoster
-                        
-                        if (newRemoteEvents.isNotEmpty() || scoreChanged || phaseChanged || rosterChanged) {
-                            Log.i(tag, "Sideline Sync: Merging changes (Events: ${newRemoteEvents.size}, Score: $scoreChanged, Phase: $phaseChanged)")
-                            
-                            if (newRemoteEvents.isNotEmpty() || scoreChanged || phaseChanged) {
-                                vibrate(VibrationPattern.GENERIC_EVENT)
-                            }
+                        // PERFORMANCE: Extremely strict check. Only update if the remote game has
+                        // a NEWER timestamp AND contains data we don't have.
+                        if (remoteGame.lastUpdated > current.lastUpdated) {
+                            val localEventIds = current.events.map { it.id }.toSet()
+                            val remoteEventIds = remoteGame.events.map { it.id }.toSet()
 
-                            current.copy(
-                                homeScore = remoteGame.homeScore,
-                                awayScore = remoteGame.awayScore,
-                                currentPhase = remoteGame.currentPhase,
-                                events = (current.events + newRemoteEvents).distinctBy { it.id }.sortedBy { it.timestamp },
-                                lastUpdated = remoteGame.lastUpdated,
-                                homeRoster = remoteGame.homeRoster,
-                                awayRoster = remoteGame.awayRoster,
-                                displayedTimeMillis = if (phaseChanged) remoteGame.displayedTimeMillis else current.displayedTimeMillis
-                            )
+                            val newRemoteEvents = remoteGame.events.filter { it.id !in localEventIds }
+                            val deletedRemoteEventsCount = localEventIds.count { it !in remoteEventIds }
+
+                            val scoreChanged = remoteGame.homeScore != current.homeScore || remoteGame.awayScore != current.awayScore
+                            val phaseChanged = remoteGame.currentPhase != current.currentPhase
+                            val timerRunningChanged = remoteGame.isTimerRunning != current.isTimerRunning
+                            val stoppageRunningChanged = remoteGame.isStoppageTimerRunning != current.isStoppageTimerRunning
+                            val kickoffSyncChanged = remoteGame.kickoffCountdownStartTimeMillis != current.kickoffCountdownStartTimeMillis
+                            val penaltiesChanged = remoteGame.penaltiesTakenHome != current.penaltiesTakenHome || remoteGame.penaltiesTakenAway != current.penaltiesTakenAway
+                            val kickoffTeamChanged = remoteGame.kickOffTeam != current.kickOffTeam
+                            val rosterChanged = remoteGame.homeRoster != current.homeRoster || remoteGame.awayRoster != current.awayRoster
+
+                            // Functional change: New events, deleted events, score, phase, timer states, or kickoff sync
+                            if (newRemoteEvents.isNotEmpty() || deletedRemoteEventsCount > 0 ||
+                                scoreChanged || phaseChanged || timerRunningChanged || stoppageRunningChanged || kickoffSyncChanged || penaltiesChanged || kickoffTeamChanged || rosterChanged) {
+
+                                Log.i(tag, "Sideline Sync: Functional change (Added: ${newRemoteEvents.size}, Score: $scoreChanged, Timer: $timerRunningChanged, Stoppage: $stoppageRunningChanged, Kickoff: $kickoffSyncChanged)")
+
+                                // SYNC SHIELD: Mark that we just got a remote update
+                                lastRemoteSyncTimestamp = System.currentTimeMillis()
+
+                                // Update active dismissals from events
+                                val currentMatchTime = _timerDisplayState.value.actualTimeElapsedInPeriodMillis
+                                val remoteDismissals = remoteGame.events.filterIsInstance<TemporaryDismissalEvent>().filter { event ->
+                                    currentMatchTime < event.startMatchTimeMillis + (event.durationMinutes * 60 * 1000L)
+                                }
+                                _activeDismissals.value = remoteDismissals
+
+                                // Haptic Feedback for any remote change
+                                vibrate(VibrationPattern.GENERIC_EVENT)
+
+                                // ATOMIC SYNC: Apply all remote timer fields in one step to prevent logic conflicts.
+                                val timerStateChanged = remoteGame.isTimerRunning != current.isTimerRunning ||
+                                        remoteGame.isStoppageTimerRunning != current.isStoppageTimerRunning ||
+                                        Math.abs(remoteGame.actualTimeElapsedInPeriodMillis - current.actualTimeElapsedInPeriodMillis) > 2000 ||
+                                        Math.abs(remoteGame.stoppageTimeMillis - current.stoppageTimeMillis) > 2000
+
+                                val isRecentManualToggle = System.currentTimeMillis() - lastManualTimerToggleTimestamp < 3000
+
+                                if (timerStateChanged && !isRecentManualToggle) {
+                                    if (remoteGame.isTimerRunning) {
+                                        // If remote says we are running, cancel ANY local countdown immediately
+                                        cancelLocalKickoffCountdown()
+
+                                        // If we are transitioning from STOPPED to RUNNING, mark as manual start
+                                        // to protect this state for the next 3 seconds.
+                                        // This prevents local noise from immediately stopping the sync'd timer.
+                                        if (!current.isTimerRunning) {
+                                            lastManualTimerToggleTimestamp = System.currentTimeMillis()
+                                        }
+                                    }
+
+                                    gameTimerService?.applyRemoteState(
+                                        remoteGame = remoteGame
+                                    )
+                                }
+
+                                // SELECTIVE MERGE: If we recently manually toggled, keep our local timer state.
+                                // This prevents GW4 from reverting to "Stopped" state while the cloud
+                                // is still catching up to our "Started" state.
+                                current.copy(
+                                    homeScore = remoteGame.homeScore,
+                                    awayScore = remoteGame.awayScore,
+                                    currentPhase = remoteGame.currentPhase,
+                                    isTimerRunning = if (isRecentManualToggle) current.isTimerRunning else remoteGame.isTimerRunning,
+                                    isStoppageTimerRunning = if (isRecentManualToggle) current.isStoppageTimerRunning else remoteGame.isStoppageTimerRunning,
+                                    stoppageTimeMillis = if (isRecentManualToggle) current.stoppageTimeMillis else remoteGame.stoppageTimeMillis,
+                                    actualTimeElapsedInPeriodMillis = if (isRecentManualToggle) current.actualTimeElapsedInPeriodMillis else remoteGame.actualTimeElapsedInPeriodMillis,
+                                    events = remoteGame.events.sortedBy { e -> e.timestamp },
+                                    lastUpdated = remoteGame.lastUpdated,
+                                    homeRoster = remoteGame.homeRoster,
+                                    awayRoster = remoteGame.awayRoster,
+                                    kickOffTeam = remoteGame.kickOffTeam,
+                                    penaltiesTakenHome = remoteGame.penaltiesTakenHome,
+                                    penaltiesTakenAway = remoteGame.penaltiesTakenAway,
+                                    kickoffCountdownStartTimeMillis = remoteGame.kickoffCountdownStartTimeMillis,
+                                    displayedTimeMillis = if (phaseChanged) remoteGame.displayedTimeMillis else current.displayedTimeMillis
+                                )
+                            } else {
+                                // If only 'lastUpdated' changed but data is identical, we just sync the timestamp
+                                // without triggering a full UI recomposition of the match screen.
+                                current.copy(lastUpdated = remoteGame.lastUpdated)
+                            }
                         } else {
                             current
                         }
-                    } else {
-                        current
                     }
                 }
             }
@@ -311,7 +392,9 @@ class WearGameViewModel @Inject constructor(
                 old.homeScore == new.homeScore && 
                 old.awayScore == new.awayScore &&
                 old.kickOffTeam == new.kickOffTeam &&
-                old.events.size == new.events.size
+                old.events.size == new.events.size &&
+                old.isTimerRunning == new.isTimerRunning &&
+                old.isStoppageTimerRunning == new.isStoppageTimerRunning
             }
             .debounce(1000L)
             .onEach { game ->
@@ -330,30 +413,70 @@ class WearGameViewModel @Inject constructor(
                 old.awayScore == new.awayScore &&
                 old.currentPhase == new.currentPhase &&
                 old.events.size == new.events.size &&
+                old.isTimerRunning == new.isTimerRunning &&
+                old.isStoppageTimerRunning == new.isStoppageTimerRunning &&
+                old.kickoffCountdownStartTimeMillis == new.kickoffCountdownStartTimeMillis &&
                 old.homeTeamName == new.homeTeamName &&
-                old.awayTeamName == new.awayTeamName &&
-                old.hasTemporaryDismissals == new.hasTemporaryDismissals &&
-                old.temporaryDismissalMinutes == new.temporaryDismissalMinutes
+                old.awayTeamName == new.awayTeamName
             }
             .map { game -> game.toSnapshotForStorage() } 
             .debounce(1000L) 
             .onEach { snapshot ->
                 val latestGameToSave = _activeGame.value
                 if (latestGameToSave != null && latestGameToSave.id == snapshot["id"] && latestGameToSave.status != GameStatus.COMPLETED) {
+                    
+                    // SYNC SHIELD: Don't save back to cloud if we JUST received a remote update.
+                    if (System.currentTimeMillis() - lastRemoteSyncTimestamp < 2000) {
+                        Log.v(tag, "Sync Shield: Skipping local save to avoid ping-pong.")
+                        return@onEach
+                    }
+
+                    // AVOID STALE TIME: If we are about to save, ensure the snapshot contains 
+                    // the current service time, not old values from the VM state.
+                    // We take the service time even if paused, as long as we are in a playable phase.
+                    val serviceState = gameTimerService?.timerStateFlow?.value
+                    val gameWithCorrectTime = if (serviceState != null && latestGameToSave.currentPhase.hasTimer()) {
+                         latestGameToSave.copy(
+                            actualTimeElapsedInPeriodMillis = serviceState.actualTimeElapsedInPeriodMillis,
+                            stoppageTimeMillis = serviceState.stoppageTimeMillis,
+                            isTimerRunning = serviceState.isTimerRunning,
+                            isStoppageTimerRunning = serviceState.isStoppageTimerRunning
+                        )
+                    } else {
+                        latestGameToSave
+                    }
+
                     // Avoid saving a completely untouched default game
-                    val isUntouchedDefault = latestGameToSave.currentPhase == GamePhase.NOT_STARTED &&
-                            latestGameToSave.homeTeamName.isBlank() &&
-                            latestGameToSave.awayTeamName.isBlank() &&
-                            latestGameToSave.events.isEmpty()
+                    val isUntouchedDefault = gameWithCorrectTime.currentPhase == GamePhase.NOT_STARTED &&
+                            gameWithCorrectTime.homeTeamName.isBlank() &&
+                            gameWithCorrectTime.awayTeamName.isBlank() &&
+                            gameWithCorrectTime.events.isEmpty()
                     if (!isUntouchedDefault) {
                         viewModelScope.launch {
-                            gameStorage.addOrUpdateGame(latestGameToSave)
+                            gameStorage.addOrUpdateGame(gameWithCorrectTime)
                         }
                     }
                 }
             }.launchIn(viewModelScope)
 
+        _activeGame.map { it?.kickoffCountdownStartTimeMillis }
+            .distinctUntilChanged()
+            .onEach { startTime ->
+                if (startTime != null) {
+                    startKickoffCountdown(startTime)
+                } else {
+                    // Kickoff marker cleared (either finished or aborted)
+                    cancelLocalKickoffCountdown()
+                }
+            }.launchIn(viewModelScope)
+
         bindToGameTimerService()
+    }
+
+    private fun cancelLocalKickoffCountdown() {
+        kickoffCountdownJob?.cancel()
+        kickoffCountdownJob = null
+        _kickoffCountdownSeconds.value = null
     }
 
 
@@ -487,6 +610,14 @@ class WearGameViewModel @Inject constructor(
         }
     }
 
+    fun undoLastEvent() {
+        val currentGame = _activeGame.value ?: return
+        val lastEvent = currentGame.events.lastOrNull() ?: return
+        
+        removeEvent(lastEvent)
+        vibrate(VibrationPattern.GENERIC_EVENT)
+    }
+
     fun removeEvent(eventToRemove: GameEvent, gameId: String? = null) {
         viewModelScope.launch {
             val gameToModify: Game?
@@ -507,11 +638,12 @@ class WearGameViewModel @Inject constructor(
 
             gameStorage.addOrUpdateGame(updatedGame)
 
-            if (modifyingActiveGame || (gameId == null && _activeGame.value?.id == updatedGame.id) ) {
+            if (modifyingActiveGame) {
                 _activeGame.value = updatedGame
             }
         }
     }
+
 
 
     fun createNewDefaultGame() {
@@ -604,10 +736,31 @@ class WearGameViewModel @Inject constructor(
 
         if (!currentPhase.hasTimer()) return
 
+        // TIMER SHIELD
+        lastManualTimerToggleTimestamp = System.currentTimeMillis()
+
         // If it's a playable phase (match is on), using the pause button in the menu
         // should automatically trigger the stoppage timer (green clock).
         if (currentPhase.isPlayablePhase()) {
-            gameTimerService?.toggleStoppageTimer()
+            if (currentGame.actualTimeElapsedInPeriodMillis == 0L && !currentGame.isTimerRunning) {
+                // Manual start at the beginning of a period -> Log Kick-off
+                val teamAbbr = if (currentGame.kickOffTeam == Team.HOME) currentGame.homeTeamAbbr else currentGame.awayTeamAbbr
+                val teamName = if (currentGame.kickOffTeam == Team.HOME) currentGame.homeTeamName else currentGame.awayTeamName
+                val teamDisplayName = teamAbbr?.takeIf { it.isNotBlank() } 
+                    ?: teamName.takeIf { it.isNotBlank() } 
+                    ?: if (currentGame.kickOffTeam == Team.HOME) getApplication<Application>().getString(R.string.home) else getApplication<Application>().getString(R.string.away)
+                
+                val kickOffMessage = getApplication<Application>().getString(R.string.kickoff_message, currentPhase.readable(), "($teamDisplayName)")
+                
+                _activeGame.update { it?.addEvent(GenericLogEvent(
+                    message = kickOffMessage,
+                    phase = currentPhase,
+                    gameTimeMillis = 0.0
+                )) }
+                gameTimerService?.startGameTimer(currentGame)
+            } else {
+                gameTimerService?.toggleStoppageTimer()
+            }
         } else {
             // For non-playable phases (e.g. Half-time), use standard pause/resume.
             if (currentGame.isTimerRunning) {
@@ -616,6 +769,35 @@ class WearGameViewModel @Inject constructor(
                 gameTimerService?.resumeGameTimer(currentGame)
             }
         }
+        
+        // SYNC: Immediately update cloud with new timer state.
+        // CRITICAL: We MUST pull the absolute latest values from the service state 
+        // to avoid sending stale 0ms values to the cloud.
+        viewModelScope.launch {
+            delay(50) // Tiny delay to let service update its internal flows
+            updateActiveGameFromServiceAndSave()
+        }
+    }
+
+    /**
+     * Pushes current actual match time and stoppage time from the Service into 
+     * the ViewModel's activeGame object and immediately saves to Cloud.
+     * This prevents GW4 from sending "0" for match time during a sync.
+     */
+    private suspend fun updateActiveGameFromServiceAndSave() {
+        val serviceState = gameTimerService?.timerStateFlow?.value ?: return
+        
+        val updatedGame = _activeGame.updateAndGet { current ->
+            current?.copy(
+                isTimerRunning = serviceState.isTimerRunning,
+                isStoppageTimerRunning = serviceState.isStoppageTimerRunning,
+                actualTimeElapsedInPeriodMillis = serviceState.actualTimeElapsedInPeriodMillis,
+                stoppageTimeMillis = serviceState.stoppageTimeMillis,
+                lastUpdated = System.currentTimeMillis()
+            )
+        }
+        
+        updatedGame?.let { gameStorage.addOrUpdateGame(it) }
     }
 
     fun cancelTimer() {
@@ -639,11 +821,27 @@ class WearGameViewModel @Inject constructor(
             GamePhase.KICK_OFF_SELECTION_FIRST_HALF -> GamePhase.FIRST_HALF
             GamePhase.FIRST_HALF -> GamePhase.HALF_TIME
             GamePhase.HALF_TIME -> GamePhase.SECOND_HALF
-            GamePhase.SECOND_HALF -> if (gameAtPeriodEnd.hasExtraTime) GamePhase.KICK_OFF_SELECTION_EXTRA_TIME else GamePhase.GAME_ENDED
+            GamePhase.SECOND_HALF -> {
+                if (gameAtPeriodEnd.homeScore == gameAtPeriodEnd.awayScore) {
+                    when {
+                        gameAtPeriodEnd.hasExtraTime -> GamePhase.KICK_OFF_SELECTION_EXTRA_TIME
+                        gameAtPeriodEnd.hasPenalties -> GamePhase.KICK_OFF_SELECTION_PENALTIES
+                        else -> GamePhase.GAME_ENDED
+                    }
+                } else {
+                    GamePhase.GAME_ENDED
+                }
+            }
             GamePhase.KICK_OFF_SELECTION_EXTRA_TIME -> GamePhase.EXTRA_TIME_FIRST_HALF
             GamePhase.EXTRA_TIME_FIRST_HALF -> GamePhase.EXTRA_TIME_HALF_TIME
             GamePhase.EXTRA_TIME_HALF_TIME -> GamePhase.EXTRA_TIME_SECOND_HALF
-            GamePhase.EXTRA_TIME_SECOND_HALF -> if (gameAtPeriodEnd.homeScore == gameAtPeriodEnd.awayScore && gameAtPeriodEnd.hasPenalties) GamePhase.KICK_OFF_SELECTION_PENALTIES else GamePhase.GAME_ENDED
+            GamePhase.EXTRA_TIME_SECOND_HALF -> {
+                if (gameAtPeriodEnd.homeScore == gameAtPeriodEnd.awayScore && gameAtPeriodEnd.hasPenalties) {
+                    GamePhase.KICK_OFF_SELECTION_PENALTIES
+                } else {
+                    GamePhase.GAME_ENDED
+                }
+            }
             GamePhase.KICK_OFF_SELECTION_PENALTIES -> GamePhase.PENALTIES
             GamePhase.PENALTIES -> GamePhase.GAME_ENDED
             else -> gameAtPeriodEnd.currentPhase
@@ -661,11 +859,18 @@ class WearGameViewModel @Inject constructor(
             gameTimeMillis = gameAtPeriodEnd.actualTimeElapsedInPeriodMillis.toDouble(),
             phase = gameAtPeriodEnd.currentPhase
         )
+
+        // ROSTER LOGIC: Clear temporary dismissals when transitioning between periods.
+        // A player is allowed back on the field at the start of a new half.
+        _activeDismissals.value = emptyList()
+        _pendingReturnConfirmations.value = emptyList()
+
         val updatedGame = gameAtPeriodEnd.copy(
             currentPhase = nextPhase,
             actualTimeElapsedInPeriodMillis = 0L,
             displayedTimeMillis = gameAtPeriodEnd.regulationPeriodDurationMillis(nextPhase),
             kickOffTeam = newKickOffTeam,
+            isTimerRunning = nextPhase.isBreak(),
             stoppageTimeMillis = 0L,
             lastUpdated = System.currentTimeMillis()
         ).addEvent(phaseChangeEvent)
@@ -708,27 +913,86 @@ class WearGameViewModel @Inject constructor(
 
     fun kickOff() {
         val currentGame = _activeGame.value ?: return
-        val currentPhase = currentGame.currentPhase
-
-        if (currentPhase.needsKickOff()) {
+        if (currentGame.currentPhase.needsKickOff()) {
             if (_kickoffCountdownSeconds.value != null) return
+            
+            val startTime = System.currentTimeMillis()
+            _activeGame.update { it?.copy(
+                kickoffCountdownStartTimeMillis = startTime,
+                lastUpdated = System.currentTimeMillis()
+            ) }
+            
             viewModelScope.launch {
-                _kickoffCountdownSeconds.value = 10
-                while ((_kickoffCountdownSeconds.value ?: 0) > 0) {
-                    val value = _kickoffCountdownSeconds.value ?: 0
-                    if (value <= 3) vibrateKickoffTick()
-                    delay(1000)
-                    _kickoffCountdownSeconds.value = (value - 1).coerceAtLeast(0)
-                }
-                vibrateKickoffGo()
-                val latestGame = _activeGame.value ?: return@launch
-                val teamName = if (latestGame.kickOffTeam == Team.HOME) latestGame.homeTeamName else latestGame.awayTeamName
-                val kickOffMessage = "Anstoß ${latestGame.currentPhase.readable()} (${teamName})"
-                addEvent(GenericLogEvent(message = kickOffMessage, phase = latestGame.currentPhase, gameTimeMillis = 0.0))
-                gameTimerService?.startGameTimer(latestGame)
-                _kickoffCountdownSeconds.value = null
+                _activeGame.value?.let { gameStorage.addOrUpdateGame(it) }
             }
         }
+    }
+
+    private fun startKickoffCountdown(startTime: Long) {
+        if (_kickoffCountdownSeconds.value != null) return
+        kickoffCountdownJob?.cancel()
+        kickoffCountdownJob = viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val elapsed = (now - startTime) / 1000
+            val remaining = (10 - elapsed).toInt()
+            
+            if (remaining <= 0) {
+                completeKickOff()
+                return@launch
+            }
+            
+            _kickoffCountdownSeconds.value = remaining
+            while (isActive && (_kickoffCountdownSeconds.value ?: 0) > 0) {
+                val value = _kickoffCountdownSeconds.value ?: 0
+                if (value <= 3) vibrateKickoffTick()
+                delay(1000)
+                _kickoffCountdownSeconds.value = (value - 1).coerceAtLeast(0)
+            }
+            if (isActive) {
+                vibrateKickoffGo()
+                completeKickOff()
+            }
+            _kickoffCountdownSeconds.value = null
+            kickoffCountdownJob = null
+        }
+    }
+
+    private fun completeKickOff() {
+        val latestGame = _activeGame.value ?: return
+        if (!latestGame.currentPhase.needsKickOff()) return
+        
+        // SYNC SHIELD: Only log event and start timer if we are the one who initiated OR if timer isn't running yet
+        if (latestGame.isTimerRunning) return
+
+        // TIMER SHIELD
+        lastManualTimerToggleTimestamp = System.currentTimeMillis()
+
+        val teamAbbr = if (latestGame.kickOffTeam == Team.HOME) latestGame.homeTeamAbbr else latestGame.awayTeamAbbr
+        val teamName = if (latestGame.kickOffTeam == Team.HOME) latestGame.homeTeamName else latestGame.awayTeamName
+        val teamDisplayName = teamAbbr?.takeIf { it.isNotBlank() } 
+            ?: teamName.takeIf { it.isNotBlank() } 
+            ?: if (latestGame.kickOffTeam == Team.HOME) "Heim" else "Gast"
+            
+        val kickOffMessage = "Anstoß ${latestGame.currentPhase.readable()} ($teamDisplayName)"
+        
+        val updatedGame = latestGame.addEvent(GenericLogEvent(
+            message = kickOffMessage, 
+            phase = latestGame.currentPhase, 
+            gameTimeMillis = 0.0
+        )).copy(
+            isTimerRunning = true, 
+            isStoppageTimerRunning = false,
+            stoppageTimeMillis = 0L,
+            actualTimeElapsedInPeriodMillis = 0L,
+            kickoffCountdownStartTimeMillis = null,
+            lastUpdated = System.currentTimeMillis()
+        )
+        
+        _activeGame.value = updatedGame
+        viewModelScope.launch { 
+            gameStorage.addOrUpdateGame(updatedGame)
+        }
+        gameTimerService?.startGameTimer(updatedGame)
     }
 
 
@@ -799,14 +1063,24 @@ class WearGameViewModel @Inject constructor(
     }
 
     fun toggleStoppageTimer() {
+        // TIMER SHIELD
+        lastManualTimerToggleTimestamp = System.currentTimeMillis()
+        
         gameTimerService?.toggleStoppageTimer()
         vibrate(VibrationPattern.GENERIC_EVENT)
+        
+        // SYNC: Immediately update cloud with new stoppage state.
+        // CRITICAL: Pull exact milliseconds from service.
+        viewModelScope.launch {
+            delay(50)
+            updateActiveGameFromServiceAndSave()
+        }
     }
 
     private fun currentElapsedInPeriodMillis(): Long =
         _timerDisplayState.value.actualTimeElapsedInPeriodMillis
 
-    fun addGoal(team: Team, playerNumber: Int? = null, goalType: GoalType = GoalType.REGULAR) {
+    fun addGoal(team: Team, playerNumber: Int? = null, goalType: GoalType = GoalType.REGULAR, assistantNumber: Int? = null) {
         val currentGame = _activeGame.value ?: return
         if (!currentGame.currentPhase.isPlayablePhase()) return
 
@@ -821,6 +1095,7 @@ class WearGameViewModel @Inject constructor(
             teamDisplayName = if (team == Team.HOME) currentGame.homeTeamName else currentGame.awayTeamName,
             goalType = goalType,
             playerNumber = playerNumber,
+            assistantNumber = assistantNumber,
             gameTimeMillis = currentElapsedInPeriodMillis().toDouble(),
             homeScoreAtTime = newHomeScore,
             awayScoreAtTime = newAwayScore,
@@ -849,6 +1124,7 @@ class WearGameViewModel @Inject constructor(
 
         val cardEvent = CardIssuedEvent(
             team = team,
+            teamDisplayName = if (team == Team.HOME) currentGame.homeTeamName else currentGame.awayTeamName,
             playerNumber = playerNumber,
             cardType = cardType,
             isOfficial = isOfficial,
@@ -862,6 +1138,7 @@ class WearGameViewModel @Inject constructor(
             if (applyTemporaryDismissal && cardType == CardType.YELLOW) {
                 val dismissalEvent = TemporaryDismissalEvent(
                     team = team,
+                    teamDisplayName = if (team == Team.HOME) currentGame.homeTeamName else currentGame.awayTeamName,
                     playerNumber = playerNumber,
                     durationMinutes = currentGame.temporaryDismissalMinutes,
                     startMatchTimeMillis = currentElapsedInPeriodMillis().toDouble(),
@@ -1021,18 +1298,40 @@ class WearGameViewModel @Inject constructor(
     }
 
     fun logSubstitution(team: Team, outgoing: Int, incoming: Int) {
-        _activeGame.value?.let { game ->
-            val teamName = if (team == Team.HOME) (game.homeTeamAbbr?.takeIf { it.isNotBlank() } ?: game.homeTeamName) else (game.awayTeamAbbr?.takeIf { it.isNotBlank() } ?: game.awayTeamName)
-            val event = SubstitutionEvent(
-                team = team,
-                teamDisplayName = teamName,
-                outgoingPlayerNumber = outgoing,
-                incomingPlayerNumber = incoming,
-                gameTimeMillis = currentElapsedInPeriodMillis().toDouble(),
-                phase = game.currentPhase
-            )
-            _activeGame.update { it?.addEvent(event) }
-            vibrate(VibrationPattern.GENERIC_EVENT)
+        var updatedGame: Game? = null
+        _activeGame.update { game ->
+            game?.let {
+                val gameWithRoster = it.logSubstitution(
+                    team = team,
+                    outgoingNum = outgoing,
+                    incomingNum = incoming,
+                    gameTimeMillis = currentElapsedInPeriodMillis().toDouble(),
+                    currentPhase = it.currentPhase
+                )
+                updatedGame = gameWithRoster
+                gameWithRoster
+            }
+        }
+        // SYNC: Persist immediately so the substitution (and the updated field/bench
+        // assignment) never gets lost, even if the debounced save is suppressed by
+        // the sync shield after a remote update.
+        updatedGame?.let { gameToSave ->
+            viewModelScope.launch {
+                gameStorage.addOrUpdateGame(gameToSave)
+            }
+        }
+        vibrate(VibrationPattern.GENERIC_EVENT)
+    }
+
+    fun logMultipleSubstitutions(team: Team, outgoingStr: String, incomingStr: String) {
+        val outList = outgoingStr.split(Regex("[,+]")).mapNotNull { it.trim().toIntOrNull() }
+        val inList = incomingStr.split(Regex("[,+]")).mapNotNull { it.trim().toIntOrNull() }
+        
+        // Match pairs. If lists differ in size, we take the minimum common count.
+        val pairCount = minOf(outList.size, inList.size)
+        
+        for (i in 0 until pairCount) {
+            logSubstitution(team, outList[i], inList[i])
         }
     }
 
@@ -1156,7 +1455,7 @@ class WearGameViewModel @Inject constructor(
         vibrate(VibrationPattern.GOAL_SCORED)
 
         _activeGame.update { game ->
-            game?.let {
+            val updated = game?.let {
                 var newScoreHome = it.homeScore
                 var newScoreAway = it.awayScore
                 val newKickOffTeamForNext = it.kickOffTeam.opposite()
@@ -1194,6 +1493,15 @@ class WearGameViewModel @Inject constructor(
                     currentPhase = newPhase
                 ).addEvent(penaltyEvent)
             }
+            
+            // SYNC: Push to cloud immediately so other devices (sideline) see the 
+            // result of the kick without waiting for the debounced auto-save.
+            updated?.let { gameToSave ->
+                viewModelScope.launch {
+                    gameStorage.addOrUpdateGame(gameToSave)
+                }
+            }
+            updated
         }
     }
 
@@ -1219,6 +1527,24 @@ class WearGameViewModel @Inject constructor(
         }
     }
 
+
+    /**
+     * Signs the wear device completely out of the Firebase account.
+     * This clears the local active game, any timer session and delegates to
+     * [WatchAuthManager.signOut], which resets both the watch user and the
+     * linked phone user id. GameStorageWear reacts to the auth change and
+     * clears / detaches its Firestore listener and cache automatically.
+     */
+    fun signOut() {
+        viewModelScope.launch {
+            cancelTimer()
+            _activeGame.value = null
+            _activeDismissals.value = emptyList()
+            _pendingReturnConfirmations.value = emptyList()
+            watchAuthManager.signOut()
+            vibrate(VibrationPattern.GENERIC_EVENT)
+        }
+    }
 
     @RequiresPermission(Manifest.permission.VIBRATE)
     private fun vibrate(pattern: VibrationPattern) {

@@ -26,6 +26,7 @@ import com.databelay.refwatch.wear.presentation.screens.PenaltyShootoutScreen
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.isPlayablePhase
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.StateFlow
 import androidx.wear.compose.material3.AnimatedPage
 import androidx.wear.compose.material3.HorizontalPagerScaffold
 import androidx.wear.compose.material3.PagerScaffoldDefaults
@@ -37,7 +38,7 @@ import com.databelay.refwatch.wear.TimerDisplayMode
 @Composable
 fun GamePagerContent(
     game: Game,
-    timerState: TimerState,
+    timerStateFlow: StateFlow<TimerState>,
     isAmbient: Boolean = false,
     kickoffCountdownSeconds: Int? = null,
     timerDisplayMode: TimerDisplayMode = TimerDisplayMode.REMAINING,
@@ -52,11 +53,12 @@ fun GamePagerContent(
     onNavigateToLogGoal: (Team, GoalType) -> Unit,
     onNavigateToLogCard: (Team, CardType) -> Unit,
     onNavigateToLogSubstitution: (Team) -> Unit,
-    onQuickSubstitution: (Team, Int, Int) -> Unit = { _, _, _ -> },
+    onQuickSubstitution: (Team, String, String) -> Unit = { _, _, _ -> },
     onPenaltyAttemptRecorded: (Boolean, Int?) -> Unit,
     onToggleTimer: () -> Unit,
     onToggleStoppageTimer: () -> Unit = {},
     onOpenGameMenu: () -> Unit = {},
+    onUndoLastEvent: () -> Unit = {},
 
     modifier: Modifier = Modifier
 ) {
@@ -105,7 +107,7 @@ fun GamePagerContent(
                         userScrollEnabled = !isAmbient
                     ) { page ->
                         when (page) {
-                            0 -> AnimatedPage(pageIndex = page, pagerState = pagerState) {
+                            0 -> {
                                 TeamActionsPage(
                                     team = Team.HOME,
                                     game = game,
@@ -118,10 +120,10 @@ fun GamePagerContent(
                                     onQuickSubstitution = onQuickSubstitution
                                 )
                             }
-                            1 -> AnimatedPage(pageIndex = page, pagerState = pagerState) {
+                            1 -> {
                                 MainGameDisplayScreen(
                                     game = game,
-                                    timerState = timerState,
+                                    timerStateFlow = timerStateFlow,
                                     isAmbient = isAmbient,
                                     kickoffCountdownSeconds = kickoffCountdownSeconds,
                                     activeDismissals = activeDismissals,
@@ -138,7 +140,7 @@ fun GamePagerContent(
                                     onQuickSubstitution = onQuickSubstitution
                                 )
                             }
-                            2 -> AnimatedPage(pageIndex = page, pagerState = pagerState) {
+                            2 -> {
                                 TeamActionsPage(
                                     team = Team.AWAY,
                                     game = game,
@@ -159,7 +161,7 @@ fun GamePagerContent(
             else -> {
                 MainGameDisplayScreen(
                     game = game,
-                    timerState = timerState,
+                    timerStateFlow = timerStateFlow,
                     isAmbient = isAmbient,
                     kickoffCountdownSeconds = kickoffCountdownSeconds,
                     activeDismissals = activeDismissals,

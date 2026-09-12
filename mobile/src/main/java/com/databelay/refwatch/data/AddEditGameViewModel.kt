@@ -16,6 +16,7 @@ import com.databelay.refwatch.common.TeamOfficial
 import com.databelay.refwatch.common.theme.DefaultAwayJerseyColor
 import com.databelay.refwatch.common.theme.DefaultHomeJerseyColor
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,10 +43,11 @@ data class AddEditGameUiState(
     val venue: String = "",
     val competition: String = "",
     val gameDateTimeEpochMillis: Long? = null,
-    val halfDurationMinutes: Int = 0,
-    val halftimeDurationMinutes: Int = 0,
+    val halfDurationMinutes: Int = 45,
+    val halftimeDurationMinutes: Int = 15,
+    val hasExtraTime: Boolean = false,
     val extraTimeHalfDurationMinutes: Int = 0,
-    val maxSubstitutionsAllowed: Int = 0,
+    val maxSubstitutionsAllowed: Int = 5,
     val hasTemporaryDismissals: Boolean = false,
     val temporaryDismissalMinutes: Int = 0,
     val homeTeamColorArgb: Int = DefaultHomeJerseyColor.toArgb(),
@@ -76,6 +78,8 @@ data class AddEditGameUiState(
     val ageGroup: AgeGroup? = null,
     val homeScore: String = "0",
     val awayScore: String = "0",
+    val homeFieldLimit: Int = 11,
+    val awayFieldLimit: Int = 11,
     val isSaving: Boolean = false,
     val saveSuccess: Boolean = false,
     val errorMessage: String? = null,
@@ -132,6 +136,7 @@ class AddEditGameViewModel @Inject constructor(
                             gameDateTimeEpochMillis = gameToEdit.gameDateTimeEpochMillis,
                             halfDurationMinutes = gameToEdit.halfDurationMinutes,
                             halftimeDurationMinutes = gameToEdit.halftimeDurationMinutes,
+                            hasExtraTime = gameToEdit.hasExtraTime,
                             extraTimeHalfDurationMinutes = gameToEdit.extraTimeHalfDurationMinutes,
                             maxSubstitutionsAllowed = gameToEdit.maxSubstitutionsAllowed,
                             hasTemporaryDismissals = gameToEdit.hasTemporaryDismissals,
@@ -145,6 +150,8 @@ class AddEditGameViewModel @Inject constructor(
                             awayRoster = gameToEdit.awayRoster,
                             homeOfficials = gameToEdit.homeOfficials,
                             awayOfficials = gameToEdit.awayOfficials,
+                            homeFieldLimit = if (gameToEdit.homeRoster.count { it.onField } <= 7) 7 else 11,
+                            awayFieldLimit = if (gameToEdit.awayRoster.count { it.onField } <= 7) 7 else 11,
                             fourthOfficial = gameToEdit.fourthOfficial ?: "",
                             observer = gameToEdit.observer ?: "",
                             mainReferee = gameToEdit.mainReferee ?: "",
@@ -179,21 +186,25 @@ class AddEditGameViewModel @Inject constructor(
     }
 
     // --- Event Handlers for UI Inputs ---
+    private fun sanitizeName(name: String): String {
+        return name.filter { it.isLetterOrDigit() || it.isWhitespace() || it == '/' }
+    }
+
     fun onHomeTeamNameChange(name: String) {
-        _uiState.value = _uiState.value.copy(homeTeamName = name)
+        _uiState.value = _uiState.value.copy(homeTeamName = sanitizeName(name))
     }
 
     fun onAwayTeamNameChange(name: String) {
-        _uiState.value = _uiState.value.copy(awayTeamName = name)
+        _uiState.value = _uiState.value.copy(awayTeamName = sanitizeName(name))
     }
 
     fun onHomeTeamAbbrChange(abbr: String) {
-        val sanitized = abbr.take(3).uppercase()
+        val sanitized = sanitizeName(abbr).take(3).uppercase()
         _uiState.value = _uiState.value.copy(homeTeamAbbr = sanitized)
     }
 
     fun onAwayTeamAbbrChange(abbr: String) {
-        val sanitized = abbr.take(3).uppercase()
+        val sanitized = sanitizeName(abbr).take(3).uppercase()
         _uiState.value = _uiState.value.copy(awayTeamAbbr = sanitized)
     }
 
@@ -252,6 +263,15 @@ class AddEditGameViewModel @Inject constructor(
     fun onHalftimeDurationChange(minutes: String) {
         _uiState.value =
             _uiState.value.copy(halftimeDurationMinutes = minutes.toIntOrNull() ?: 0)
+    }
+
+    fun onHasExtraTimeChange(enabled: Boolean) {
+        _uiState.update { 
+            it.copy(
+                hasExtraTime = enabled,
+                extraTimeHalfDurationMinutes = if (enabled) (it.extraTimeHalfDurationMinutes.takeIf { m -> m > 0 } ?: 15) else 0
+            )
+        }
     }
 
     fun onExtraTimeHalfDurationChange(minutes: String) {
@@ -324,7 +344,7 @@ class AddEditGameViewModel @Inject constructor(
     fun onHomeRosterChange(roster: List<Player>) {
         _uiState.value = _uiState.value.copy(homeRoster = roster)
         // Automatically sync captain number if designated
-        roster.find { it.isCaptain }?.let {
+        roster.find { it.captain }?.let {
             _uiState.value = _uiState.value.copy(homeCaptainNumber = it.number.toString())
         }
     }
@@ -332,7 +352,7 @@ class AddEditGameViewModel @Inject constructor(
     fun onAwayRosterChange(roster: List<Player>) {
         _uiState.value = _uiState.value.copy(awayRoster = roster)
         // Automatically sync captain number if designated
-        roster.find { it.isCaptain }?.let {
+        roster.find { it.captain }?.let {
             _uiState.value = _uiState.value.copy(awayCaptainNumber = it.number.toString())
         }
     }
@@ -347,56 +367,58 @@ class AddEditGameViewModel @Inject constructor(
 
     fun applyRosterTemplate(team: Team, starters: Int, subs: Int) {
         val roster = (1..starters).map { number ->
-            Player(name = "", number = number, isCaptain = number == 1, isOnField = true)
+            Player(name = "", number = number, captain = number == 1, onField = true)
         } + ((starters + 1)..(starters + subs)).map { number ->
-            Player(name = "", number = number, isCaptain = false, isOnField = false)
+            Player(name = "", number = number, captain = false, onField = false)
         }
         if (team == Team.HOME) {
+            _uiState.update { it.copy(homeFieldLimit = starters) }
             onHomeRosterChange(roster)
         } else {
+            _uiState.update { it.copy(awayFieldLimit = starters) }
             onAwayRosterChange(roster)
         }
     }
 
-    fun toggleCaptain(team: Team, playerNumber: Int) {
+    fun toggleCaptain(team: Team, playerId: String) {
         if (team == Team.HOME) {
             val updated = _uiState.value.homeRoster.map {
-                it.copy(isCaptain = it.number == playerNumber)
+                it.copy(captain = it.id == playerId)
             }
             onHomeRosterChange(updated)
         } else {
             val updated = _uiState.value.awayRoster.map {
-                it.copy(isCaptain = it.number == playerNumber)
+                it.copy(captain = it.id == playerId)
             }
             onAwayRosterChange(updated)
         }
     }
 
-    fun toggleOnField(team: Team, playerNumber: Int) {
+    fun toggleOnField(team: Team, playerId: String) {
         val roster = if (team == Team.HOME) _uiState.value.homeRoster else _uiState.value.awayRoster
-        val player = roster.find { it.number == playerNumber } ?: return
+        val player = roster.find { it.id == playerId } ?: return
+        val limit = if (team == Team.HOME) _uiState.value.homeFieldLimit else _uiState.value.awayFieldLimit
         
-        if (!player.isOnField) {
+        if (!player.onField) {
             // Moving to field. Check if we need to swap.
-            val currentOnField = roster.filter { it.isOnField }
-            val limit = 11 // Or adjust based on match type if implemented
+            val currentOnField = roster.filter { it.onField }
             if (currentOnField.size >= limit) {
                 // Limit reached, move first on-field player to bench
                 val firstOnField = currentOnField.first()
                 if (team == Team.HOME) {
                     val updated = _uiState.value.homeRoster.map {
-                        when (it.number) {
-                            playerNumber -> it.copy(isOnField = true)
-                            firstOnField.number -> it.copy(isOnField = false)
+                        when (it.id) {
+                            playerId -> it.copy(onField = true)
+                            firstOnField.id -> it.copy(onField = false)
                             else -> it
                         }
                     }
                     onHomeRosterChange(updated)
                 } else {
                     val updated = _uiState.value.awayRoster.map {
-                        when (it.number) {
-                            playerNumber -> it.copy(isOnField = true)
-                            firstOnField.number -> it.copy(isOnField = false)
+                        when (it.id) {
+                            playerId -> it.copy(onField = true)
+                            firstOnField.id -> it.copy(onField = false)
                             else -> it
                         }
                     }
@@ -408,12 +430,12 @@ class AddEditGameViewModel @Inject constructor(
 
         if (team == Team.HOME) {
             val updated = _uiState.value.homeRoster.map {
-                if (it.number == playerNumber) it.copy(isOnField = !it.isOnField) else it
+                if (it.id == playerId) it.copy(onField = !it.onField) else it
             }
             onHomeRosterChange(updated)
         } else {
             val updated = _uiState.value.awayRoster.map {
-                if (it.number == playerNumber) it.copy(isOnField = !it.isOnField) else it
+                if (it.id == playerId) it.copy(onField = !it.onField) else it
             }
             onAwayRosterChange(updated)
         }
@@ -421,51 +443,54 @@ class AddEditGameViewModel @Inject constructor(
 
     fun addPlayer(team: Team, number: Int, name: String = "") {
         if (number == 0) return // Block number 0
+        val limit = if (team == Team.HOME) _uiState.value.homeFieldLimit else _uiState.value.awayFieldLimit
         if (team == Team.HOME) {
             val current = _uiState.value.homeRoster
             if (current.none { it.number == number }) {
-                onHomeRosterChange(current + Player(name, number))
+                val shouldBeOnField = current.count { it.onField } < limit
+                onHomeRosterChange(current + Player(name = name, number = number, onField = shouldBeOnField))
             }
         } else {
             val current = _uiState.value.awayRoster
             if (current.none { it.number == number }) {
-                onAwayRosterChange(current + Player(name, number))
+                val shouldBeOnField = current.count { it.onField } < limit
+                onAwayRosterChange(current + Player(name = name, number = number, onField = shouldBeOnField))
             }
         }
     }
 
-    fun removePlayer(team: Team, playerNumber: Int) {
+    fun removePlayer(team: Team, playerId: String) {
         if (team == Team.HOME) {
-            onHomeRosterChange(_uiState.value.homeRoster.filterNot { it.number == playerNumber })
+            onHomeRosterChange(_uiState.value.homeRoster.filterNot { it.id == playerId })
         } else {
-            onAwayRosterChange(_uiState.value.awayRoster.filterNot { it.number == playerNumber })
+            onAwayRosterChange(_uiState.value.awayRoster.filterNot { it.id == playerId })
         }
     }
 
-    fun updatePlayerNumber(team: Team, oldNumber: Int, newNumber: Int) {
+    fun updatePlayerNumber(team: Team, playerId: String, newNumber: Int) {
         if (newNumber == 0) return
         if (team == Team.HOME) {
             val updated = _uiState.value.homeRoster.map {
-                if (it.number == oldNumber) it.copy(number = newNumber) else it
+                if (it.id == playerId) it.copy(number = newNumber) else it
             }
             onHomeRosterChange(updated)
         } else {
             val updated = _uiState.value.awayRoster.map {
-                if (it.number == oldNumber) it.copy(number = newNumber) else it
+                if (it.id == playerId) it.copy(number = newNumber) else it
             }
             onAwayRosterChange(updated)
         }
     }
 
-    fun updatePlayerName(team: Team, playerNumber: Int, newName: String) {
+    fun updatePlayerName(team: Team, playerId: String, newName: String) {
         if (team == Team.HOME) {
             val updated = _uiState.value.homeRoster.map {
-                if (it.number == playerNumber) it.copy(name = newName) else it
+                if (it.id == playerId) it.copy(name = newName) else it
             }
             onHomeRosterChange(updated)
         } else {
             val updated = _uiState.value.awayRoster.map {
-                if (it.number == playerNumber) it.copy(name = newName) else it
+                if (it.id == playerId) it.copy(name = newName) else it
             }
             onAwayRosterChange(updated)
         }
@@ -511,6 +536,22 @@ class AddEditGameViewModel @Inject constructor(
 
             _uiState.update { it.copy(isSaving = true, saveSuccess = false, errorMessage = null) }
 
+            // --- VALIDATION ---
+            if (currentState.homeTeamName.trim().equals(currentState.awayTeamName.trim(), ignoreCase = true)) {
+                _uiState.update { it.copy(isSaving = false, errorMessage = getApplication<Application>().getString(R.string.error_identical_teams)) }
+                return@launch
+            }
+
+            if (currentState.homeTeamAbbr.isNotBlank() && currentState.homeTeamAbbr.equals(currentState.awayTeamAbbr, ignoreCase = true)) {
+                _uiState.update { it.copy(isSaving = false, errorMessage = getApplication<Application>().getString(R.string.error_identical_abbr)) }
+                return@launch
+            }
+
+            if (currentState.homeTeamColorArgb == currentState.awayTeamColorArgb) {
+                _uiState.update { it.copy(isSaving = false, errorMessage = getApplication<Application>().getString(R.string.error_identical_colors)) }
+                return@launch
+            }
+
             val gameToSave: Game
 
             if (currentState.gameId != null && currentState.isEditing) {
@@ -543,6 +584,7 @@ class AddEditGameViewModel @Inject constructor(
                     gameDateTimeEpochMillis = currentState.gameDateTimeEpochMillis,
                     halfDurationMinutes = currentState.halfDurationMinutes,
                     halftimeDurationMinutes = currentState.halftimeDurationMinutes,
+                    hasExtraTime = currentState.hasExtraTime,
                     extraTimeHalfDurationMinutes = currentState.extraTimeHalfDurationMinutes,
                     maxSubstitutionsAllowed = currentState.maxSubstitutionsAllowed,
                     hasTemporaryDismissals = currentState.hasTemporaryDismissals,
@@ -590,6 +632,7 @@ class AddEditGameViewModel @Inject constructor(
                     gameDateTimeEpochMillis = currentState.gameDateTimeEpochMillis,
                     halfDurationMinutes = currentState.halfDurationMinutes,
                     halftimeDurationMinutes = currentState.halftimeDurationMinutes,
+                    hasExtraTime = currentState.hasExtraTime,
                     extraTimeHalfDurationMinutes = currentState.extraTimeHalfDurationMinutes,
                     maxSubstitutionsAllowed = currentState.maxSubstitutionsAllowed,
                     hasTemporaryDismissals = currentState.hasTemporaryDismissals,

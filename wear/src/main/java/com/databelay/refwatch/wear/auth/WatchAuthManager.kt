@@ -82,6 +82,19 @@ class WatchAuthManager @Inject constructor(
         }
     }
 
+    suspend fun signInWithGoogle(idToken: String): Result<FirebaseUser> {
+        return try {
+            Log.d(tag, "Attempting sign-in with Google token.")
+            val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+            val authResult = firebaseAuth.signInWithCredential(credential).await()
+            Log.i(tag, "Google sign-in successful. Watch User: ${authResult.user?.uid}")
+            Result.success(authResult.user!!)
+        } catch (e: Exception) {
+            Log.e(tag, "Google sign-in failed", e)
+            Result.failure(e)
+        }
+    }
+
     fun signOut() {
         authScope.launch {
             val currentUid = _firebaseUser.value?.uid

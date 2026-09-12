@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -367,8 +368,9 @@ fun PreGameSetupScreen(
                     label = stringResource(R.string.extra_time_duration),
                     currentValue = extraTimeHalfDurationMinutes,
                     onValueChange = onSetExtraTimeDuration,
-                    valueRange = 1..60,
-                    step = 1
+                    valueRange = 0..60, // Allow 0 if disabled
+                    step = 1,
+                    enabled = game?.hasExtraTime ?: false
                 )
             }
 
@@ -397,8 +399,9 @@ fun PreGameSetupScreen(
                         label = stringResource(R.string.temporary_dismissal_minutes),
                         currentValue = temporaryDismissalMinutes,
                         onValueChange = onSetTemporaryDismissalMinutes,
-                        valueRange = 1..60,
-                        step = 1
+                        valueRange = 0..60,
+                        step = 1,
+                        enabled = hasTemporaryDismissals
                     )
                 }
             }
@@ -420,8 +423,9 @@ fun PreGameSetupScreen(
                         label = stringResource(R.string.penalty_kicks_per_team),
                         currentValue = penaltyKicksPerTeam,
                         onValueChange = onSetPenaltyKicksPerTeam,
-                        valueRange = 1..20,
-                        step = 1
+                        valueRange = 0..20,
+                        step = 1,
+                        enabled = hasPenalties
                     )
                 }
             }
@@ -747,11 +751,14 @@ fun DurationSettingStepper(
     currentValue: Int,
     onValueChange: (Int) -> Unit,
     valueRange: IntRange = 1..60,
-    step: Int = 5
+    step: Int = 5,
+    enabled: Boolean = true
 ) {
+    val contentAlpha = if (enabled) 1f else 0.4f
+    
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth().alpha(contentAlpha)
     ) {
         Text(
             label,
@@ -765,11 +772,12 @@ fun DurationSettingStepper(
         ) {
             CompactButton(
                 onClick = {
-                    if (currentValue - step >= valueRange.first) onValueChange(
+                    if (enabled && currentValue - step >= valueRange.first) onValueChange(
                         currentValue - step
                     )
                 },
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(40.dp),
+                enabled = enabled
             ) { Text("-", fontSize = 18.sp) }
 
             Text(
@@ -782,11 +790,12 @@ fun DurationSettingStepper(
             )
             CompactButton(
                 onClick = {
-                    if (currentValue + step <= valueRange.last) onValueChange(
+                    if (enabled && currentValue + step <= valueRange.last) onValueChange(
                         currentValue + step
                     )
                 },
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(40.dp),
+                enabled = enabled
             ) { Text("+", fontSize = 18.sp) }
         }
     }

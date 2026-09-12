@@ -44,6 +44,7 @@
     <string name="phase_game_ended">Spielende</string>
     <string name="phase_aborted">Abgebrochen</string>
     <string name="abort_game_title">Spiel abbrechen?</string>
+    <string name="abort_match">Spiel abbrechen</string>
     <string name="abort_game_msg">Das Spiel wird beendet und als abgebrochen markiert.</string>
     <string name="home_away_teams">Teams</string>
     <string name="card_yellow_title">Gelbe Karte</string>
@@ -51,8 +52,11 @@
     <string name="login_title">Anmelden</string>
     <string name="email_label">E-Mail</string>
     <string name="password_label">Passwort</string>
-    <string name="login_button">Einloggen</string>
+    <string name="login_button">Anmelden</string>
     <string name="login_failed">Login fehlgeschlagen</string>
+    <string name="logout">Abmelden</string>
+    <string name="logout_question">Abmelden?</string>
+    <string name="logout_msg">Möchtest du dich von diesem Konto abmelden?</string>
     <string name="log_card">Kartenprotokoll</string>
     <string name="card_yellow">Gelb</string>
     <string name="card_red">Rot</string>
@@ -183,4 +187,16 @@
     <string name="timer_play_content_desc">Timer starten</string>
     <string name="timer_pause_content_desc">Timer pausieren</string>
     <string name="manual_entry_button">Tastatur</string>
+
+    <!-- Navigation und UI -->
+    <string name="select_roster">Kader wählen</string>
+    <string name="player_label">Spieler</string>
+    <string name="close">Schließen</string>
+    <string name="time_penalties">Zeitstrafen</string>
+    <string name="no_active_dismissals">Keine aktiven Zeitstrafen</string>
+    <string name="card_yellow_short">GELB</string>
+    <string name="card_red_short">ROT</string>
+    <string name="subs_label">Wechsel (%1$d)</string>
+    <string name="undo">Rückgängig</string>
+    <string name="undo_last_event">Letztes Ereignis löschen</string>
 </resources>

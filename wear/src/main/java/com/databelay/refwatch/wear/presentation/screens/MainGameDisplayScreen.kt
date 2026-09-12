@@ -41,6 +41,7 @@ import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.formatTime
 import com.databelay.refwatch.common.hasTimer
+import com.databelay.refwatch.common.isBreak
 import com.databelay.refwatch.common.isPlayablePhase
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.wear.data.TimerState
@@ -65,11 +66,17 @@ import com.databelay.refwatch.common.GoalType
 import com.databelay.refwatch.common.CardType
 import com.databelay.refwatch.common.TemporaryDismissalEvent
 import androidx.wear.compose.material3.Dialog
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.StateFlow
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun MainGameDisplayScreen(
     game: Game,
-    timerState: TimerState,
+    timerStateFlow: StateFlow<TimerState>,
     isAmbient: Boolean = false,
     kickoffCountdownSeconds: Int? = null,
     activeDismissals: List<TemporaryDismissalEvent> = emptyList(),
@@ -83,10 +90,11 @@ fun MainGameDisplayScreen(
     onOpenGameMenu: () -> Unit = {},
     onNavigateToLogGoal: (Team, GoalType) -> Unit = { _, _ -> },
     onNavigateToLogCard: (Team, CardType) -> Unit = { _, _ -> },
-    onQuickSubstitution: (Team, Int, Int) -> Unit = { _, _, _ -> },
+    onQuickSubstitution: (Team, String, String) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     if (isAmbient) {
+        val timerState by timerStateFlow.collectAsStateWithLifecycle()
         AmbientMainDisplay(game, timerState, isPlayedTime)
         return
     }
@@ -136,8 +144,9 @@ fun MainGameDisplayScreen(
     var quickSubTeam by remember { mutableStateOf<Team?>(null) }
 
     val view = LocalView.current
-    val keepScreenOn = remember(game.currentPhase, timerState.isTimerRunning, timerState.isStoppageTimerRunning) {
-        game.currentPhase.hasTimer() || timerState.isTimerRunning || timerState.isStoppageTimerRunning
+    val serviceStateSnapshot = remember(timerStateFlow) { timerStateFlow.value }
+    val keepScreenOn = remember(game.currentPhase, serviceStateSnapshot.isTimerRunning, serviceStateSnapshot.isStoppageTimerRunning) {
+        game.currentPhase.hasTimer() || serviceStateSnapshot.isTimerRunning || serviceStateSnapshot.isStoppageTimerRunning
     }
     DisposableEffect(view, keepScreenOn) {
         view.keepScreenOn = keepScreenOn
@@ -152,16 +161,18 @@ fun MainGameDisplayScreen(
             currentPhase != GamePhase.HALF_TIME &&
             currentPhase != GamePhase.EXTRA_TIME_HALF_TIME
     }
-    val canKickOffFromBack = remember(timerState.actualTimeElapsedInPeriodMillis, timerState.isTimerRunning, currentPhase) {
-        timerState.actualTimeElapsedInPeriodMillis == 0L && !timerState.isTimerRunning && currentPhase.isPlayablePhase()
-    }
 
     var lastBackPressTime by remember { mutableStateOf(0L) }
 
     BackHandler {
         val now = System.currentTimeMillis()
+        val serviceState = timerStateFlow.value
+        val canKickOff = serviceState.actualTimeElapsedInPeriodMillis == 0L && 
+                        !serviceState.isTimerRunning && 
+                        currentPhase.isPlayablePhase()
+
         if (now - lastBackPressTime < 500L) {
-            if (canKickOffFromBack) {
+            if (canKickOff) {
                 onKickOff()
             }
             lastBackPressTime = 0L
@@ -171,23 +182,6 @@ fun MainGameDisplayScreen(
             }
             lastBackPressTime = now
         }
-    }
-
-    val regulationDuration = timerState.regulationPeriodDurationMillis
-    val isPlayablePhaseAndInAddedTime = remember(
-        currentPhase, timerState.actualTimeElapsedInPeriodMillis, regulationDuration
-    ) {
-        currentPhase.isPlayablePhase() &&
-            timerState.actualTimeElapsedInPeriodMillis >= regulationDuration &&
-            regulationDuration > 0
-    }
-
-    val parStyle = remember {
-        ParagraphStyle(
-            lineBreak = LineBreak.Simple,
-            lineHeight = 24.sp,
-            textAlign = TextAlign.Center
-        )
     }
 
     val canToggleStoppageFromKey = remember(currentPhase) {
@@ -201,7 +195,7 @@ fun MainGameDisplayScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(top = 24.dp) // TimeText space
+            .padding(top = 22.dp) // Space for the wall clock
             .onKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown && canToggleStoppageFromKey) {
                     when (event.key) {
@@ -221,6 +215,11 @@ fun MainGameDisplayScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // Wall Clock Time at the top - Independent 1-minute updates
+        WallClockView()
+
+        // Score & Teams
+
         // Score & Teams
         // Hoist team info into stable values so TeamInfo does not recompose
         // every second when the timer ticks inside the Game data class.
@@ -252,8 +251,12 @@ fun MainGameDisplayScreen(
                 teamColor = homeColor,
                 captainNumber = homeCaptain,
                 hasKickOff = homeHasKickOff,
-                onLongClick = { onNavigateToLogGoal(Team.HOME, GoalType.REGULAR) },
-                onDoubleTap = { quickSubTeam = Team.HOME },
+                onLongClick = { 
+                    if (!currentPhase.isBreak()) onNavigateToLogGoal(Team.HOME, GoalType.REGULAR) 
+                },
+                onDoubleTap = { 
+                    if (!currentPhase.isBreak()) quickSubTeam = Team.HOME 
+                },
                 modifier = Modifier.weight(1f)
             )
             Text(
@@ -267,98 +270,48 @@ fun MainGameDisplayScreen(
                 teamColor = awayColor,
                 captainNumber = awayCaptain,
                 hasKickOff = awayHasKickOff,
-                onLongClick = { onNavigateToLogGoal(Team.AWAY, GoalType.REGULAR) },
-                onDoubleTap = { quickSubTeam = Team.AWAY },
+                onLongClick = { 
+                    if (!currentPhase.isBreak()) onNavigateToLogGoal(Team.AWAY, GoalType.REGULAR) 
+                },
+                onDoubleTap = { 
+                    if (!currentPhase.isBreak()) quickSubTeam = Team.AWAY 
+                },
                 modifier = Modifier.weight(1f)
             )
         }
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Timer Section
-        // We hoist the touch handler into a stable lambda-capturing Modifier and
-        // pass already-derived string values into a child Composable, so when
-        // `Game` mutates every second only the inner TimerText recomposes — the
-        // surrounding Row (score, team colors) stays skipped.
-        val mainTimerText = remember(
-            isPlayedTime,
-            isPlayablePhaseAndInAddedTime,
-            regulationDuration,
-            currentPhase,
-            timerState.actualTimeElapsedInPeriodMillis,
-            timerState.isTimerRunning
-        ) {
-            if (isPlayablePhaseAndInAddedTime && regulationDuration > 0) {
-                val addedMillis = timerState.actualTimeElapsedInPeriodMillis - regulationDuration
-                val baseMillis = when (currentPhase) {
-                    GamePhase.SECOND_HALF -> regulationDuration * 2
-                    else -> regulationDuration
-                }
-                (baseMillis + addedMillis).formatTime()
-            } else if (timerState.actualTimeElapsedInPeriodMillis == 0L && !timerState.isTimerRunning) {
-                ""
-            } else if (isPlayedTime) {
-                timerState.actualTimeElapsedInPeriodMillis.formatTime()
-            } else {
-                val remainingMillis = (regulationDuration - timerState.actualTimeElapsedInPeriodMillis).coerceAtLeast(0)
-                // Ceiling rounding for remaining time: if 54.1s remain, we show "00:55".
-                // This ensures that at any point (Played + Remaining) equals Regulation,
-                // and avoids the "1 second jump" discrepancy.
-                val roundedRemaining = if (remainingMillis > 0 && timerState.isTimerRunning) {
-                    ((remainingMillis + 999) / 1000) * 1000
-                } else {
-                    remainingMillis
-                }
-                roundedRemaining.formatTime()
-            }
-        }
-        val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant
-        val mainTimerColor = remember(
-            isPlayablePhaseAndInAddedTime,
-            timerState.isTimerRunning,
-            inactiveColor
-        ) {
-            when {
-                isPlayablePhaseAndInAddedTime -> ComposeColor.Red
-                timerState.isTimerRunning -> ComposeColor.White
-                else -> inactiveColor
-            }
-        }
-        val stoppageText = remember(timerState.stoppageTimeMillis, timerState.isStoppageTimerRunning, isPlayablePhaseAndInAddedTime) {
-            // Hide the green stoppage timer once we are in added time (main timer red),
-            // to keep the display clean as requested.
-            if (!isPlayablePhaseAndInAddedTime && (timerState.isStoppageTimerRunning || timerState.stoppageTimeMillis > 0)) {
-                timerState.stoppageTimeMillis.formatTime(isInAddedTime = true)
-            } else ""
-        }
-        val showKickoffButton = remember(timerState.actualTimeElapsedInPeriodMillis, timerState.isTimerRunning, currentPhase) {
-            timerState.actualTimeElapsedInPeriodMillis == 0L && !timerState.isTimerRunning && currentPhase.isPlayablePhase()
-        }
-
+        // Timer Section - Isolated 1Hz updates
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        onTap = { onToggleTimerDisplayMode() },
+                        onTap = { 
+                            // Tapping the bottom half of the timer area toggles stoppage time,
+                            // tapping the top half toggles display mode.
+                            val isBottomHalf = size.height > 0 && it.y > size.height / 2
+                            if (isBottomHalf) {
+                                onToggleStoppageTimer()
+                            } else {
+                                onToggleTimerDisplayMode()
+                            }
+                        },
                         onLongPress = { onOpenGameMenu() }
                     )
                 },
             contentAlignment = Alignment.Center
         ) {
-            TimerContent(
+            MatchTimerView(
+                timerStateFlow = timerStateFlow,
+                isPlayedTime = isPlayedTime,
+                currentPhase = currentPhase,
                 kickoffCountdownSeconds = kickoffCountdownSeconds,
-                mainTimerText = mainTimerText,
-                mainTimerColor = mainTimerColor,
-                stoppageText = stoppageText,
-                activeDismissals = activeDismissals,
-                currentMatchTimeMillis = timerState.actualTimeElapsedInPeriodMillis,
-                showKickoffButton = showKickoffButton,
                 onKickOff = onKickOff
             )
         }
-
     }
 
     quickSubTeam?.let { team ->
@@ -391,8 +344,6 @@ private fun TimerContent(
     mainTimerText: String,
     mainTimerColor: ComposeColor,
     stoppageText: String,
-    activeDismissals: List<TemporaryDismissalEvent> = emptyList(),
-    currentMatchTimeMillis: Long = 0L,
     showKickoffButton: Boolean,
     onKickOff: () -> Unit
 ) {
@@ -428,36 +379,13 @@ private fun TimerContent(
                 color = mainTimerColor
             )
         }
-        
+
         if (stoppageText.isNotEmpty()) {
             Text(
                 text = stoppageText,
                 style = MaterialTheme.typography.titleLarge,
                 color = ComposeColor(0xFF00E676)
             )
-        }
-
-        // PERFORMANCE: Only iterate over dismissals if there are any active.
-        if (activeDismissals.isNotEmpty()) {
-            activeDismissals.forEach { dismissal ->
-                val elapsedSinceStart = currentMatchTimeMillis - dismissal.startMatchTimeMillis
-                val remainingMillis = (dismissal.durationMinutes * 60 * 1000L - elapsedSinceStart).coerceAtLeast(0.0).toLong()
-                if (remainingMillis > 0) {
-                    Box(
-                        modifier = Modifier
-                            .padding(top = 4.dp)
-                            .background(ComposeColor.Yellow, RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "${dismissal.team.name.take(1)} #${dismissal.playerNumber}: ${remainingMillis.formatTime()}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = ComposeColor.Black,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                    }
-                }
-            }
         }
     }
 }
@@ -493,6 +421,111 @@ private fun TeamInfo(
 }
 
 
+
+@Composable
+private fun WallClockView() {
+    var wallClockTime by remember { 
+        mutableStateOf(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())) 
+    }
+    
+    LaunchedEffect(Unit) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            wallClockTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(now))
+            val delayUntilNextMinute = 60000L - (now % 60000L)
+            kotlinx.coroutines.delay(delayUntilNextMinute)
+        }
+    }
+
+    Text(
+        text = wallClockTime,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        modifier = Modifier.padding(bottom = 2.dp)
+    )
+}
+
+@Composable
+private fun MatchTimerView(
+    timerStateFlow: StateFlow<TimerState>,
+    isPlayedTime: Boolean,
+    currentPhase: GamePhase,
+    kickoffCountdownSeconds: Int?,
+    onKickOff: () -> Unit
+) {
+    val timerState by timerStateFlow.collectAsStateWithLifecycle()
+    val regulationDuration = timerState.regulationPeriodDurationMillis
+    
+    val isPlayablePhaseAndInAddedTime = remember(
+        currentPhase, timerState.actualTimeElapsedInPeriodMillis, regulationDuration
+    ) {
+        currentPhase.isPlayablePhase() &&
+            timerState.actualTimeElapsedInPeriodMillis >= regulationDuration &&
+            regulationDuration > 0
+    }
+
+    val mainTimerText = remember(
+        isPlayedTime,
+        isPlayablePhaseAndInAddedTime,
+        regulationDuration,
+        currentPhase,
+        timerState.actualTimeElapsedInPeriodMillis,
+        timerState.isTimerRunning
+    ) {
+        if (isPlayablePhaseAndInAddedTime && regulationDuration > 0) {
+            val addedMillis = timerState.actualTimeElapsedInPeriodMillis - regulationDuration
+            val baseMillis = when (currentPhase) {
+                GamePhase.SECOND_HALF -> regulationDuration * 2
+                else -> regulationDuration
+            }
+            (baseMillis + addedMillis).formatTime()
+        } else if (timerState.actualTimeElapsedInPeriodMillis == 0L && !timerState.isTimerRunning && currentPhase.isPlayablePhase()) {
+            ""
+        } else if (isPlayedTime) {
+            timerState.actualTimeElapsedInPeriodMillis.formatTime()
+        } else {
+            val remainingMillis = (regulationDuration - timerState.actualTimeElapsedInPeriodMillis).coerceAtLeast(0)
+            val roundedRemaining = if (remainingMillis > 0 && timerState.isTimerRunning) {
+                ((remainingMillis + 999) / 1000) * 1000
+            } else {
+                remainingMillis
+            }
+            roundedRemaining.formatTime()
+        }
+    }
+
+    val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val mainTimerColor = remember(
+        isPlayablePhaseAndInAddedTime,
+        timerState.isTimerRunning,
+        inactiveColor
+    ) {
+        when {
+            isPlayablePhaseAndInAddedTime -> ComposeColor.Red
+            timerState.isTimerRunning -> ComposeColor.White
+            else -> inactiveColor
+        }
+    }
+
+    val stoppageText = remember(timerState.stoppageTimeMillis, timerState.isStoppageTimerRunning) {
+        if (timerState.isStoppageTimerRunning || timerState.stoppageTimeMillis > 0) {
+            timerState.stoppageTimeMillis.formatTime(isInAddedTime = true)
+        } else ""
+    }
+
+    val showKickoffButton = remember(timerState.actualTimeElapsedInPeriodMillis, timerState.isTimerRunning, currentPhase) {
+        timerState.actualTimeElapsedInPeriodMillis == 0L && !timerState.isTimerRunning && currentPhase.isPlayablePhase()
+    }
+
+    TimerContent(
+        kickoffCountdownSeconds = kickoffCountdownSeconds,
+        mainTimerText = mainTimerText,
+        mainTimerColor = mainTimerColor,
+        stoppageText = stoppageText,
+        showKickoffButton = showKickoffButton,
+        onKickOff = onKickOff
+    )
+}
 
 @Composable
 private fun AmbientMainDisplay(game: Game, timerState: TimerState, isPlayedTime: Boolean) {

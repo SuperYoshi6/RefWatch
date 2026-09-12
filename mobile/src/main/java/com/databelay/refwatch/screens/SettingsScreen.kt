@@ -30,7 +30,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
@@ -121,7 +120,6 @@ import com.databelay.refwatch.data.SettingsViewModel
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
-    onNavigateToStatistics: () -> Unit = {},
     onDeleteAccountConfirmed: () -> Unit,
     onDeleteAllCompletedGames: () -> Unit = {},
     settingsViewModel: SettingsViewModel = hiltViewModel(),
@@ -301,12 +299,6 @@ fun SettingsScreen(
                     border = androidx.compose.foundation.BorderStroke(1.dp, Border)
                 ) {
                     Column {
-                        SettingsRow(
-                            icon = Icons.Filled.BarChart,
-                            title = stringResource(R.string.view_statistics),
-                            onClick = onNavigateToStatistics
-                        )
-                        HorizontalDivider(color = Border)
                         SettingsRow(
                             icon = Icons.Filled.Language,
                             title = stringResource(R.string.language),
@@ -533,7 +525,7 @@ fun SettingsScreen(
                         onDeleteAllCompletedGames()
                     }
                 ) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete_all_past_games_confirm), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {

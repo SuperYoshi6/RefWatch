@@ -99,4 +99,32 @@ fun logBackStack(navController: NavController, contextMessage: String = "") {
     Log.d("${TAG}:stack", "------------------------------------------")
 }
 
+/**
+ * Calculates the match minute for a game event, handling added time (e.g., 45+2).
+ */
+fun GameEvent.getMatchMinute(game: Game): String {
+    return getMatchMinute(game.halfDurationMinutes, game.extraTimeHalfDurationMinutes)
+}
+
+fun GameEvent.getMatchMinute(halfMin: Int, etMin: Int = 15): String {
+    val phase = this.phase ?: return ""
+    val elapsedMillis = this.gameTimeMillis.toLong()
+
+    val (baseStart, baseEnd, regMillis) = when (phase) {
+        GamePhase.FIRST_HALF -> Triple(0, halfMin, halfMin * 60000L)
+        GamePhase.SECOND_HALF -> Triple(halfMin, halfMin * 2, halfMin * 60000L)
+        GamePhase.EXTRA_TIME_FIRST_HALF -> Triple(halfMin * 2, halfMin * 2 + etMin, etMin * 60000L)
+        GamePhase.EXTRA_TIME_SECOND_HALF -> Triple(halfMin * 2 + etMin, halfMin * 2 + etMin * 2, etMin * 60000L)
+        else -> return ""
+    }
+
+    return if (elapsedMillis > regMillis) {
+        val addedMinutes = ((elapsedMillis - regMillis + 59999) / 60000).toInt()
+        "$baseEnd+$addedMinutes"
+    } else {
+        val currentMin = ((elapsedMillis + 59999) / 60000).toInt()
+        "${baseStart + currentMin}'"
+    }
+}
+
 

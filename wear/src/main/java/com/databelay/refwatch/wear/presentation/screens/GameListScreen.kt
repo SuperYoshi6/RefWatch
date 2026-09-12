@@ -40,6 +40,7 @@ import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.ChipDefaults.chipColors
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.ToggleButton
 import androidx.wear.compose.material.ToggleButtonDefaults
@@ -72,24 +73,31 @@ fun StatusHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 2.dp)
-            .clickable { if (userId == null) onLoginClick() },
+            .padding(horizontal = 8.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = Icons.Default.AccountCircle,
-            contentDescription = null,
-            tint = if (userId != null) Color.Green else Color.Red,
-            modifier = Modifier.size(14.dp)
-        )
-        Spacer(Modifier.width(4.dp))
-        Text(
-            text = userId?.take(10)?.let { "$it..." } ?: "Anmelden",
-            style = MaterialTheme.typography.labelSmall,
-            color = if (userId != null) MaterialTheme.colorScheme.onSurface else Color.Yellow,
-            textDecoration = if (userId == null) androidx.compose.ui.text.style.TextDecoration.Underline else null
-        )
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .clickable { if (userId == null) onLoginClick() },
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.AccountCircle,
+                contentDescription = null,
+                tint = if (userId != null) Color.Green else Color.Red,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = userId?.take(10)?.let { "$it..." } ?: "Anmelden",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (userId != null) MaterialTheme.colorScheme.onSurface else Color.Yellow,
+                textDecoration = if (userId == null) androidx.compose.ui.text.style.TextDecoration.Underline else null
+            )
+        }
     }
 }
 
@@ -147,6 +155,7 @@ fun GameListScreen(
     onNavigateToNewGame: () -> Unit,
     onNavigateToPairing: () -> Unit,
     onNavigateToLogin: () -> Unit,
+    onLogout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedFilterState by remember { mutableStateOf(GameListFilterState.UPCOMING) }
@@ -160,12 +169,22 @@ fun GameListScreen(
 
     val (upcomingGames, pastGames) = remember(allGames) {
         val now = System.currentTimeMillis()
+        val calendar = java.util.Calendar.getInstance()
+        calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        calendar.set(java.util.Calendar.MINUTE, 0)
+        calendar.set(java.util.Calendar.SECOND, 0)
+        val startOfToday = calendar.timeInMillis
+
         val (upcoming, past) = allGames.partition { game ->
-            val isEnded = game.currentPhase == GamePhase.GAME_ENDED
+            val isEnded = game.currentPhase == GamePhase.GAME_ENDED || game.currentPhase == GamePhase.ABORTED
             val isScheduledOrInProgress = game.status == GameStatus.SCHEDULED || game.status == GameStatus.IN_PROGRESS
-            val isRecent = (game.gameDateTimeEpochMillis ?: 0L) > (now - 3 * 3600 * 1000L)
             
-            !isEnded && isScheduledOrInProgress && isRecent
+            // Filter: Only show games starting today or in progress/recently started
+            val startTime = game.gameDateTimeEpochMillis ?: 0L
+            val isTodayOrLater = startTime >= startOfToday
+            val isRecent = startTime > (now - 3 * 3600 * 1000L)
+            
+            !isEnded && isScheduledOrInProgress && isTodayOrLater && isRecent
         }
         Pair(
             upcoming.sortedBy { it.gameDateTimeEpochMillis },
@@ -228,7 +247,7 @@ fun GameListScreen(
                     ScheduledGameItem(
                         game = game,
                         onClick = {
-                            if (game.status == GameStatus.SCHEDULED) {
+                            if (game.status == GameStatus.SCHEDULED || game.status == GameStatus.IN_PROGRESS) {
                                 onGameSelected(game)
                             } else {
                                 onViewLog(game.id)
@@ -237,14 +256,26 @@ fun GameListScreen(
                     )
                 }
                 item(key = "version_footer") {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.version_label, appVersionName),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Chip(
+                            onClick = onLogout,
+                            label = { Text(stringResource(R.string.logout), style = MaterialTheme.typography.labelSmall) },
+                            icon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null) },
+                            colors = chipColors(backgroundColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth(0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.version_label, appVersionName),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
         }
         Column(

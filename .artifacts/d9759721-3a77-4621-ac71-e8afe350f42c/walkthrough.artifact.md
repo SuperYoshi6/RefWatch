@@ -1,29 +1,32 @@
-# Walkthrough - Persistent Save Fix (Firestore Rules & Logic)
+# Walkthrough - Bug Fixes and Version 1.6.2
 
-I have successfully overhaulled the saving mechanism to ensure your matches are persisted reliably, bypassing the previous "Failed to get document" errors.
+I have fixed the string label mismatch in the "Delete all past games" dialog, added the missing English translation, and bumped the app version to `1.6.2`.
 
 ## Changes Made
 
-### 1. Robust "Direct Write" Logic
-- **Upsert Strategy**: I refactored the app to use a **"Direct Write"** (Upsert) approach. Instead of asking the database "Do you have this match?" (which was failing due to security rules), the app now sends the data directly with a "Merge" command.
-- **Speed & Reliability**: This removes one entire network round-trip and bypasses the read-permission hurdle that was blocking your saves.
+### 1. UI Logic Fix
+In `SettingsScreen.kt`, I corrected the confirmation button labels for both destructive actions:
+- **Account Deletion**: Now uses `R.string.delete` ("Konto löschen" / "Delete Account").
+- **Delete All Games**: Now uses `R.string.delete_all_past_games_confirm` ("Alle Spiele löschen" / "Delete All Games").
 
-### 2. Data Serialization Fix
-- **Complex Objects**: Corrected how the app packages match events (Goals, Cards). These are now properly serialized into a format that the Cloud Database can index and store.
-- **UserId Enforcement**: Ensured that every match is explicitly tagged with your `userId`, which is a requirement for the security rules we just set up.
+### 2. Localization
+- **German (`values-de/strings.xml`)**:
+    - Fixed `delete`: "Konto löschen" (removed leading space and typo).
+    - Added `delete_all_past_games_confirm`: "Alle Spiele löschen".
+- **English (`values/strings.xml`)**:
+    - Updated `delete`: "Delete Account" (for consistency with the German translation).
+    - Verified `delete_all_past_games_confirm`: "Delete All Games".
 
-### 3. Build & Cache Stability
-- **Fixed Corrupted Cache**: Resolved a Gradle cache corruption on your machine that was causing the "Counters file is corrupted" build warning.
+### 3. Version Bump
+Updated both `mobile` and `wear` modules to version `1.6.2`.
+- `versionName`: `1.6.1` -> `1.6.2`
+- `versionCode`: `361160000` -> `361160200`
 
 ## Verification Results
 
-### Build Verification
-- Ran `:mobile:clean :mobile:assembleDebug` - **Passed**.
-- Gradle file locks released and daemons refreshed.
+### Automated Tests
+- Successfully ran `./gradlew :mobile:assembleDebug`.
 
-### Manual Verification Instructions
-1.  Open the **Add Game** screen.
-2.  Enter match details.
-3.  Tap **Save**.
-4.  **Important**: Since you've updated the rules in the Console, the save should now be instant.
-5.  Check your game list—the match should appear immediately.
+### Manual Verification
+- Verified that the string IDs match across `SettingsScreen.kt` and both `strings.xml` files.
+- Confirmed the German translation is correct and no longer refers to account deletion.

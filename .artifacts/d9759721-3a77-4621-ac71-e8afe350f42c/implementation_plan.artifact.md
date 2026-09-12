@@ -1,55 +1,45 @@
-# Fix Persistent Save Failure (Firestore Permissions & Logic)
+# Implementation Plan - Bug Fixes and Version Bump
 
-The user reports a "Failed to get document" error when saving. This indicates that the app is trying to read from Firestore before writing, but the request is being rejected. This is common when Firestore security rules are not yet configured for a new project or when the `userId` path is inaccessible.
+This plan addresses a string mismatch in the "Delete All Games" confirmation dialog, adds missing English translations, and increments the app version to `1.6.2`.
 
 ## User Review Required
 
-> [!CAUTION]
-> **Action Required**: Since we switched to a new Firebase project (`refwatch-1938a`), you **must** ensure that the Firestore database is initialized and the rules allow you to write.
-> 1. Go to the [Firebase Console](https://console.firebase.google.com/).
-> 2. Click on **Firestore Database**.
-> 3. If you haven't created it yet, click **Create database**.
-> 4. Go to the **Rules** tab and ensure they are set to "Test mode" (for testing) or correctly partitioned by `userId`.
->    - **Recommendation for testing**:
->      ```
->      service cloud.firestore {
->        match /databases/{database}/documents {
->          match /users/{userId}/games/{gameId} {
->            allow read, write: if request.auth != null && request.auth.uid == userId;
->          }
->        }
->      }
->      ```
+> [!IMPORTANT]
+> The confirmation button for deleting all past games was incorrectly using the "Delete Account" string. I will switch it to a specific "Delete All Games" string.
 
 ## Proposed Changes
 
-### 1. Simplify Save Logic
+### Mobile App Logic
 
-#### [MODIFY] [GameStorageMobile.kt](file:///C:/Users/Jan/Downloads/RefWatch/mobile/src/main/java/com/databelay/refwatch/data/GameStorageMobile.kt)
-- **Refactor `addOrUpdateGame`**:
-    - Remove the `get().await()` calls (Attempt 1 and 2).
-    - Use `set(data, SetOptions.merge())` instead. This performs an "Upsert" (Update if exists, Create if not) in a single call without requiring a prior read.
-    - This bypasses the "Failed to get document" error entirely and reduces network latency.
-    - Simplified preservation logic: Only essential fields (like `id` and `userId`) are enforced; the rest is merged.
+#### [MODIFY] [SettingsScreen.kt](file:///C:/Users/Jan/Downloads/RefWatch/mobile/src/main/java/com/databelay/refwatch/screens/SettingsScreen.kt)
+- Change the confirmation button text in `showDeleteAllCompletedConfirmationDialog` from `R.string.delete` to `R.string.delete_all_past_games_confirm`.
 
-### 2. Robust Data Preparation
+### Resources
 
-#### [MODIFY] [Game.kt](file:///C:/Users/Jan/Downloads/RefWatch/common/src/main/java/com/databelay/refwatch/common/Game.kt)
-- Ensure `toFirestoreMap` uses `SetOptions.merge()` compatible keys.
-- Ensure enums and lists are always converted to basic Firestore types (Strings/Maps/Lists).
+#### [MODIFY] [strings.xml (English)](file:///C:/Users/Jan/Downloads/RefWatch/mobile/src/main/res/values/strings.xml)
+- Add `<string name="delete_all_past_games_confirm">Delete All Games</string>`.
 
-### 3. Better Error Feedback
+#### [MODIFY] [strings.xml (German)](file:///C:/Users/Jan/Downloads/RefWatch/mobile/src/main/res/values-de/strings.xml)
+- Verify and ensure `<string name="delete_all_past_games_confirm">Alle Spiele löschen</string>` is present and correctly named.
 
-#### [MODIFY] [AddEditGameViewModel.kt](file:///C:/Users/Jan/Downloads/RefWatch/mobile/src/main/java/com/databelay/refwatch/data/AddEditGameViewModel.kt)
-- Add a specific check to verify if the user's email is verified (optional, but good for diagnostics).
-- Log the exact exception type and message to help distinguish between "Permission Denied" and "Network Error".
+### Configuration
+
+#### [MODIFY] [build.gradle.kts (mobile)](file:///C:/Users/Jan/Downloads/RefWatch/mobile/build.gradle.kts)
+- Update `versionName` to `"1.6.2"`.
+- Increment `versionCode` to `361160200`.
+
+#### [MODIFY] [build.gradle.kts (wear)](file:///C:/Users/Jan/Downloads/RefWatch/wear/build.gradle.kts)
+- Update `versionName` to `"1.6.2"`.
+- Increment `versionCode` to `361160200`.
 
 ## Verification Plan
 
+### Automated Tests
+- Build the `:mobile` module to ensure no resource errors or compilation issues.
+  `./gradlew :mobile:assembleDebug`
+
 ### Manual Verification
-1.  **Check Firebase Console**: Verify Firestore is enabled and rules are not "Locked".
-2.  **Save Game**:
-    - Open "Add Game".
-    - Tap **Save**.
-    - Verify that the game is saved directly via `set(merge: true)`.
-    - Verify no "Failed to get document" error occurs because the app no longer tries to "get" the document first.
+- Verify the "Delete all past games" dialog in the app:
+  - Button should say "Alle Spiele löschen" in German.
+  - Button should say "Delete All Games" in English.
+- Check the app info to verify version `1.6.2`.

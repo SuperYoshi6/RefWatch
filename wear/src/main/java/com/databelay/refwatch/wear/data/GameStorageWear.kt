@@ -267,7 +267,7 @@ class GameStorageWear @Inject constructor(
                 .document(game.id)
 
             // Use the extension function with the updated timestamped game
-            val gameDataForFirestore = gameWithTimestamp.toFirestoreMap() 
+            val gameDataForFirestore = gameWithTimestamp.toFirestoreMap()
 
             Log.d(tag, "addOrUpdateGame (Wear): Saving game ${game.id} for user $userId with ${(gameDataForFirestore["events"] as? List<*>)?.size ?: 0} events.")
             Log.v(tag, "addOrUpdateGame (Wear): Data being sent to Firestore: $gameDataForFirestore")

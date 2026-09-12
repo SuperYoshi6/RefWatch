@@ -28,6 +28,7 @@
             color: var(--text-primary);
             min-height: 100vh;
             margin: 0;
+            overflow-x: hidden;
         }
         .card { background-color: var(--surf); border: 1px solid var(--border); transition: all 0.2s; }
         .accent-green { color: var(--accent); }
@@ -54,12 +55,21 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
+        .btn-hover { transition: all 0.2s; }
         .btn-hover:hover { transform: translateY(-1px); filter: brightness(1.1); }
         .btn-hover:active { transform: translateY(0); }
 
         .custom-scroll::-webkit-scrollbar { width: 6px; }
         .custom-scroll::-webkit-scrollbar-track { background: transparent; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+
+        .tab-btn { border-bottom: 2px solid transparent; transition: all 0.3s; cursor: pointer; opacity: 0.6; }
+        .tab-btn:hover { opacity: 1; }
+        .tab-btn.active { border-color: var(--accent); color: var(--accent); font-weight: 900; opacity: 1; }
+
+        /* Report Overlay Animation */
+        #report-overlay { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        #report-overlay.hidden { transform: translateX(100%); display: flex !important; }
     </style>
 </head>
 <body class="flex flex-col">
@@ -83,24 +93,20 @@
                         <span id="pass-eye" class="text-lg">👁️</span>
                     </button>
                 </div>
-                <button id="login-btn" class="w-full rounded-2xl btn-primary p-4 btn-hover shadow-lg shadow-emerald-900/20">
+                <button id="login-btn" class="w-full rounded-2xl btn-primary p-4 btn-hover shadow-lg shadow-emerald-900/20 text-black">
                     Anmelden
                 </button>
 
                 <div class="relative flex items-center gap-4 py-4">
                     <div class="h-px flex-1 bg-white/5"></div>
-                    <span class="text-[10px] font-black text-slate-600 uppercase tracking-widest">Social</span>
+                    <span class="text-[10px] font-black text-slate-600 uppercase tracking-widest">Oder</span>
                     <div class="h-px flex-1 bg-white/5"></div>
                 </div>
 
                 <button id="google-btn" class="w-full flex items-center justify-center gap-3 rounded-2xl border border-slate-800 p-3.5 font-bold text-white hover:bg-white/5 transition-all btn-hover">
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" class="w-5 h-5" alt="Google">
-                    Mit Google einloggen
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.21-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c1.61-1.48 2.56-3.66 2.56-6.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.26 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.65 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.11H2.18C1.39 8.73 1 10.31 1 12s.39 3.27 1.18 4.89l3.66-2.8z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.35 2.18 6.79l3.66 2.81c.88-2.6 3.3-4.22 6.16-4.22z" fill="#EA4335"/></svg>
+                    Mit Google anmelden
                 </button>
-
-                <div id="protocol-warning" class="hidden text-center text-[10px] text-amber-500 font-bold bg-amber-900/10 p-3 rounded-xl border border-amber-500/20">
-                    ⚠️ Firebase Login erfordert eine Web-Umgebung (http/https). Bitte lade den Manager auf GitHub hoch.
-                </div>
 
                 <p id="auth-error" class="hidden text-center text-xs text-red-400 font-bold bg-red-900/10 p-3 rounded-xl border border-red-500/20"></p>
             </div>
@@ -130,85 +136,121 @@
             <div class="lg:col-span-3 space-y-6">
                 <div class="flex items-center justify-between px-2">
                     <h2 class="text-xs font-black uppercase tracking-[0.25em] text-emerald-500">Spielplan</h2>
-                    <button onclick="openGameModal()" class="w-10 h-10 rounded-xl bg-accent-green text-black flex items-center justify-center font-black text-xl btn-hover shadow-lg shadow-emerald-900/40">+</button>
+                    <button id="new-game-btn" class="w-10 h-10 rounded-xl bg-accent-green text-black flex items-center justify-center font-black text-xl btn-hover shadow-lg shadow-emerald-900/40">+</button>
                 </div>
                 <div id="games-list" class="space-y-4 overflow-y-auto max-h-[calc(100vh-180px)] pr-2 custom-scroll"></div>
             </div>
 
             <!-- Editor -->
-            <div class="lg:col-span-9">
+            <div class="lg:col-span-9 relative">
                 <div id="editor-empty" class="flex h-full min-h-[500px] flex-col items-center justify-center rounded-[2.5rem] border-2 border-dashed border-white/5 text-slate-600 bg-black/20">
                     <div class="mb-6 text-6xl opacity-10">⚽</div>
                     <p class="font-bold uppercase tracking-widest text-sm text-center">Wähle ein Spiel aus oder erstelle ein neues.</p>
                 </div>
 
-                <div id="editor-active" class="hidden space-y-6 animate-in fade-in duration-500">
-                    <div class="card overflow-hidden rounded-[2.5rem] shadow-2xl border-white/10">
-                        <div class="relative p-10 pb-12 border-b border-white/5">
+                <div id="editor-active" class="hidden space-y-6 animate-in fade-in duration-500 h-full">
+                    <div class="card overflow-hidden rounded-[2.5rem] shadow-2xl border-white/10 flex flex-col h-full">
+                        <div class="relative p-10 pb-4 border-b border-white/5">
                             <div class="pitch-line absolute top-0 left-0"></div>
                             <div id="active-game-header"></div>
+
+                            <!-- Tab Switcher -->
+                            <div class="mt-8 flex gap-8">
+                                <button onclick="switchTab('kader')" id="tab-btn-kader" class="tab-btn active pb-3 text-xs font-black uppercase tracking-widest">Kader</button>
+                                <button onclick="switchTab('dfbnet')" id="tab-btn-dfbnet" class="tab-btn pb-3 text-xs font-black uppercase tracking-widest">Spielbericht / DFBnet</button>
+                            </div>
+
                             <div class="absolute top-8 right-10 flex gap-3">
-                                <button id="edit-details-btn" class="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all text-xl" title="Einstellungen">⚙️</button>
-                                <button id="delete-game-btn" class="w-12 h-12 rounded-2xl bg-red-500/5 flex items-center justify-center text-red-500/60 hover:bg-red-500/20 transition-all text-xl" title="Löschen">🗑️</button>
+                                <button onclick="toggleReport()" class="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 hover:bg-emerald-500/20 transition-all text-xl font-black" title="Spielbericht">i</button>
+                                <button id="edit-details-btn-trigger" class="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all text-xl" title="Einstellungen">⚙️</button>
+                                <button id="delete-game-btn-trigger" class="w-12 h-12 rounded-2xl bg-red-500/5 flex items-center justify-center text-red-500/60 hover:bg-red-500/20 hover:text-red-500 transition-all text-xl" title="Löschen">🗑️</button>
                             </div>
                         </div>
 
-                        <!-- Roster -->
-                        <div class="grid md:grid-cols-2 bg-black/10">
-                            <div class="p-8 border-r border-white/5">
-                                <div class="mb-8 flex items-center justify-between">
-                                    <div class="flex items-center gap-4">
-                                        <div id="home-color-dot" class="w-4 h-4 rounded-full border-2 border-white/20"></div>
-                                        <h3 id="home-team-label" class="text-2xl font-black text-white">Heim</h3>
+                        <div id="content-kader" class="flex-1 overflow-y-auto custom-scroll">
+                            <div class="grid md:grid-cols-2 bg-black/10">
+                                <div class="p-8 border-r border-white/5">
+                                    <div class="mb-8 flex items-center justify-between">
+                                        <div class="flex items-center gap-4">
+                                            <div id="home-color-dot" class="w-4 h-4 rounded-full border-2 border-white/20"></div>
+                                            <h3 id="home-team-label" class="text-2xl font-black text-white">Heim</h3>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button onclick="applyTemplate('home', 11, 5)" class="rounded-lg bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-white/10">11+5</button>
+                                            <button onclick="applyTemplate('home', 7, 6)" class="rounded-lg bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-white/10">7+6</button>
+                                            <button onclick="addPlayer('home')" class="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-[10px] font-black text-emerald-500 hover:bg-emerald-500/30">+</button>
+                                        </div>
                                     </div>
-                                    <div class="flex gap-2">
-                                        <button onclick="applyTemplate('home', 11, 5)" class="rounded-lg bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-white/10">11+5</button>
-                                        <button onclick="addPlayer('home')" class="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-[10px] font-black text-emerald-500 hover:bg-emerald-500/30">+</button>
-                                    </div>
+                                    <div id="home-roster" class="space-y-2.5"></div>
                                 </div>
-                                <div id="home-roster" class="space-y-2.5"></div>
+
+                                <div class="p-8">
+                                    <div class="mb-8 flex items-center justify-between">
+                                        <div class="flex items-center gap-4">
+                                            <div id="away-color-dot" class="w-4 h-4 rounded-full border-2 border-white/20"></div>
+                                            <h3 id="away-team-label" class="text-2xl font-black text-white">Gast</h3>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button onclick="applyTemplate('away', 11, 5)" class="rounded-lg bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-white/10">11+5</button>
+                                            <button onclick="applyTemplate('away', 7, 6)" class="rounded-lg bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-white/10">7+6</button>
+                                            <button onclick="addPlayer('away')" class="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-[10px] font-black text-emerald-500 hover:bg-emerald-500/30">+</button>
+                                        </div>
+                                    </div>
+                                    <div id="away-roster" class="space-y-2.5"></div>
+                                </div>
                             </div>
 
-                            <div class="p-8">
-                                <div class="mb-8 flex items-center justify-between">
-                                    <div class="flex items-center gap-4">
-                                        <div id="away-color-dot" class="w-4 h-4 rounded-full border-2 border-white/20"></div>
-                                        <h3 id="away-team-label" class="text-2xl font-black text-white">Gast</h3>
+                            <div class="p-8 border-t border-white/5 bg-black/30">
+                                <div class="grid md:grid-cols-2 gap-12">
+                                    <div>
+                                        <div class="flex items-center justify-between mb-4">
+                                            <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">Offizielle (Heim)</h4>
+                                            <button onclick="addOfficial('home')" class="text-[10px] font-black text-emerald-500 hover:underline uppercase">+ Hinzufügen</button>
+                                        </div>
+                                        <div id="home-officials" class="space-y-2"></div>
                                     </div>
-                                    <div class="flex gap-2">
-                                        <button onclick="applyTemplate('away', 11, 5)" class="rounded-lg bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-white/10">11+5</button>
-                                        <button onclick="addPlayer('away')" class="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-[10px] font-black text-emerald-500 hover:bg-emerald-500/30">+</button>
+                                    <div>
+                                        <div class="flex items-center justify-between mb-4">
+                                            <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">Offizielle (Gast)</h4>
+                                            <button onclick="addOfficial('away')" class="text-[10px] font-black text-emerald-500 hover:underline uppercase">+ Hinzufügen</button>
+                                        </div>
+                                        <div id="away-officials" class="space-y-2"></div>
                                     </div>
                                 </div>
-                                <div id="away-roster" class="space-y-2.5"></div>
                             </div>
                         </div>
 
-                        <!-- Officials -->
-                        <div class="p-8 border-t border-white/5 bg-black/30">
-                            <div class="grid md:grid-cols-2 gap-12">
-                                <div>
-                                    <div class="flex items-center justify-between mb-4">
-                                        <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">Offizielle (Heim)</h4>
-                                        <button onclick="addOfficial('home')" class="text-[10px] font-black text-emerald-500 hover:underline uppercase">+ Hinzufügen</button>
-                                    </div>
-                                    <div id="home-officials" class="space-y-2"></div>
+                        <div id="content-dfbnet" class="hidden flex-1 bg-black/40 rounded-b-[2.5rem] flex flex-col items-center justify-center p-20 text-center">
+                            <div class="max-w-md space-y-8 animate-in zoom-in duration-500">
+                                <div class="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-8 border border-emerald-500/20">
+                                    <span class="text-4xl">⚽</span>
                                 </div>
-                                <div>
-                                    <div class="flex items-center justify-between mb-4">
-                                        <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">Offizielle (Gast)</h4>
-                                        <button onclick="addOfficial('away')" class="text-[10px] font-black text-emerald-500 hover:underline uppercase">+ Hinzufügen</button>
-                                    </div>
-                                    <div id="away-officials" class="space-y-2"></div>
-                                </div>
+                                <h3 class="text-3xl font-black text-white leading-tight">DFBnet Portal</h3>
+                                <p class="text-slate-400 text-sm leading-relaxed">Aufgrund von Sicherheitsvorgaben des DFB öffnet sich das Meldeportal in einem gesicherten neuen Fenster.</p>
+                                <a href="https://portal.dfbnet.org/de/startseite" target="_blank" class="inline-flex items-center gap-4 rounded-[2rem] bg-emerald-500 px-10 py-5 font-black text-black btn-hover shadow-2xl shadow-emerald-900/40 uppercase tracking-widest text-sm no-underline">
+                                    <span>Jetzt anmelden</span>
+                                    <span class="text-xl">↗️</span>
+                                </a>
+                                <p class="text-[10px] text-slate-600 font-bold uppercase tracking-[0.2em] pt-4">Tipp: Kopiere den Spielbericht vorher über das (i)-Symbol oben rechts.</p>
                             </div>
                         </div>
 
-                        <!-- Save Footer -->
-                        <div class="flex items-center justify-between bg-black/60 p-10 border-t border-white/10">
+                        <div id="save-bar" class="flex items-center justify-between bg-black/60 p-10 border-t border-white/10 rounded-b-[2.5rem]">
                             <div id="save-status" class="text-sm font-black text-emerald-400"></div>
                             <button id="save-btn" class="rounded-2xl bg-accent-green px-16 py-5 font-black text-black btn-hover shadow-2xl shadow-emerald-900/40 uppercase tracking-widest text-sm">Speichern</button>
                         </div>
+                    </div>
+
+                    <!-- Floating Report Overlay -->
+                    <div id="report-overlay" class="hidden fixed top-0 right-0 w-80 h-full z-[120] bg-[#0d1320] border-l border-white/10 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] flex flex-col p-8 animate-in slide-in-from-right duration-300">
+                        <div class="flex items-center justify-between mb-8">
+                            <h4 class="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Spielbericht</h4>
+                            <button onclick="toggleReport()" class="text-slate-500 hover:text-white text-xl">✕</button>
+                        </div>
+                        <div class="flex-1 bg-black/20 rounded-2xl p-6 border border-white/5 overflow-y-auto custom-scroll">
+                            <div id="report-summary-text" class="text-[11px] font-mono leading-relaxed whitespace-pre-wrap text-slate-300"></div>
+                        </div>
+                        <button onclick="copyReport()" class="mt-8 rounded-2xl bg-white/5 border border-white/10 p-5 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-white/10 transition-all text-white">Bericht kopieren</button>
                     </div>
                 </div>
             </div>
@@ -216,7 +258,7 @@
     </div>
 
     <!-- Edit Modal -->
-    <div id="game-modal" class="fixed inset-0 z-[110] hidden flex items-center justify-center bg-black/95 p-4 backdrop-blur-md">
+    <div id="game-modal" class="fixed inset-0 z-[150] hidden flex items-center justify-center bg-black/95 p-4 backdrop-blur-md">
         <div class="card w-full max-w-3xl rounded-[2.5rem] p-12 shadow-2xl border-white/10 max-h-[95vh] overflow-y-auto custom-scroll">
             <div class="flex justify-between items-center mb-10">
                 <h2 id="modal-title" class="text-4xl font-black text-white tracking-tighter uppercase">Spieldetails</h2>
@@ -224,14 +266,13 @@
             </div>
 
             <form id="game-form" class="space-y-12">
-                <!-- Teams Section -->
                 <div class="grid grid-cols-2 gap-12">
                     <div class="space-y-6">
                         <h3 class="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Heim-Team</h3>
                         <div class="space-y-4">
-                            <input type="text" id="m-home-name" placeholder="Vollständiger Name" class="w-full rounded-2xl p-4 font-bold" required>
+                            <input type="text" id="m-home-name" placeholder="Vollständiger Name" oninput="this.value = sanitizeName(this.value)" class="w-full rounded-2xl p-4 font-bold" required>
                             <div class="flex gap-4">
-                                <input type="text" id="m-home-abbr" placeholder="FCB" maxlength="3" class="w-24 rounded-2xl p-4 font-black text-center text-lg uppercase">
+                                <input type="text" id="m-home-abbr" placeholder="HEI" maxlength="3" oninput="this.value = sanitizeName(this.value).toUpperCase()" class="w-24 rounded-2xl p-4 font-black text-center text-lg uppercase text-emerald-400 bg-slate-900 border-none">
                                 <input type="color" id="m-home-color" class="flex-1 h-16 rounded-2xl cursor-pointer bg-slate-900 border-none p-1" value="#ffffff">
                             </div>
                         </div>
@@ -239,9 +280,9 @@
                     <div class="space-y-6">
                         <h3 class="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Gast-Team</h3>
                         <div class="space-y-4">
-                            <input type="text" id="m-away-name" placeholder="Vollständiger Name" class="w-full rounded-2xl p-4 font-bold" required>
+                            <input type="text" id="m-away-name" placeholder="Vollständiger Name" oninput="this.value = sanitizeName(this.value)" class="w-full rounded-2xl p-4 font-bold" required>
                             <div class="flex gap-4">
-                                <input type="text" id="m-away-abbr" placeholder="BVB" maxlength="3" class="w-24 rounded-2xl p-4 font-black text-center text-lg uppercase">
+                                <input type="text" id="m-away-abbr" placeholder="GAS" maxlength="3" oninput="this.value = sanitizeName(this.value).toUpperCase()" class="w-24 rounded-2xl p-4 font-black text-center text-lg uppercase text-emerald-400 bg-slate-900 border-none">
                                 <input type="color" id="m-away-color" class="flex-1 h-16 rounded-2xl cursor-pointer bg-slate-900 border-none p-1" value="#ef4444">
                             </div>
                         </div>
@@ -250,9 +291,18 @@
 
                 <div class="h-px bg-white/5"></div>
 
-                <!-- Match Info -->
                 <div class="space-y-8">
-                    <h3 class="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Allgemeine Infos</h3>
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Allgemeine Infos</h3>
+                        <div class="flex items-center gap-3">
+                            <span class="text-[10px] font-black text-slate-500 uppercase">Vorlagen:</span>
+                            <select id="m-template" onchange="applyPreset()" class="rounded-xl px-4 py-2 text-[10px] font-black uppercase bg-slate-900 border-none outline-none text-emerald-400 cursor-pointer">
+                                <option value="manual">Manuell</option>
+                                <option value="11er">11er (11+5)</option>
+                                <option value="7er">7er (7+6)</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="grid grid-cols-2 gap-8">
                         <div class="space-y-2">
                             <label class="block text-[10px] font-black text-slate-500 uppercase ml-1">Anstoßzeit</label>
@@ -281,7 +331,6 @@
 
                 <div class="h-px bg-white/5"></div>
 
-                <!-- Referee Team -->
                 <div class="space-y-8">
                     <h3 class="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Schiedsrichter-Gespann</h3>
                     <div class="grid grid-cols-2 gap-8">
@@ -297,54 +346,61 @@
 
                 <div class="h-px bg-white/5"></div>
 
-                <!-- Rules & Times -->
                 <div class="space-y-8">
                     <h3 class="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Regeln & Zeiten</h3>
-                    <div class="grid grid-cols-3 gap-6">
+                    <div class="grid grid-cols-4 gap-6">
                         <div class="space-y-2 text-center">
                             <label class="block text-[10px] font-black text-slate-500 uppercase">Dauer HZ</label>
-                            <input type="number" id="m-half-dur" value="45" class="w-full rounded-2xl p-4 text-center font-black text-xl">
+                            <input type="number" id="m-half-dur" value="0" min="0" max="120" class="w-full rounded-2xl p-4 text-center font-black text-xl">
                         </div>
                         <div class="space-y-2 text-center">
                             <label class="block text-[10px] font-black text-slate-500 uppercase">Pause</label>
-                            <input type="number" id="m-break-dur" value="15" class="w-full rounded-2xl p-4 text-center font-black text-xl opacity-60">
+                            <input type="number" id="m-break-dur" value="0" min="0" max="120" class="w-full rounded-2xl p-4 text-center font-black text-xl opacity-60">
                         </div>
                         <div class="space-y-2 text-center">
                             <label class="block text-[10px] font-black text-slate-500 uppercase">Wechsel</label>
-                            <input type="number" id="m-subs-max" value="5" class="w-full rounded-2xl p-4 text-center font-black text-xl">
+                            <input type="number" id="m-subs-max" value="0" min="0" max="100" class="w-full rounded-2xl p-4 text-center font-black text-xl">
+                        </div>
+                        <div class="space-y-2 text-center">
+                            <label class="block text-[10px] font-black text-slate-500 uppercase">Zeitstrafe</label>
+                            <input type="number" id="m-z-dur" value="0" min="0" max="120" class="w-full rounded-2xl p-4 text-center font-black text-xl">
                         </div>
                     </div>
 
-                    <!-- Toggles and Extra Inputs -->
                     <div class="space-y-6 bg-white/5 p-8 rounded-[2rem] border border-white/5">
                         <div class="grid grid-cols-2 gap-12">
-                            <div class="space-y-4">
+                            <div class="space-y-6">
+                                <div class="flex items-center gap-4">
+                                    <input type="checkbox" id="m-extratime" onchange="toggleExtraInputs()" class="w-6 h-6 rounded-lg accent-emerald-500 cursor-pointer">
+                                    <label for="m-extratime" class="text-sm font-black uppercase tracking-widest text-white cursor-pointer">Verlängerung möglich</label>
+                                </div>
+                                <div id="m-extratime-box" class="hidden animate-in slide-in-from-top duration-300">
+                                    <label class="block text-[9px] font-black text-slate-500 uppercase mb-2 ml-1">Verlängerung (Min je HZ)</label>
+                                    <input type="number" id="m-extra-dur" value="0" min="0" max="120" class="w-full rounded-xl p-3 font-bold text-emerald-400">
+                                </div>
+                            </div>
+                            <div class="space-y-6">
                                 <div class="flex items-center gap-4">
                                     <input type="checkbox" id="m-penalties" onchange="toggleExtraInputs()" class="w-6 h-6 rounded-lg accent-emerald-500 cursor-pointer">
                                     <label for="m-penalties" class="text-sm font-black uppercase tracking-widest text-white cursor-pointer">Elfmeterschießen</label>
                                 </div>
-                                <div id="m-extratime-box" class="hidden animate-in slide-in-from-top duration-300">
-                                    <label class="block text-[9px] font-black text-slate-500 uppercase mb-2 ml-1">Verlängerung (Min je HZ)</label>
-                                    <input type="number" id="m-extra-dur" value="15" class="w-full rounded-xl p-3 font-bold text-emerald-400">
+                                <div id="m-penalties-box" class="hidden animate-in slide-in-from-top duration-300">
+                                    <label class="block text-[9px] font-black text-slate-500 uppercase mb-2 ml-1">Schüsse pro Team</label>
+                                    <input type="number" id="m-penalties-count" value="0" min="0" max="100" class="w-full rounded-xl p-3 font-bold text-emerald-400">
                                 </div>
                             </div>
-                            <div class="space-y-4">
-                                <div class="flex items-center gap-4">
-                                    <input type="checkbox" id="m-zeitstrafen" onchange="toggleExtraInputs()" class="w-6 h-6 rounded-lg accent-emerald-500 cursor-pointer">
-                                    <label for="m-zeitstrafen" class="text-sm font-black uppercase tracking-widest text-white cursor-pointer">Zeitstrafen</label>
-                                </div>
-                                <div id="m-z-dur-box" class="hidden animate-in slide-in-from-top duration-300">
-                                    <label class="block text-[9px] font-black text-slate-500 uppercase mb-2 ml-1">Dauer Strafe (Min)</label>
-                                    <input type="number" id="m-z-dur" value="5" class="w-full rounded-xl p-3 font-bold text-emerald-400">
-                                </div>
-                            </div>
+                        </div>
+                        <div class="h-px bg-white/5"></div>
+                        <div class="flex items-center gap-4">
+                            <input type="checkbox" id="m-zeitstrafen" onchange="toggleExtraInputs()" class="w-6 h-6 rounded-lg accent-emerald-500 cursor-pointer">
+                            <label for="m-zeitstrafen" class="text-sm font-black uppercase tracking-widest text-white cursor-pointer">Zeitstrafen aktivieren</label>
                         </div>
                     </div>
                 </div>
 
                 <div class="flex gap-4 pt-6">
                     <button type="button" onclick="closeGameModal()" class="flex-1 rounded-[1.5rem] border border-slate-800 p-5 font-bold text-slate-500 hover:text-white transition-all">Abbrechen</button>
-                    <button type="submit" class="flex-[2] rounded-[1.5rem] btn-primary p-5 shadow-2xl shadow-emerald-900/40 btn-hover">Spiel Speichern</button>
+                    <button type="submit" class="flex-[2] rounded-[1.5rem] btn-primary p-5 shadow-2xl shadow-emerald-900/40 btn-hover text-black">Spiel Speichern</button>
                 </div>
             </form>
         </div>
@@ -369,148 +425,101 @@
         let selectedGameId = null;
         let activeRosterData = { home: [], away: [] };
         let activeOfficialsData = { home: [], away: [] };
+        let activeEvents = [];
+        let activeGameData = null;
         let editingModalGameId = null;
+        let fieldPlayerLimits = { home: 11, away: 11 };
+        let unsubscribeGames = null;
 
-        if (window.location.protocol === 'file:') document.getElementById('protocol-warning').classList.remove('hidden');
+        // --- Core Functions ---
+        window.togglePassword = () => {
+            const i = document.getElementById('password');
+            i.type = i.type === 'password' ? 'text' : 'password';
+        };
 
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                currentUser = user;
-                document.getElementById('auth-overlay').classList.add('hidden');
-                document.getElementById('main-content').classList.remove('hidden');
-                document.getElementById('user-display').innerText = user.email;
-                loadGames();
+        window.switchTab = (tab) => {
+            document.getElementById('content-kader').classList.toggle('hidden', tab !== 'kader');
+            document.getElementById('content-dfbnet').classList.toggle('hidden', tab !== 'dfbnet');
+            document.getElementById('save-bar').classList.toggle('hidden', tab !== 'kader');
+            document.getElementById('tab-btn-kader').classList.toggle('active', tab === 'kader');
+            document.getElementById('tab-btn-dfbnet').classList.toggle('active', tab === 'dfbnet');
+        };
+
+        window.toggleReport = () => {
+            document.getElementById('report-overlay').classList.toggle('hidden');
+        };
+
+        window.toggleC = (s,i) => {
+            activeRosterData[s].forEach(p=>p.captain=false);
+            activeRosterData[s][i].captain=true;
+            renderRosters();
+        };
+
+        window.toggleF = (s,i) => {
+            const player = activeRosterData[s][i];
+            if (!player.onField) {
+                const currentOnField = activeRosterData[s].filter(p => p.onField);
+                if (currentOnField.length >= fieldPlayerLimits[s]) {
+                    const firstOnField = currentOnField[0];
+                    if (firstOnField) firstOnField.onField = false;
+                }
+                player.onField = true;
             } else {
-                document.getElementById('auth-overlay').classList.remove('hidden');
-                document.getElementById('main-content').classList.add('hidden');
+                player.onField = false;
             }
-        });
-
-        document.getElementById('login-btn').onclick = () => {
-            auth.signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('password').value).catch(err => showError(err.message));
-        };
-        document.getElementById('google-btn').onclick = () => {
-            auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(err => showError(err.message));
-        };
-        document.getElementById('logout-btn').onclick = () => { selectedGameId = null; auth.signOut(); };
-
-        function showError(msg) { const el = document.getElementById('auth-error'); el.innerText = msg; el.classList.remove('hidden'); }
-        function togglePassword() { const i = document.getElementById('password'); i.type = i.type === 'password' ? 'text' : 'password'; }
-
-        function loadGames() {
-            db.collection('users').doc(currentUser.uid).collection('games').orderBy('gameDateTimeEpochMillis', 'desc').onSnapshot(snap => {
-                const list = document.getElementById('games-list');
-                list.innerHTML = '';
-                snap.forEach(doc => {
-                    const g = doc.data();
-                    const d = new Date(g.gameDateTimeEpochMillis);
-                    const div = document.createElement('div');
-                    div.className = `card group cursor-pointer rounded-3xl overflow-hidden transition-all hover:scale-[1.02] ${selectedGameId === doc.id ? 'border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500/20' : 'hover:border-white/20'}`;
-                    div.innerHTML = `
-                        <div class="h-1 ${g.currentPhase === 'GAME_ENDED' ? 'bg-emerald-500' : 'bg-blue-500'}"></div>
-                        <div class="p-6">
-                            <div class="flex justify-between mb-2"><span class="text-[10px] font-black text-slate-500 tracking-widest uppercase">${d.toLocaleDateString()} · ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span></div>
-                            <h4 class="font-black text-white text-lg leading-tight truncate">${g.homeTeamName} - ${g.awayTeamName}</h4>
-                            <div class="text-[11px] text-slate-500 font-bold mt-2 uppercase tracking-widest">Feld: ${g.fieldNumber || '--'} · #${g.gameNumber}</div>
-                        </div>
-                    `;
-                    div.onclick = () => selectGame(doc.id, g);
-                    list.appendChild(div);
-                });
-            });
-        }
-
-        function selectGame(id, g) {
-            selectedGameId = id;
-            activeRosterData = { home: g.homeRoster || [], away: g.awayRoster || [] };
-            activeOfficialsData = { home: g.homeOfficials || [], away: g.awayOfficials || [] };
-            document.getElementById('editor-empty').classList.add('hidden');
-            document.getElementById('editor-active').classList.remove('hidden');
-            document.getElementById('home-team-label').innerText = g.homeTeamName;
-            document.getElementById('away-team-label').innerText = g.awayTeamName;
-            document.getElementById('home-color-dot').style.backgroundColor = colorToHex(g.homeTeamColorArgb) || '#fff';
-            document.getElementById('away-color-dot').style.backgroundColor = colorToHex(g.awayTeamColorArgb) || '#ef4444';
-            document.getElementById('active-game-header').innerHTML = `
-                <h2 class="text-5xl font-black text-white tracking-tighter mb-4">${g.homeTeamName} – ${g.awayTeamName}</h2>
-                <p class="text-xs font-black text-emerald-500 uppercase tracking-[0.3em]">${g.assignment || 'Ohne Ansetzung'} · #${g.gameNumber}</p>
-            `;
-            document.getElementById('edit-details-btn').onclick = () => openGameModal(id, g);
-            document.getElementById('delete-game-btn').onclick = () => deleteGame(id);
             renderRosters();
+        };
+
+        window.addPlayer = (s) => {
+            const currentOnField = activeRosterData[s].filter(p => p.onField);
+            const shouldStartOnField = currentOnField.length < fieldPlayerLimits[s];
+            activeRosterData[s].push({name:'', number:activeRosterData[s].length+1, onField:shouldStartOnField, captain:false});
+            renderRosters();
+        };
+
+        window.addOfficial = (s) => {
+            activeOfficialsData[s].push({name:'', role:'Trainer'});
             renderOfficials();
-        }
+        };
 
-        function renderRosters() {
-            ['home', 'away'].forEach(s => {
-                const c = document.getElementById(`${s}-roster`);
-                c.innerHTML = '';
-
-                const players = [...activeRosterData[s]].sort((a,b)=>a.number-b.number);
-                const onField = players.filter(p => p.isOnField);
-                const bench = players.filter(p => !p.isOnField);
-
-                if (onField.length > 0) {
-                    const header = document.createElement('div');
-                    header.className = 'text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-2 mt-4 ml-1';
-                    header.innerText = 'Startelf';
-                    c.appendChild(header);
-                    onField.forEach(p => c.appendChild(createPlayerRow(p, s)));
-                }
-
-                if (bench.length > 0) {
-                    const header = document.createElement('div');
-                    header.className = 'text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 mt-4 ml-1';
-                    header.innerText = 'Ersatzbank';
-                    c.appendChild(header);
-                    bench.forEach(p => c.appendChild(createPlayerRow(p, s)));
-                }
-            });
-        }
-
-        function createPlayerRow(p, s) {
-            const originalIndex = activeRosterData[s].findIndex(player => player.number === p.number && player.name === p.name);
-
-            const d = document.createElement('div');
-            d.className = `flex items-center gap-3 p-1.5 rounded-2xl group transition-all ${p.isOnField ? 'bg-emerald-500/5 border border-emerald-500/10' : 'bg-black/20'}`;
-            d.innerHTML = `
-                <input type="number" value="${p.number}" onchange="activeRosterData['${s}'][${originalIndex}].number=parseInt(this.value)" class="w-12 h-10 rounded-xl text-center font-black text-emerald-400 !bg-slate-900 border-none">
-                <input type="text" value="${p.name}" onchange="activeRosterData['${s}'][${originalIndex}].name=this.value" placeholder="Spielername" class="flex-1 h-10 px-2 text-sm font-bold !bg-transparent border-none">
-                <button onclick="toggleC('${s}',${originalIndex})" class="w-10 h-10 rounded-xl font-black text-[10px] ${p.isCaptain?'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-slate-600 hover:text-white'}" title="Kapitän">C</button>
-                <button onclick="toggleF('${s}',${originalIndex})" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all ${p.isOnField ? 'bg-emerald-500/20 text-emerald-500' : 'bg-slate-800 text-slate-400 hover:text-white'}" title="${p.isOnField ? 'Auf dem Feld' : 'Auf der Bank'}">
-                    ${p.isOnField ? '⚽' : '🪑'}
-                </button>
-                <button onclick="activeRosterData['${s}'].splice(${originalIndex},1);renderRosters()" class="w-10 h-10 text-red-500/30 group-hover:opacity-100 opacity-0 transition-opacity">✕</button>
-            `;
-            return d;
-        }
-
-        function renderOfficials() {
-            ['home', 'away'].forEach(s => {
-                const c = document.getElementById(`${s}-officials`);
-                c.innerHTML = '';
-                activeOfficialsData[s].forEach((o,i) => {
-                    const d = document.createElement('div');
-                    d.className = 'flex items-center gap-3 bg-white/5 p-2 rounded-xl';
-                    d.innerHTML = `<input type="text" value="${o.role}" onchange="activeOfficialsData['${s}'][${i}].role=this.value" class="w-24 rounded-lg px-2 text-[10px] font-black uppercase !bg-slate-900 border-none"><input type="text" value="${o.name}" onchange="activeOfficialsData['${s}'][${i}].name=this.value" class="flex-1 text-xs font-bold !bg-transparent border-none"><button onclick="activeOfficialsData['${s}'].splice(${i},1);renderOfficials()" class="text-red-500/50">✕</button>`;
-                    c.appendChild(d);
-                });
-            });
-        }
-
-        window.toggleC = (s,i) => { activeRosterData[s].forEach(p=>p.isCaptain=false); activeRosterData[s][i].isCaptain=true; renderRosters(); };
-        window.toggleF = (s,i) => { activeRosterData[s][i].isOnField = !activeRosterData[s][i].isOnField; renderRosters(); };
-        window.addPlayer = (s) => { activeRosterData[s].push({name:'', number:activeRosterData[s].length+1, isOnField:true, isCaptain:false}); renderRosters(); };
-        window.addOfficial = (s) => { activeOfficialsData[s].push({name:'', role:'Trainer'}); renderOfficials(); };
         window.applyTemplate = (s, starters, subs) => {
+            fieldPlayerLimits[s] = starters;
             activeRosterData[s] = [];
-            for(let i=1; i<=starters; i++) activeRosterData[s].push({name:'', number:i, isOnField:true, isCaptain: i===1});
-            for(let i=1; i<=subs; i++) activeRosterData[s].push({name:'', number:starters+i, isOnField:false, isCaptain:false});
+            for(let i=1; i<=starters; i++) activeRosterData[s].push({name:'', number:i, onField:true, captain: i===1});
+            for(let i=1; i<=subs; i++) activeRosterData[s].push({name:'', number:starters+i, onField:false, captain:false});
             renderRosters();
         };
 
-        const modal = document.getElementById('game-modal');
+        window.applyPreset = () => {
+            const t = document.getElementById('m-template').value;
+            if(t === 'manual') return;
+
+            const is11 = t === '11er';
+            document.getElementById('m-half-dur').value = is11 ? 45 : 20;
+            document.getElementById('m-break-dur').value = is11 ? 15 : 5;
+            document.getElementById('m-subs-max').value = is11 ? 5 : 6;
+            document.getElementById('m-extratime').checked = is11;
+            document.getElementById('m-penalties').checked = true;
+            document.getElementById('m-penalties-count').value = 5;
+            document.getElementById('m-zeitstrafen').checked = !is11;
+            document.getElementById('m-z-dur').value = is11 ? 0 : 5;
+
+            toggleExtraInputs();
+        };
+
+        window.updateJerseyNumber = (s, i, v) => {
+            let n = parseInt(v) || 1;
+            activeRosterData[s][i].number = Math.max(1, Math.min(99, n));
+            renderRosters();
+        };
+
+        window.removePlayer = (s, i) => { activeRosterData[s].splice(i, 1); renderRosters(); };
+        window.removeOfficial = (s, i) => { activeOfficialsData[s].splice(i, 1); renderOfficials(); };
+
         window.openGameModal = (id=null, g=null) => {
             editingModalGameId = id;
+            document.getElementById('modal-title').innerText = id ? 'Spiel bearbeiten' : 'Neues Spiel';
+            const form = document.getElementById('game-form');
             if(g) {
                 document.getElementById('m-home-name').value = g.homeTeamName;
                 document.getElementById('m-home-abbr').value = g.homeTeamAbbr || '';
@@ -530,68 +539,306 @@
                 document.getElementById('m-half-dur').value = g.halfDurationMinutes;
                 document.getElementById('m-break-dur').value = g.halftimeDurationMinutes;
                 document.getElementById('m-subs-max').value = g.maxSubstitutionsAllowed;
+                document.getElementById('m-extratime').checked = g.hasExtraTime;
                 document.getElementById('m-penalties').checked = g.hasPenalties;
                 document.getElementById('m-extra-dur').value = g.extraTimeHalfDurationMinutes || 15;
+                document.getElementById('m-penalties-count').value = g.penaltyKicksPerTeam || 5;
                 document.getElementById('m-zeitstrafen').checked = g.hasTemporaryDismissals;
-                document.getElementById('m-z-dur').value = g.temporaryDismissalMinutes || 5;
+                document.getElementById('m-z-dur').value = g.temporaryDismissalMinutes || 0;
                 document.getElementById('m-number').value = g.gameNumber;
-            } else { document.getElementById('game-form').reset(); }
+            } else {
+                form.reset();
+                document.getElementById('m-datetime').value = new Date(Date.now() - (new Date().getTimezoneOffset()*60000)).toISOString().slice(0, 16);
+            }
             toggleExtraInputs();
-            modal.classList.remove('hidden');
+            document.getElementById('game-modal').classList.remove('hidden');
         };
 
-        window.closeGameModal = () => modal.classList.add('hidden');
+        window.closeGameModal = () => document.getElementById('game-modal').classList.add('hidden');
+
         window.toggleExtraInputs = () => {
-            document.getElementById('m-extratime-box').classList.toggle('hidden', !document.getElementById('m-penalties').checked);
-            document.getElementById('m-z-dur-box').classList.toggle('hidden', !document.getElementById('m-zeitstrafen').checked);
+            const etEnabled = document.getElementById('m-extratime').checked;
+            const penEnabled = document.getElementById('m-penalties').checked;
+            const tdEnabled = document.getElementById('m-zeitstrafen').checked;
+
+            document.getElementById('m-extratime-box').classList.toggle('hidden', !etEnabled);
+            document.getElementById('m-extra-dur').disabled = !etEnabled;
+
+            document.getElementById('m-penalties-box').classList.toggle('hidden', !penEnabled);
+            document.getElementById('m-penalties-count').disabled = !penEnabled;
+
+            document.getElementById('m-z-dur').disabled = !tdEnabled;
+            document.getElementById('m-z-dur').parentElement.classList.toggle('opacity-50', !tdEnabled);
         };
+
+        window.copyReport = () => {
+            const text = document.getElementById('report-summary-text').innerText;
+            navigator.clipboard.writeText(text).then(() => alert("Bericht in die Zwischenablage kopiert!"));
+        };
+
+        window.deleteGame = async (id) => {
+            if(confirm('Spiel wirklich löschen?')) {
+                try {
+                    // FIX: JS SDK uses .doc(id), not .document(id)
+                    await db.collection('users').doc(currentUser.uid).collection('games').doc(id).delete();
+                    deselectGame();
+                } catch(err) { alert(err.message); }
+            }
+        };
+
+        function deselectGame() {
+            selectedGameId = null;
+            activeGameData = null;
+            document.getElementById('editor-active').classList.add('hidden');
+            document.getElementById('editor-empty').classList.remove('hidden');
+            document.getElementById('report-overlay').classList.add('hidden');
+        }
+
+        // --- Logic ---
+        function colorToHex(argb) { return argb ? '#' + (argb & 0xFFFFFF).toString(16).padStart(6, '0') : null; }
+
+        function sanitizeName(name) {
+            return name.replace(/[^a-zA-Z0-9 /]/g, '');
+        }
+
+        function renderRosters() {
+            ['home', 'away'].forEach(s => {
+                const c = document.getElementById(`${s}-roster`);
+                c.innerHTML = '';
+                const rosterWithIndices = activeRosterData[s].map((p, originalIndex) => ({...p, originalIndex}));
+                rosterWithIndices.sort((a,b)=>a.number-b.number);
+                const onField = rosterWithIndices.filter(p => p.onField);
+                const bench = rosterWithIndices.filter(p => !p.onField);
+                if (onField.length > 0) {
+                    const h = document.createElement('div'); h.className = 'text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-2 mt-4 ml-1'; h.innerText = 'Startelf'; c.appendChild(h);
+                    onField.forEach(p => c.appendChild(createPlayerRow(p, s, p.originalIndex)));
+                }
+                if (bench.length > 0) {
+                    const h = document.createElement('div'); h.className = 'text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 mt-4 ml-1'; h.innerText = 'Ersatzbank'; c.appendChild(h);
+                    bench.forEach(p => c.appendChild(createPlayerRow(p, s, p.originalIndex)));
+                }
+            });
+        }
+
+        function createPlayerRow(p, s, idx) {
+            const d = document.createElement('div');
+            d.className = `flex items-center gap-3 p-1.5 rounded-2xl group transition-all ${p.onField ? 'bg-emerald-500/5 border border-emerald-500/10' : 'bg-black/20 border border-transparent'}`;
+            d.innerHTML = `
+                <input type="number" value="${p.number}" min="1" max="99" onchange="updateJerseyNumber('${s}', ${idx}, this.value)" class="w-12 h-10 rounded-xl text-center font-black text-emerald-400 bg-slate-900 border-none outline-none">
+                <input type="text" value="${p.name || ''}" onchange="activeRosterData['${s}'][${idx}].name=this.value" placeholder="Name" class="flex-1 h-10 px-2 text-sm font-bold bg-transparent border-none outline-none text-white">
+                <button onclick="toggleC('${s}',${idx})" class="w-10 h-10 rounded-xl font-black text-[10px] ${p.captain?'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-slate-600 hover:text-white'}">C</button>
+                <button onclick="toggleF('${s}',${idx})" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all ${p.onField ? 'bg-emerald-500/20 text-emerald-500' : 'bg-slate-800 text-slate-400 hover:text-white'}">${p.onField ? '⚽' : '🪑'}</button>
+                <button onclick="removePlayer('${s}',${idx})" class="w-10 h-10 text-red-500/30 group-hover:opacity-100 opacity-0 transition-opacity">✕</button>
+            `;
+            return d;
+        }
+
+        function renderOfficials() {
+            ['home', 'away'].forEach(s => {
+                const c = document.getElementById(`${s}-officials`);
+                c.innerHTML = '';
+                activeOfficialsData[s].forEach((o,i) => {
+                    const d = document.createElement('div');
+                    d.className = 'flex items-center gap-3 bg-white/5 p-2 rounded-xl border border-white/5';
+                    d.innerHTML = `<input type="text" value="${o.role}" onchange="activeOfficialsData['${s}'][${i}].role=this.value" class="w-24 rounded-lg px-2 text-[10px] font-black uppercase bg-slate-900 border-none outline-none text-white"><input type="text" value="${o.name}" onchange="activeOfficialsData['${s}'][${i}].name=this.value" class="flex-1 text-xs font-bold bg-transparent border-none outline-none text-white"><button onclick="removeOfficial('${s}',${i})" class="text-red-500/50 px-2">✕</button>`;
+                    c.appendChild(d);
+                });
+            });
+        }
+
+        function renderSummary(g) {
+            const el = document.getElementById('report-summary-text');
+            let s = `SPIELBERICHT: ${g.homeTeamName} vs ${g.awayTeamName}\n`;
+            s += `ERGEBNIS: ${g.homeScore}:${g.awayScore}\n\n`;
+            const goals = (g.events || []).filter(e => e.type === 'GOAL' || (e.displayString && e.displayString.startsWith('Tor')));
+            if(goals.length > 0) { s += "TORE:\n"; goals.forEach(e => s += `- ${e.displayString}\n`); s += "\n"; }
+            const cards = (g.events || []).filter(e => e.type === 'CARD' || (e.displayString && e.displayString.includes('Karte')));
+            if(cards.length > 0) { s += "KARTEN:\n"; cards.forEach(e => s += `- ${e.displayString}\n`); s += "\n"; }
+            const subs = (g.events || []).filter(e => e.type === 'SUBSTITUTION' || (e.displayString && e.displayString.startsWith('Wechsel')));
+            if(subs.length > 0) { s += "WECHSEL:\n"; subs.forEach(e => s += `- ${e.displayString}\n`); }
+            el.innerText = s;
+        }
+
+        function loadGames() {
+            if (unsubscribeGames) unsubscribeGames();
+            unsubscribeGames = db.collection('users').doc(currentUser.uid).collection('games').orderBy('gameDateTimeEpochMillis', 'desc').onSnapshot(snap => {
+                const list = document.getElementById('games-list');
+                list.innerHTML = '';
+                let selectedStillExists = false;
+                snap.forEach(doc => {
+                    const g = doc.data();
+                    if (selectedGameId === doc.id) { selectedStillExists = true; activeGameData = g; updateActiveUI(g); }
+                    const d = new Date(g.gameDateTimeEpochMillis);
+                    const div = document.createElement('div');
+                    div.className = `card group cursor-pointer rounded-3xl overflow-hidden transition-all hover:scale-[1.02] ${selectedGameId === doc.id ? 'border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500/20' : 'hover:border-white/20'}`;
+                    div.innerHTML = `<div class="h-1 ${g.currentPhase === 'GAME_ENDED' ? 'bg-emerald-500' : 'bg-blue-500'}"></div><div class="p-6"><div class="flex justify-between mb-2"><span class="text-[10px] font-black text-slate-500 tracking-widest uppercase">${d.toLocaleDateString()} · ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span></div><h4 class="font-black text-white text-lg leading-tight truncate">${g.homeTeamName} - ${g.awayTeamName}</h4><div class="text-[11px] text-slate-500 font-bold mt-2 uppercase tracking-widest">Feld: ${g.fieldNumber || '--'} · #${g.gameNumber}</div></div>`;
+                    div.onclick = () => selectGame(doc.id, g);
+                    list.appendChild(div);
+                });
+                if (selectedGameId && !selectedStillExists) deselectGame();
+            });
+        }
+
+        function selectGame(id, g) {
+            selectedGameId = id;
+            activeGameData = g;
+            updateActiveUI(g);
+            document.getElementById('editor-empty').classList.add('hidden');
+            document.getElementById('editor-active').classList.remove('hidden');
+            switchTab('kader');
+        }
+
+        function updateActiveUI(g) {
+            if (!g) return;
+            activeRosterData = { home: g.homeRoster || [], away: g.awayRoster || [] };
+            activeOfficialsData = { home: g.homeOfficials || [], away: g.awayOfficials || [] };
+            activeEvents = g.events || [];
+            document.getElementById('home-team-label').innerText = g.homeTeamName;
+            document.getElementById('away-team-label').innerText = g.awayTeamName;
+            document.getElementById('home-color-dot').style.backgroundColor = colorToHex(g.homeTeamColorArgb) || '#fff';
+            document.getElementById('away-color-dot').style.backgroundColor = colorToHex(g.awayTeamColorArgb) || '#ef4444';
+            document.getElementById('active-game-header').innerHTML = `<h2 class="text-5xl font-black text-white tracking-tighter mb-4 leading-tight">${g.homeTeamName} – ${g.awayTeamName}</h2><p class="text-xs font-black text-emerald-500 uppercase tracking-[0.3em]">${g.assignment || 'Ohne Ansetzung'} · #${g.gameNumber}</p>`;
+            fieldPlayerLimits.home = activeRosterData.home.filter(p => p.onField).length <= 7 ? 7 : 11;
+            fieldPlayerLimits.away = activeRosterData.away.filter(p => p.onField).length <= 7 ? 7 : 11;
+            renderRosters(); renderOfficials(); renderSummary(g);
+        }
+
+        // --- Auth & Init ---
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('auth-overlay').classList.add('hidden');
+                document.getElementById('main-content').classList.remove('hidden');
+                document.getElementById('user-display').innerText = user.email;
+                loadGames();
+                document.getElementById('save-btn').onclick = async () => {
+                    if (!selectedGameId) return;
+                    const status = document.getElementById('save-status');
+                    status.innerText = 'SPEICHERE...';
+                    try {
+                        await db.collection('users').doc(currentUser.uid).collection('games').doc(selectedGameId).set({
+                            homeRoster: activeRosterData.home,
+                            awayRoster: activeRosterData.away,
+                            homeOfficials: activeOfficialsData.home,
+                            awayOfficials: activeOfficialsData.away,
+                            lastUpdated: Date.now()
+                        }, { merge: true });
+                        status.innerText = 'GESPEICHERT! ✓';
+                        setTimeout(() => status.innerText = '', 3000);
+                    } catch (e) { status.innerText = 'FEHLER!'; alert(e.message); }
+                };
+            } else {
+                if (unsubscribeGames) unsubscribeGames();
+                document.getElementById('auth-overlay').classList.remove('hidden');
+                document.getElementById('main-content').classList.add('hidden');
+            }
+        });
+
+        document.getElementById('login-btn').onclick = () => auth.signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('password').value).catch(err => showError(err.message));
+        document.getElementById('google-btn').onclick = () => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(err => showError(err.message));
+        document.getElementById('logout-btn').onclick = () => auth.signOut();
+        document.getElementById('new-game-btn').onclick = () => openGameModal();
+
+        document.getElementById('edit-details-btn-trigger').onclick = () => { if (activeGameData) openGameModal(selectedGameId, activeGameData); };
+        document.getElementById('delete-game-btn-trigger').onclick = () => { if (selectedGameId) deleteGame(selectedGameId); };
 
         document.getElementById('game-form').onsubmit = async (e) => {
             e.preventDefault();
+
+            // Helper to get numeric value within bounds
+            const getClamped = (id, min, max) => {
+                let v = parseInt(document.getElementById(id).value) || 0;
+                return Math.max(min, Math.min(max, v));
+            };
+
+            const hName = sanitizeName(document.getElementById('m-home-name').value);
+            const aName = sanitizeName(document.getElementById('m-away-name').value);
+            const hAbbr = sanitizeName(document.getElementById('m-home-abbr').value).toUpperCase().substring(0, 3);
+            const aAbbr = sanitizeName(document.getElementById('m-away-abbr').value).toUpperCase().substring(0, 3);
+            const hColor = parseInt(document.getElementById('m-home-color').value.replace('#', '0xFF'), 16);
+            const aColor = parseInt(document.getElementById('m-away-color').value.replace('#', '0xFF'), 16);
+
+            // --- VALIDATION ---
+            if (hName.trim().toLowerCase() === aName.trim().toLowerCase()) {
+                alert("Heim- und Gastmannschaft dürfen nicht identisch sein.");
+                return;
+            }
+            if (hAbbr && hAbbr === aAbbr) {
+                alert("Die Kürzel beider Teams dürfen nicht gleich sein.");
+                return;
+            }
+            if (hColor === aColor) {
+                alert("Bitte wähle unterschiedliche Trikotfarben für beide Teams.");
+                return;
+            }
+
+            const halfDur = getClamped('m-half-dur', 0, 120);
+
             const data = {
-                homeTeamName: document.getElementById('m-home-name').value,
-                homeTeamAbbr: document.getElementById('m-home-abbr').value,
-                homeTeamColorArgb: parseInt(document.getElementById('m-home-color').value.replace('#', '0xFF'), 16),
-                awayTeamName: document.getElementById('m-away-name').value,
-                awayTeamAbbr: document.getElementById('m-away-abbr').value,
-                awayTeamColorArgb: parseInt(document.getElementById('m-away-color').value.replace('#', '0xFF'), 16),
+                homeTeamName: hName,
+                homeTeamAbbr: hAbbr || null,
+                homeTeamColorArgb: hColor,
+                awayTeamName: aName,
+                awayTeamAbbr: aAbbr || null,
+                awayTeamColorArgb: aColor,
                 gameDateTimeEpochMillis: new Date(document.getElementById('m-datetime').value).getTime(),
-                venue: document.getElementById('m-venue').value,
-                fieldNumber: document.getElementById('m-field').value,
-                assignment: document.getElementById('m-assignment').value,
-                mainReferee: document.getElementById('m-ref-main').value,
-                assistantReferee1: document.getElementById('m-ref-ar1').value,
-                assistantReferee2: document.getElementById('m-ref-ar2').value,
-                fourthOfficial: document.getElementById('m-ref-fourth').value,
-                observer: document.getElementById('m-ref-obs').value,
-                halfDurationMinutes: parseInt(document.getElementById('m-half-dur').value),
-                halftimeDurationMinutes: parseInt(document.getElementById('m-break-dur').value),
-                maxSubstitutionsAllowed: parseInt(document.getElementById('m-subs-max').value),
+                venue: document.getElementById('m-venue').value || null,
+                fieldNumber: document.getElementById('m-field').value || null,
+                competition: document.getElementById('m-assignment').value || null,
+                refereeAssignment: null,
+                mainReferee: document.getElementById('m-ref-main').value || null,
+                assistantReferee1: document.getElementById('m-ref-ar1').value || null,
+                assistantReferee2: document.getElementById('m-ref-ar2').value || null,
+                fourthOfficial: document.getElementById('m-ref-fourth').value || null,
+                observer: document.getElementById('m-ref-obs').value || null,
+                halfDurationMinutes: halfDur,
+                halftimeDurationMinutes: getClamped('m-break-dur', 0, 120),
+                maxSubstitutionsAllowed: getClamped('m-subs-max', 0, 100),
+                hasExtraTime: document.getElementById('m-extratime').checked,
                 hasPenalties: document.getElementById('m-penalties').checked,
-                extraTimeHalfDurationMinutes: parseInt(document.getElementById('m-extra-dur').value),
+                extraTimeHalfDurationMinutes: getClamped('m-extra-dur', 0, 120),
+                extraTimeHalftimeDurationMinutes: 1,
+                penaltyKicksPerTeam: getClamped('m-penalties-count', 0, 100) || 5,
                 hasTemporaryDismissals: document.getElementById('m-zeitstrafen').checked,
-                temporaryDismissalMinutes: parseInt(document.getElementById('m-z-dur').value),
+                temporaryDismissalMinutes: getClamped('m-z-dur', 0, 120),
                 gameNumber: document.getElementById('m-number').value || 'XXXX',
-                lastUpdated: Date.now(), userId: currentUser.uid, currentPhase: 'NOT_STARTED', homeScore:0, awayScore:0, events:[]
+                lastUpdated: Date.now(),
+                userId: currentUser.uid,
+                currentPhase: 'NOT_STARTED',
+                homeScore: 0,
+                awayScore: 0,
+                displayedTimeMillis: halfDur * 60 * 1000,
+                actualTimeElapsedInPeriodMillis: 0,
+                stoppageTimeMillis: 0,
+                inAddedTime: false,
+                isTimerRunning: false,
+                isStoppageTimerRunning: false,
+                homeRoster: [],
+                awayRoster: [],
+                homeOfficials: [],
+                awayOfficials: [],
+                kickOffTeam: 'HOME',
+                events: [],
+                homeCaptainNumber: null,
+                awayCaptainNumber: null,
+                notes: null,
+                ageGroup: null,
+                penaltiesTakenHome: 0,
+                penaltiesTakenAway: 0,
+                needsSyncWithPhone: false
             };
             try {
-                if (editingModalGameId) await db.collection('users').doc(currentUser.uid).collection('games').doc(editingModalGameId).update(data);
-                else { const id = crypto.randomUUID(); await db.collection('users').doc(currentUser.uid).collection('games').doc(id).set({...data, id}); }
+                if (editingModalGameId) {
+                    await db.collection('users').doc(currentUser.uid).collection('games').doc(editingModalGameId).update(data);
+                } else {
+                    const newDoc = db.collection('users').doc(currentUser.uid).collection('games').doc();
+                    await newDoc.set({...data, id: newDoc.id});
+                }
                 closeGameModal();
             } catch(err) { alert(err.message); }
         };
 
-        async function deleteGame(id) {
-            if(confirm('Spiel löschen?')) {
-                await db.collection('users').doc(currentUser.uid).collection('games').doc(id).delete();
-                document.getElementById('editor-active').classList.add('hidden');
-                document.getElementById('editor-empty').classList.remove('hidden');
-                selectedGameId = null;
-            }
-        }
-
-        function colorToHex(argb) { return argb ? '#' + (argb & 0xFFFFFF).toString(16).padStart(6, '0') : null; }
-        String.prototype.take = function(n) { return this.substring(0, n); };
+        function showError(msg) { const el = document.getElementById('auth-error'); el.innerText = msg; el.classList.remove('hidden'); }
     </script>
 </body>
 </html>

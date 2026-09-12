@@ -26,27 +26,31 @@ android {
         buildConfig = true
     }
 
+    androidResources {
+        localeFilters += listOf("de", "en")
+    }
+
     defaultConfig {
         applicationId = "com.databelay.refwatch"
         minSdk = 34
         targetSdk = 36
-        versionCode = 361160000
-        versionName = "1.6.1"
+        versionCode = 361160200
+        versionName = "1.6.5"
     }
 
     buildTypes {
         release {
-            // Enable R8/ProGuard on the wear release. Wear OS has 1.5GB RAM and a
-            // tiny CPU — the full Compose+Material3+Firebase tree is too large
-            // to keep unshrunk. `proguard-android-optimize.txt` is the
-            // standard aggressive starting point; project-specific keeps live
-            // in proguard-rules.pro.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            ndk {
+                // Optimization: Only bundle arm64-v8a and armeabi-v7a for modern watches
+                // This can significantly reduce APK size.
+                abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
+            }
         }
     }
     compileOptions {

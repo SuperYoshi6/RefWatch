@@ -4,7 +4,6 @@ import androidx.compose.ui.graphics.Color // If GameSettings is in this file
 import com.databelay.refwatch.common.Team.AWAY
 import com.databelay.refwatch.common.Team.HOME
 import java.util.Locale // For capitalizeWords if defined here
-import java.util.concurrent.TimeUnit // For formatTime
 import kotlinx.serialization.Serializable
 
 // --- Enums (Ensure these are defined in this file or imported) ---
@@ -69,10 +68,21 @@ enum class GamePhase {
 
 // --- Helper Extension Functions (Place here or in a utils.kt file) ---
 fun Long.formatTime(isInAddedTime: Boolean = false): String {
-    val minutes = TimeUnit.MILLISECONDS.toMinutes(this)
-    val seconds = TimeUnit.MILLISECONDS.toSeconds(this) % 60
-    val formatted = String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
-    return if (isInAddedTime) "+$formatted" else formatted
+    val totalSeconds = this / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    
+    val s1 = ((seconds / 10) % 6).toInt()
+    val s2 = (seconds % 10).toInt()
+
+    return buildString(8) {
+        if (isInAddedTime) append('+')
+        if (minutes < 10) append('0')
+        append(minutes)
+        append(':')
+        append(s1)
+        append(s2)
+    }
 }
 
 fun String.capitalizeWords(): String = split(" ").joinToString(" ") { word ->

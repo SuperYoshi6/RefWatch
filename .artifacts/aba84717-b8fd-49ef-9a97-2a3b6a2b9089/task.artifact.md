@@ -1,0 +1,7 @@
+- `[ ]` Implement `logMultipleSubstitutions` in `WearGameViewModel.kt`
+- `[ ]` Update `LogSubstitutionScreen.kt` for multi-sub input
+- `[ ]` Update `QuickSubstitutionDialog.kt` for multi-sub input
+- `[ ]` Add break phase guards to `MainGameDisplayScreen.kt`
+- `[ ]` Add break phase guards to `TeamActionsPage.kt`
+- `[ ]` Refine "End Phase" logic in `WearGameViewModel.kt` and `GameSettingsScreen.kt`
+- `[ ]` Verify build and logic

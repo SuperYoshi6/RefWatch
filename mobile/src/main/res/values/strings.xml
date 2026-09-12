@@ -57,6 +57,7 @@
     <string name="game_log">Game Log</string>
     <!-- Game list item -->
     <string name="edit_game_menu">Edit</string>
+    <string name="duplicate_game_menu">Duplicate</string>
     <string name="field_label_inline">Field: %1$s</string>
     <string name="score_inline">H: %1$s - A: %2$s</string>
     <string name="field_inline">Field %1$s</string>
@@ -124,7 +125,6 @@
     <string name="web_manager">Web Manager</string>
     <string name="web_manager_desc">Edit rosters comfortably on your PC</string>
     <string name="select_language">Select Language</string>
-    <string name="view_statistics">View Statistics</string>
     <string name="website">Website</string>
     <string name="tab_log">Log</string>
     <string name="tab_dfbnet">DFBnet</string>
@@ -140,9 +140,10 @@
     <string name="delete_all_past_games">Delete all past games</string>
     <string name="delete_all_past_games_title">Delete all past games?</string>
     <string name="delete_all_past_games_msg">This action permanently deletes all completed games from the database. Upcoming games are kept.</string>
+    <string name="delete_all_past_games_confirm">Delete All Games</string>
     <string name="delete_account_title">Delete account?</string>
     <string name="delete_account_msg">This action is final and cannot be undone. Are you sure you want to delete your account?</string>
-    <string name="delete">Delete</string>
+    <string name="delete">Delete Account</string>
     <!-- Wear toasts and labels -->
     <string name="no_team_selected">No team selected</string>
     <string name="enter_valid_player_number">Enter a valid player number</string>
@@ -270,4 +271,19 @@
     <string name="color_picker_spectrum">Spectrum</string>
     <string name="color_picker_sliders">Sliders</string>
     <string name="opacity">Opacity</string>
+
+    <!-- Validation and UI -->
+    <string name="hero_edit_game">Edit Game</string>
+    <string name="hero_new_game">Create New Game</string>
+    <string name="hero_sync_subtitle">Settings are automatically synchronized with your Wear OS watch.</string>
+    <string name="section_teams">Teams</string>
+    <string name="section_score">Score</string>
+    <string name="section_jersey_colors">Jersey Colors</string>
+    <string name="section_location">Location &amp; Competition</string>
+    <string name="section_schedule">Schedule</string>
+    <string name="section_timing">Match Timing</string>
+    <string name="extra_time_possible">Extra Time possible</string>
+    <string name="error_identical_teams">Home and away teams cannot be identical.</string>
+    <string name="error_identical_abbr">Team abbreviations cannot be the same.</string>
+    <string name="error_identical_colors">Please choose different jersey colors for both teams.</string>
 </resources>

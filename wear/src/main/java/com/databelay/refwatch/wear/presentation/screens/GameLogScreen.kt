@@ -26,6 +26,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
+import androidx.wear.compose.foundation.lazy.itemsIndexed
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.ListHeader
 import androidx.wear.compose.material3.Button
@@ -37,10 +38,11 @@ import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import androidx.compose.ui.res.stringResource
 import com.databelay.refwatch.R
 import com.databelay.refwatch.wear.presentation.utils.localizedDisplayString
-import com.databelay.refwatch.wear.presentation.utils.getMatchMinute
+import com.databelay.refwatch.common.getMatchMinute
 import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.common.Game
 import com.databelay.refwatch.common.GameEvent
+import com.databelay.refwatch.common.GamePhase
 import com.databelay.refwatch.common.PreviewTools.createFirstHalfSampleGame
 import com.databelay.refwatch.common.shouldBeLogged
 
@@ -55,6 +57,16 @@ fun GameLogScreen(
     var activeDialogInfo: ConfirmationDialogInfo? by remember { mutableStateOf(null) }
 
     val listState = rememberScalingLazyListState()
+
+    val loggedEvents = remember(game.events) {
+        game.events.filter { it.phase?.shouldBeLogged() != false }
+    }
+    
+    // Find index where penalties start (if any)
+    val penaltyStartIndex = remember(loggedEvents) {
+        loggedEvents.indexOfFirst { it.phase == GamePhase.PENALTIES }
+    }
+
     ScreenScaffold(
         scrollIndicator = {
             ScrollIndicator(
@@ -96,16 +108,32 @@ fun GameLogScreen(
                     )
                 }
             } else {
-                items(
-                    game.events.asReversed().filter { it.phase?.shouldBeLogged() != false },
-                    key = { event -> event.id }) { event ->
+                itemsIndexed(
+                    loggedEvents.asReversed(),
+                    key = { _, event -> event.id }
+                ) { reversedIdx, event ->
+                    val actualIdx = (loggedEvents.size - 1) - reversedIdx
+                    
+                    // Show "Elfmeterschießen" header BEFORE the first penalty event in chronological order
+                    // (which is at the bottom of the reversed list)
+                    if (actualIdx == penaltyStartIndex) {
+                        ListHeader {
+                            Text(
+                                stringResource(R.string.phase_penalties),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                            )
+                        }
+                    }
+
                     val removeTitle = stringResource(R.string.remove_log_event_title)
                     val removeBody = stringResource(R.string.remove_log_event_body)
                     val yesText = stringResource(R.string.confirm_yes)
                     val noText = stringResource(R.string.dismiss_no)
                     EventLogItem(
                         event = event,
-                        halfDurationMinutes = game.halfDurationMinutes,
+                        game = game,
                         onLongClick = {
                             activeDialogInfo = ConfirmationDialogInfo.RemoveLogEvent(
                                 title = removeTitle,
@@ -143,11 +171,11 @@ fun GameLogScreen(
 @Composable
 fun EventLogItem(
     event: GameEvent,
-    halfDurationMinutes: Int,
+    game: Game,
     onLongClick: () -> Unit
 ) {
-    val matchMinute = remember(event, halfDurationMinutes) {
-        event.getMatchMinute(halfDurationMinutes)
+    val matchMinute = remember(event, game.halfDurationMinutes, game.extraTimeHalfDurationMinutes) {
+        event.getMatchMinute(game)
     }
 
     Box(

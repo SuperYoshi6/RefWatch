@@ -49,4 +49,19 @@ class WatchLoginViewModel @Inject constructor(
             }
         }
     }
+
+    fun onGoogleLogin(idToken: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            val result = authManager.signInWithGoogle(idToken)
+            if (result.isSuccess) {
+                _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = result.exceptionOrNull()?.localizedMessage ?: "Google Login fehlgeschlagen"
+                )
+            }
+        }
+    }
 }

@@ -35,7 +35,7 @@ import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.wear.presentation.utils.localizedName
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 
 @Composable
 fun TeamActionsPage(
@@ -44,7 +44,7 @@ fun TeamActionsPage(
     onNavigateToLogGoal: (Team, GoalType) -> Unit,
     onNavigateToLogCard: (team: Team, cardType: CardType) -> Unit,
     onNavigateToLogSubstitution: (Team) -> Unit,
-    onQuickSubstitution: (Team, Int, Int) -> Unit = { _, _, _ -> },
+    onQuickSubstitution: (Team, String, String) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     var showGoalTypeDialog by remember { mutableStateOf(false) }
@@ -58,15 +58,14 @@ fun TeamActionsPage(
         ?: fullTeamName.uppercase().filter { it.isLetterOrDigit() }.take(3))
         .ifBlank { stringResource(if (team == Team.HOME) R.string.home else R.string.away).take(3).uppercase() }
 
-    ScreenScaffold() {
-        // FIXED COLUMN (No Scrolling)
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(top = 16.dp, bottom = 4.dp, start = 8.dp, end = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween // Spread elements evenly
-        ) {
+    // FIXED COLUMN (No Scrolling)
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(top = 16.dp, bottom = 4.dp, start = 8.dp, end = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween // Spread elements evenly
+    ) {
             // Header: Team Name
             Text(
                 text = teamName,
@@ -76,8 +75,12 @@ fun TeamActionsPage(
                 fontWeight = FontWeight.Black,
                 modifier = Modifier.pointerInput(team) {
                     detectTapGestures(
-                        onDoubleTap = { showQuickSubDialog = true },
-                        onLongPress = { onNavigateToLogGoal(team, GoalType.REGULAR) }
+                        onDoubleTap = { 
+                            if (!game.currentPhase.isBreak()) showQuickSubDialog = true 
+                        },
+                        onLongPress = { 
+                            if (!game.currentPhase.isBreak()) onNavigateToLogGoal(team, GoalType.REGULAR) 
+                        }
                     )
                 }
             )
@@ -88,6 +91,7 @@ fun TeamActionsPage(
             if (game.currentPhase.isPlayablePhase()) {
                 Button(
                     onClick = { showGoalTypeDialog = true },
+                    enabled = !game.currentPhase.isBreak(),
                     shape = CircleShape,
                     modifier = Modifier.size(60.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -118,7 +122,7 @@ fun TeamActionsPage(
                 // Yellow Card
                 ActionSquareButton(
                     onClick = { onNavigateToLogCard(team, CardType.YELLOW) },
-                    label = "GELB",
+                    label = stringResource(R.string.card_yellow_short),
                     backgroundColor = Color.Yellow,
                     contentColor = Color.Black,
                     modifier = Modifier.width(62.dp).height(42.dp)
@@ -127,7 +131,7 @@ fun TeamActionsPage(
                 // Red Card
                 ActionSquareButton(
                     onClick = { onNavigateToLogCard(team, CardType.RED) },
-                    label = "ROT",
+                    label = stringResource(R.string.card_red_short),
                     backgroundColor = Color.Red,
                     contentColor = Color.White,
                     modifier = Modifier.width(62.dp).height(42.dp)
@@ -137,16 +141,18 @@ fun TeamActionsPage(
             // Substitution Button (Flat Wide Balken)
             val subsCount = game.events.filterIsInstance<SubstitutionEvent>().count { it.team == team }
             val subsRemaining = (game.maxSubstitutionsAllowed - subsCount).coerceAtLeast(0)
-            
+
             Button(
                 onClick = { showQuickSubDialog = true },
-                enabled = subsRemaining > 0,
+                enabled = subsRemaining > 0 && !game.currentPhase.isBreak(),
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
                     .height(38.dp)
                     .pointerInput(team) {
                         detectTapGestures(
-                            onLongPress = { onNavigateToLogSubstitution(team) }
+                            onLongPress = { 
+                                if (!game.currentPhase.isBreak()) onNavigateToLogSubstitution(team) 
+                            }
                         )
                     },
                 colors = ButtonDefaults.buttonColors(
@@ -156,89 +162,88 @@ fun TeamActionsPage(
                 shape = CircleShape
             ) {
                 Text(
-                    text = "Wechsel ($subsRemaining)",
+                    text = stringResource(R.string.subs_label, subsRemaining),
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black)
                 )
             }
         }
-    }
 
-    if (showQuickSubDialog) {
-        QuickSubstitutionDialog(
-            team = team,
-            roster = if (team == Team.HOME) game.homeRoster else game.awayRoster,
-            onConfirm = { outNum, inNum ->
-                onQuickSubstitution(team, outNum, inNum)
-                showQuickSubDialog = false
-            },
-            onDismiss = { showQuickSubDialog = false }
-        )
-    }
+        if (showQuickSubDialog) {
+            QuickSubstitutionDialog(
+                team = team,
+                roster = if (team == Team.HOME) game.homeRoster else game.awayRoster,
+                onConfirm = { outNum, inNum ->
+                    onQuickSubstitution(team, outNum, inNum)
+                    showQuickSubDialog = false
+                },
+                onDismiss = { showQuickSubDialog = false }
+            )
+        }
 
-    if (showRosterDialog) {
-        val roster = if (team == Team.HOME) game.homeRoster else game.awayRoster
-        Dialog(visible = true, onDismissRequest = { showRosterDialog = false }) {
-            val rosterListState = rememberScalingLazyListState()
-            ScalingLazyColumn(
-                state = rosterListState,
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                contentPadding = PaddingValues(top = 32.dp, bottom = 32.dp, start = 8.dp, end = 8.dp)
-            ) {
-                item {
-                    Text(
-                        text = "Kader: $teamName",
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
-                items(roster) { player ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+        if (showRosterDialog) {
+            val roster = if (team == Team.HOME) game.homeRoster else game.awayRoster
+            Dialog(visible = true, onDismissRequest = { showRosterDialog = false }) {
+                val rosterListState = rememberScalingLazyListState()
+                ScalingLazyColumn(
+                    state = rosterListState,
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(top = 32.dp, bottom = 32.dp, start = 8.dp, end = 8.dp)
+                ) {
+                    item {
                         Text(
-                            text = player.number.toString(),
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.width(24.dp)
+                            text = "Kader: $teamName",
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = player.name.ifBlank { "Spieler" },
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (player.isCaptain) {
-                            Spacer(Modifier.width(4.dp))
-                            Text("(C)", style = MaterialTheme.typography.labelSmall, color = Color.Yellow)
+                    }
+                    items(roster) { player ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = player.number.toString(),
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.width(24.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = player.name.ifBlank { "Spieler" },
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (player.captain) {
+                                Spacer(Modifier.width(4.dp))
+                                Text("(C)", style = MaterialTheme.typography.labelSmall, color = Color.Yellow)
+                            }
                         }
                     }
-                }
-                item {
-                    Button(
-                        onClick = { showRosterDialog = false },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    ) {
-                        Text("Schließen")
+                    item {
+                        Button(
+                            onClick = { showRosterDialog = false },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                        ) {
+                            Text("Schließen")
+                        }
                     }
                 }
             }
         }
-    }
 
-    if (showGoalTypeDialog) {
-        GoalTypeSelectionDialog(
-            team = team,
-            onGoalTypeSelected = { goalType ->
-                showGoalTypeDialog = false
-                onNavigateToLogGoal(team, goalType)
-            },
-            onDismiss = { showGoalTypeDialog = false }
-        )
-    }
+        if (showGoalTypeDialog) {
+            GoalTypeSelectionDialog(
+                team = team,
+                onGoalTypeSelected = { goalType ->
+                    showGoalTypeDialog = false
+                    onNavigateToLogGoal(team, goalType)
+                },
+                onDismiss = { showGoalTypeDialog = false }
+            )
+        }
 }
 
 @Composable

@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">RefWatch Mobile</string>
     <string name="add_game">Neues Spiel</string>
     <string name="edit_game">Spiel bearbeiten</string>
@@ -57,6 +57,7 @@
     <string name="game_log">Spielprotokoll</string>
     <!-- Game list item -->
     <string name="edit_game_menu">Bearbeiten</string>
+    <string name="duplicate_game_menu">Duplizieren</string>
     <string name="field_label_inline">Feld: %1$s</string>
     <string name="score_inline">H: %1$s - G: %2$s</string>
     <string name="field_inline">Feld %1$s</string>
@@ -124,7 +125,6 @@
     <string name="web_manager">Web-Manager</string>
     <string name="web_manager_desc">Kader bequem am PC bearbeiten</string>
     <string name="select_language">Sprache wählen</string>
-    <string name="view_statistics">Statistiken ansehen</string>
     <string name="website">Website</string>
     <string name="tab_log">Protokoll</string>
     <string name="tab_dfbnet">DFBnet</string>
@@ -140,9 +140,10 @@
     <string name="delete_all_past_games">Alle vergangenen Spiele löschen</string>
     <string name="delete_all_past_games_title">Alle vergangenen Spiele löschen?</string>
     <string name="delete_all_past_games_msg">Diese Aktion löscht alle abgeschlossenen Spiele unwiderruflich aus der Datenbank. Anstehende Spiele bleiben erhalten.</string>
-    <string name="delete_account_title">Account löschen?</string>
+    <string name="delete_all_past_games_confirm">Alle Spiele löschen</string>
+    <string name="delete_account_title">Konto löschen?</string>
     <string name="delete_account_msg">Diese Aktion ist endgültig und kann nicht rückgängig gemacht werden. Bist du sicher, dass du deinen Account löschen möchtest?</string>
-    <string name="delete"> Konto Löschen</string>
+    <string name="delete">Konto löschen</string>
     <!-- Wear toasts and labels -->
     <string name="no_team_selected">Kein Team ausgewählt</string>
     <string name="enter_valid_player_number">Gib eine gültige Spielernummer ein</string>
@@ -270,4 +271,19 @@
     <string name="color_picker_spectrum">Spektrum</string>
     <string name="color_picker_sliders">Regler</string>
     <string name="opacity">Deckkraft</string>
+
+    <!-- Validierung und UI -->
+    <string name="hero_edit_game">Spiel bearbeiten</string>
+    <string name="hero_new_game">Neues Spiel anlegen</string>
+    <string name="hero_sync_subtitle">Einstellungen werden automatisch mit deiner Wear OS-Uhr synchronisiert.</string>
+    <string name="section_teams">Teams</string>
+    <string name="section_score">Spielstand</string>
+    <string name="section_jersey_colors">Trikotfarben</string>
+    <string name="section_location">Ort &amp; Wettbewerb</string>
+    <string name="section_schedule">Zeitplan</string>
+    <string name="section_timing">Spielzeiten</string>
+    <string name="extra_time_possible">Verlängerung möglich</string>
+    <string name="error_identical_teams">Heim- und Gastmannschaft dürfen nicht identisch sein.</string>
+    <string name="error_identical_abbr">Die Kürzel beider Teams dürfen nicht gleich sein.</string>
+    <string name="error_identical_colors">Bitte wähle unterschiedliche Trikotfarben für beide Teams.</string>
 </resources>

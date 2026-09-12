@@ -1,5 +1,12 @@
 package com.databelay.refwatch.wear.presentation.screens
 
+import android.util.Log
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
@@ -11,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
@@ -27,6 +35,37 @@ fun WatchLoginScreen(
     val uiState by viewModel.uiState.collectAsState()
     var password by remember { mutableStateOf("") }
     val listState = rememberScalingLazyListState()
+    val context = LocalContext.current
+
+    // Request the standard Google Sign-In options
+    val gso = remember {
+        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(context.getString(R.string.default_web_client_id))
+            .requestEmail()
+            .build()
+    }
+    val googleSignInClient = remember { GoogleSignIn.getClient(context, gso) }
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            val idToken = account.idToken
+            if (idToken != null) {
+                viewModel.onGoogleLogin(idToken)
+            } else {
+                Log.e("WatchLoginScreen", "Google ID Token is null")
+            }
+        } catch (e: ApiException) {
+            Log.e("WatchLoginScreen", "Google sign in failed", e)
+        }
+    }
+
+    val onGoogleClick = {
+        launcher.launch(googleSignInClient.signInIntent)
+    }
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
@@ -93,6 +132,29 @@ fun WatchLoginScreen(
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     } else {
                         Text(stringResource(R.string.login_button))
+                    }
+                }
+            }
+
+            item {
+                Button(
+                    onClick = onGoogleClick,
+                    enabled = !uiState.isLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.Black
+                    )
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_google_logo),
+                            contentDescription = null,
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Google", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }

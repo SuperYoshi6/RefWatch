@@ -123,7 +123,7 @@ fun LogCardScreen(
 
                 val combinedList = remember(roster, officials) {
                     roster + officials.map { 
-                        Player(name = "[TR] ${it.name}", number = it.number ?: 0, isOnField = false) 
+                        Player(name = "[TR] ${it.name}", number = it.number ?: 0, onField = false) 
                     }
                 }
 
@@ -170,8 +170,9 @@ fun LogCardScreen(
                 OutlinedTextField(
                     value = playerNumberString,
                     onValueChange = {
-                        if (it.length <= 3 && it.all { char -> char.isDigit() }) {
-                            playerNumberString = it
+                        val filtered = it.filter { char -> char.isDigit() }
+                        if (filtered.length <= 2) { // Max 99
+                            playerNumberString = filtered
                         }
                     },
                     label = { Text("") },
@@ -208,7 +209,7 @@ fun LogCardScreen(
                             onClick = {
                                 val playerNum = playerNumberString.toIntOrNull()
                                 val currentSelectedTeam = selectedTeam 
-                                if (currentSelectedTeam != null && playerNum != null && playerNum > 0) {
+                                if (currentSelectedTeam != null && playerNum != null && playerNum in 1..99) {
                                     if (hasTemporaryDismissals && cardType == CardType.YELLOW && temporaryDismissalMinutes > 0) {
                                         confirmedPlayerNumber = playerNum
                                         showDismissalPrompt = true

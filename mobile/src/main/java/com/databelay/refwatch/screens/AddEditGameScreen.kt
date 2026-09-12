@@ -8,6 +8,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -102,6 +103,7 @@ fun AddEditGameScreen(
     onGameDateTimeChange: (Long) -> Unit,
     onHalfDurationChange: (String) -> Unit,
     onHalftimeDurationChange: (String) -> Unit,
+    onHasExtraTimeChange: (Boolean) -> Unit,
     onExtraTimeHalfDurationChange: (String) -> Unit,
     onMaxSubstitutionsChange: (String) -> Unit,
     onHasTemporaryDismissalsChange: (Boolean) -> Unit,
@@ -115,14 +117,14 @@ fun AddEditGameScreen(
     onAwayScoreChange: (String) -> Unit,
     onApplyTemplate: (Team, Int, Int) -> Unit,
     onAddPlayer: (Team, Int, String) -> Unit,
-    onRemovePlayer: (Team, Int) -> Unit,
-    onToggleCaptain: (Team, Int) -> Unit,
-    onToggleOnField: (Team, Int) -> Unit,
-    onUpdatePlayerNumber: (Team, Int, Int) -> Unit,
-    onUpdatePlayerName: (Team, Int, String) -> Unit,
+    onRemovePlayer: (Team, String) -> Unit,
+    onToggleCaptain: (Team, String) -> Unit,
+    onToggleOnField: (Team, String) -> Unit,
+    onUpdatePlayerNumber: (Team, String, Int) -> Unit,
+    onUpdatePlayerName: (Team, String, String) -> Unit,
     onAddOfficial: (Team, String, String) -> Unit,
     onRemoveOfficial: (Team, String) -> Unit,
-    onSaveGame: () -> Unit,
+    onSaveGame: () -> Unit
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val scrollState = rememberScrollState()
@@ -231,11 +233,12 @@ fun AddEditGameScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     HeroHeader(
-                        title = if (uiState.isEditing) "Spiel bearbeiten" else "Neues Spiel anlegen",
-                        subtitle = "Einstellungen werden automatisch mit deiner Wear OS-Uhr synchronisiert."
+                        title = if (uiState.isEditing) stringResource(R.string.hero_edit_game) else stringResource(R.string.hero_new_game),
+                        subtitle = stringResource(R.string.hero_sync_subtitle)
                     )
                     Spacer(Modifier.height(4.dp))
-                    FormCard(title = "Teams") {
+
+                    FormCard(title = stringResource(R.string.section_teams)) {
                         OutlinedTextField(
                             value = uiState.homeTeamName,
                             onValueChange = onHomeTeamNameChange,
@@ -278,7 +281,7 @@ fun AddEditGameScreen(
                         }
                     }
 
-                    FormCard(title = "Spielstand") {
+                    FormCard(title = stringResource(R.string.section_score)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(
                                 value = uiState.homeScore,
@@ -301,7 +304,7 @@ fun AddEditGameScreen(
                         }
                     }
 
-                    FormCard(title = "Trikotfarben") {
+                    FormCard(title = stringResource(R.string.section_jersey_colors)) {
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -392,7 +395,7 @@ fun AddEditGameScreen(
                         )
                     }
 
-                    FormCard(title = "Ort & Wettbewerb") {
+                    FormCard(title = stringResource(R.string.section_location)) {
                         OutlinedTextField(
                             value = uiState.refereeAssignment,
                             onValueChange = onRefereeAssignmentChange,
@@ -439,7 +442,7 @@ fun AddEditGameScreen(
                         stringResource(R.string.date_time_format, sdfDate.format(Date(it)), sdfTime.format(Date(it)))
                     } ?: stringResource(R.string.select_date_time)
 
-                    FormCard(title = "Zeitplan") {
+                    FormCard(title = stringResource(R.string.section_schedule)) {
                         Box {
                             OutlinedTextField(
                                 value = selectedDateTimeString,
@@ -465,7 +468,7 @@ fun AddEditGameScreen(
                         }
                     }
 
-                    FormCard(title = "Spielzeiten") {
+                    FormCard(title = stringResource(R.string.section_timing)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(
                                 value = if (uiState.halfDurationMinutes == 0) "" else uiState.halfDurationMinutes.toString(),
@@ -484,14 +487,45 @@ fun AddEditGameScreen(
                                 colors = darkFieldColors()
                             )
                         }
+
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp), color = Border.copy(alpha = 0.5f))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = stringResource(R.string.extra_time_possible),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = uiState.hasExtraTime,
+                                onCheckedChange = onHasExtraTimeChange,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = TextPrimary,
+                                    checkedTrackColor = AccentGreen,
+                                    checkedBorderColor = AccentGreen,
+                                    uncheckedThumbColor = TextMuted,
+                                    uncheckedTrackColor = Surface,
+                                    uncheckedBorderColor = Border
+                                )
+                            )
+                        }
+
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(
                                 value = if (uiState.extraTimeHalfDurationMinutes == 0) "" else uiState.extraTimeHalfDurationMinutes.toString(),
                                 onValueChange = onExtraTimeHalfDurationChange,
                                 label = { Text(stringResource(R.string.extra_time_minutes)) },
+                                enabled = uiState.hasExtraTime,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
-                                colors = darkFieldColors()
+                                colors = if (uiState.hasExtraTime) darkFieldColors() else disabledFieldColors()
                             )
                             OutlinedTextField(
                                 value = if (uiState.maxSubstitutionsAllowed == 0) "" else uiState.maxSubstitutionsAllowed.toString(),
@@ -533,17 +567,16 @@ fun AddEditGameScreen(
                             )
                         }
 
-                        if (uiState.hasTemporaryDismissals) {
-                            OutlinedTextField(
-                                value = if (uiState.temporaryDismissalMinutes == 0) "" else uiState.temporaryDismissalMinutes.toString(),
-                                onValueChange = onTemporaryDismissalChange,
-                                label = { Text(stringResource(R.string.temporary_dismissal_minutes)) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                colors = darkFieldColors()
-                            )
-                        }
+                        OutlinedTextField(
+                            value = if (uiState.temporaryDismissalMinutes == 0) "" else uiState.temporaryDismissalMinutes.toString(),
+                            onValueChange = onTemporaryDismissalChange,
+                            label = { Text(stringResource(R.string.temporary_dismissal_minutes)) },
+                            enabled = uiState.hasTemporaryDismissals,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = if (uiState.hasTemporaryDismissals) darkFieldColors() else disabledFieldColors()
+                        )
                     }
 
                     FormCard(title = stringResource(R.string.penalty_shootout_enabled)) {
@@ -583,7 +616,7 @@ fun AddEditGameScreen(
                             readOnly = !uiState.hasPenalties,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            colors = darkFieldColors(),
+                            colors = if (uiState.hasPenalties) darkFieldColors() else disabledFieldColors(),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -719,11 +752,11 @@ private fun RosterManagementSection(
     officials: List<TeamOfficial>,
     onApplyTemplate: (Team, Int, Int) -> Unit,
     onAddPlayer: (Team, Int, String) -> Unit,
-    onRemovePlayer: (Team, Int) -> Unit,
-    onToggleCaptain: (Team, Int) -> Unit,
-    onToggleOnField: (Team, Int) -> Unit,
-    onUpdatePlayerNumber: (Team, Int, Int) -> Unit,
-    onUpdatePlayerName: (Team, Int, String) -> Unit,
+    onRemovePlayer: (Team, String) -> Unit,
+    onToggleCaptain: (Team, String) -> Unit,
+    onToggleOnField: (Team, String) -> Unit,
+    onUpdatePlayerNumber: (Team, String, Int) -> Unit,
+    onUpdatePlayerName: (Team, String, String) -> Unit,
     onAddOfficial: (Team, String, String) -> Unit,
     onRemoveOfficial: (Team, String) -> Unit
 ) {
@@ -757,17 +790,15 @@ private fun RosterManagementSection(
 
         Spacer(Modifier.height(8.dp))
 
-        // On-Field Section
-        Text(stringResource(R.string.on_field_header), style = MaterialTheme.typography.labelLarge, color = AccentGreen)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            roster.filter { it.isOnField }.forEach { player ->
+            roster.filter { it.onField }.forEach { player ->
                 PlayerRow(
                     player = player,
-                    onRemove = { onRemovePlayer(team, player.number) },
-                    onToggleCaptain = { onToggleCaptain(team, player.number) },
-                    onToggleOnField = { onToggleOnField(team, player.number) },
-                    onUpdateNumber = { onUpdatePlayerNumber(team, player.number, it) },
-                    onUpdateName = { onUpdatePlayerName(team, player.number, it) }
+                    onRemove = { onRemovePlayer(team, player.id) },
+                    onToggleCaptain = { onToggleCaptain(team, player.id) },
+                    onToggleOnField = { onToggleOnField(team, player.id) },
+                    onUpdateNumber = { onUpdatePlayerNumber(team, player.id, it) },
+                    onUpdateName = { onUpdatePlayerName(team, player.id, it) }
                 )
             }
         }
@@ -782,14 +813,14 @@ private fun RosterManagementSection(
             }
         }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            roster.filter { !it.isOnField }.forEach { player ->
+            roster.filter { !it.onField }.forEach { player ->
                 PlayerRow(
                     player = player,
-                    onRemove = { onRemovePlayer(team, player.number) },
-                    onToggleCaptain = { onToggleCaptain(team, player.number) },
-                    onToggleOnField = { onToggleOnField(team, player.number) },
-                    onUpdateNumber = { onUpdatePlayerNumber(team, player.number, it) },
-                    onUpdateName = { onUpdatePlayerName(team, player.number, it) }
+                    onRemove = { onRemovePlayer(team, player.id) },
+                    onToggleCaptain = { onToggleCaptain(team, player.id) },
+                    onToggleOnField = { onToggleOnField(team, player.id) },
+                    onUpdateNumber = { onUpdatePlayerNumber(team, player.id, it) },
+                    onUpdateName = { onUpdatePlayerName(team, player.id, it) }
                 )
             }
         }
@@ -907,10 +938,10 @@ private fun PlayerRow(
             value = numberText,
             onValueChange = {
                 val filtered = it.filter { c -> c.isDigit() }
-                if (filtered.length <= 3) {
+                if (filtered.length <= 2) { // Max 99
                     numberText = filtered
                     filtered.toIntOrNull()?.let { num ->
-                        if (num != 0) onUpdateNumber(num)
+                        if (num in 1..99) onUpdateNumber(num)
                     }
                 }
             },
@@ -954,15 +985,15 @@ private fun PlayerRow(
         
         IconButton(onClick = onToggleOnField, modifier = Modifier.size(32.dp)) {
             Icon(
-                imageVector = if (player.isOnField) Icons.Default.SportsFootball else Icons.Default.Chair,
+                imageVector = if (player.onField) Icons.Default.SportsFootball else Icons.Default.Chair,
                 contentDescription = null,
-                tint = if (player.isOnField) AccentGreen else TextMuted,
+                tint = if (player.onField) AccentGreen else TextMuted,
                 modifier = Modifier.size(18.dp)
             )
         }
 
         TextButton(onClick = onToggleCaptain, modifier = Modifier.width(32.dp), contentPadding = PaddingValues(0.dp)) {
-            Text(text = stringResource(R.string.captain_short), color = if (player.isCaptain) AccentGreen else TextMuted, fontWeight = if (player.isCaptain) FontWeight.Bold else FontWeight.Normal, fontSize = 16.sp)
+            Text(text = stringResource(R.string.captain_short), color = if (player.captain) AccentGreen else TextMuted, fontWeight = if (player.captain) FontWeight.Bold else FontWeight.Normal, fontSize = 16.sp)
         }
 
         IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
@@ -1024,6 +1055,19 @@ private fun darkFieldColors() = OutlinedTextFieldDefaults.colors(
     disabledLabelColor = TextMuted, disabledPlaceholderColor = TextMuted
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun disabledFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = TextMuted, unfocusedTextColor = TextMuted,
+    focusedContainerColor = Surface.copy(alpha = 0.5f), unfocusedContainerColor = Surface.copy(alpha = 0.5f),
+    focusedBorderColor = Border, unfocusedBorderColor = Border,
+    focusedLabelColor = TextMuted, unfocusedLabelColor = TextMuted,
+    focusedPlaceholderColor = TextMuted, unfocusedPlaceholderColor = TextMuted,
+    cursorColor = TextMuted, disabledTextColor = TextMuted,
+    disabledContainerColor = Surface.copy(alpha = 0.5f), disabledBorderColor = Border,
+    disabledLabelColor = TextMuted, disabledPlaceholderColor = TextMuted
+)
+
 @Composable
 fun AddEditGameRoute(
     navController: NavController,
@@ -1077,6 +1121,7 @@ fun AddEditGameRoute(
         onGameDateTimeChange = addEditViewModel::onGameDateTimeChange,
         onHalfDurationChange = addEditViewModel::onHalfDurationChange,
         onHalftimeDurationChange = addEditViewModel::onHalftimeDurationChange,
+        onHasExtraTimeChange = addEditViewModel::onHasExtraTimeChange,
         onExtraTimeHalfDurationChange = addEditViewModel::onExtraTimeHalfDurationChange,
         onMaxSubstitutionsChange = addEditViewModel::onMaxSubstitutionsChange,
         onHasTemporaryDismissalsChange = addEditViewModel::onHasTemporaryDismissalsChange,
@@ -1097,7 +1142,7 @@ fun AddEditGameRoute(
         onUpdatePlayerName = addEditViewModel::updatePlayerName,
         onAddOfficial = addEditViewModel::addOfficial,
         onRemoveOfficial = addEditViewModel::removeOfficial,
-        onSaveGame = {
+            onSaveGame = {
             Log.d("AddEditGameRoute", "onSaveGame triggered in Route.")
             Toast.makeText(context, "Speichere Spiel...", Toast.LENGTH_SHORT).show()
             addEditViewModel.onSaveGame()
@@ -1121,7 +1166,9 @@ fun AddEditGameScreen_Preview() {
             onAssistantReferee2Change = {}, onFourthOfficialChange = {},
             onObserverChange = {},
             onGameDateTimeChange = {}, onHalfDurationChange = {},
-            onHalftimeDurationChange = {}, onExtraTimeHalfDurationChange = {},
+            onHalftimeDurationChange = {},
+            onHasExtraTimeChange = {},
+            onExtraTimeHalfDurationChange = {},
             onMaxSubstitutionsChange = {},
             onHasTemporaryDismissalsChange = {},
             onTemporaryDismissalChange = {},

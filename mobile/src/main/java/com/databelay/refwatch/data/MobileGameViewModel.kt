@@ -17,6 +17,7 @@ import com.databelay.refwatch.common.SubstitutionEvent
 import com.databelay.refwatch.common.Team
 import com.databelay.refwatch.common.opposite
 import com.databelay.refwatch.common.WearSyncConstants
+import com.databelay.refwatch.common.regulationPeriodDurationMillis
 import com.databelay.refwatch.di.UserIdFlow
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
@@ -269,6 +270,34 @@ class MobileGameViewModel @Inject constructor(
         }
     }
 
+    fun duplicateGame(game: Game) {
+        val userId = _currentUserId.value
+        if (userId == null) {
+            Log.w(TAG, "Cannot duplicate game: User not logged in.")
+            return
+        }
+
+        // Create a copy with a new ID and reset state
+        val duplicatedGame = game.copy(
+            id = java.util.UUID.randomUUID().toString(),
+            homeScore = 0,
+            awayScore = 0,
+            events = emptyList(),
+            currentPhase = com.databelay.refwatch.common.GamePhase.NOT_STARTED,
+            lastUpdated = System.currentTimeMillis(),
+            penaltiesTakenHome = 0,
+            penaltiesTakenAway = 0,
+            displayedTimeMillis = game.regulationPeriodDurationMillis(com.databelay.refwatch.common.GamePhase.FIRST_HALF),
+            actualTimeElapsedInPeriodMillis = 0L,
+            stoppageTimeMillis = 0L,
+            isTimerRunning = false,
+            isStoppageTimerRunning = false,
+            kickoffCountdownStartTimeMillis = null
+        )
+
+        addOrUpdateGame(duplicatedGame)
+    }
+
     override fun deleteAllCompletedGames() {
         val userId = _currentUserId.value
         if (userId == null) {
@@ -356,10 +385,7 @@ class MobileGameViewModel @Inject constructor(
                 }
                 // Always use the ID from the payload as the source of truth for the game object itself.
                 // The path ID is for routing.
-                val gameToSaveToFirebase = updatedGameFromWatch.copy(
-                    id = updatedGameFromWatch.id, // Ensure we use the ID from the deserialized object
-                    lastUpdated = System.currentTimeMillis()
-                )
+                val gameToSaveToFirebase = updatedGameFromWatch
 
                 Log.i(TAG, "processGameStateUpdateFromWatch: Attempting to save game to Firebase. Game ID: ${gameToSaveToFirebase.id}, User ID: $userId, Events count: ${gameToSaveToFirebase.events.size}")
                 val result = gameRepository.addOrUpdateGame(userId, gameToSaveToFirebase)
@@ -434,7 +460,7 @@ class MobileGameViewModel @Inject constructor(
                                         // Merge intelligently if needed, or overwrite if watch state is master for those fields
                                         gameRepository.addOrUpdateGame(
                                             userId,
-                                            updatedGameFromWatch.copy(lastUpdated = System.currentTimeMillis())
+                                            updatedGameFromWatch
                                         )
                                             .onSuccess {
                                                 Log.i(

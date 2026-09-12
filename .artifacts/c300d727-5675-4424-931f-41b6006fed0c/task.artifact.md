@@ -1,0 +1,5 @@
+- `[x]` Fix Undo button wiring in Menu (missing parameter in Navigation)
+- `[x]` Fix Kick-off log for all halves (when started from Menu)
+- `[x]` Localize "Spiel abbrechen" (Abort Match) in GameSettingsScreen
+- `[x]` Localize "Google" login label in WatchLoginScreen
+- `[x]` Ensure kickoff team name is localized in log (Heim/Gast)

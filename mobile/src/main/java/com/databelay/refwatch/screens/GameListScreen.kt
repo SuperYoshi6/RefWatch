@@ -104,6 +104,7 @@ fun GameListScreen(
     onTabSelected: (com.databelay.refwatch.common.GameStatus) -> kotlin.Unit,
     onAddGame: () -> kotlin.Unit,
     onEditGame: (com.databelay.refwatch.common.Game) -> kotlin.Unit = {},
+    onDuplicateGame: (com.databelay.refwatch.common.Game) -> kotlin.Unit = {},
     onViewLog: (com.databelay.refwatch.common.Game) -> kotlin.Unit,
     onDeleteGame: (com.databelay.refwatch.common.Game) -> kotlin.Unit,
     onSignOut: () -> kotlin.Unit,
@@ -317,6 +318,7 @@ fun GameListScreen(
                                 game = game,
                                 onViewLog = onViewLog,
                                 onEditGame = { onEditGame(game) },
+                                onDuplicateGame = { onDuplicateGame(game) },
                                 onDeleteGame = { onDeleteGame(game) }
                             )
                         }
@@ -376,6 +378,7 @@ fun GameListItem(
     game: Game,
     onViewLog: (Game) -> Unit,
     onEditGame: (Game) -> Unit = {},
+    onDuplicateGame: (Game) -> Unit = {},
     onDeleteGame: (Game) -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy 'at' HH:mm", Locale.getDefault()) }
@@ -549,11 +552,13 @@ fun GameListItem(
 
         // Context menu
         val editLabel = stringResource(R.string.edit_game_menu)
+        val duplicateLabel = stringResource(R.string.duplicate_game_menu)
         val gameLogLabel = stringResource(R.string.game_log)
         val deleteLabel = stringResource(R.string.delete_game)
-        val contextMenuActions = remember(game.status, editLabel, gameLogLabel, deleteLabel) {
+        val contextMenuActions = remember(game.status, editLabel, duplicateLabel, gameLogLabel, deleteLabel) {
             listOfNotNull(
                 ContextMenuItemAction(editLabel) { onEditGame(it) },
+                ContextMenuItemAction(duplicateLabel) { onDuplicateGame(it) },
                 if (isCompleted) ContextMenuItemAction(gameLogLabel) { onViewLog(it) } else null,
                 ContextMenuItemAction(deleteLabel) { onDeleteGame(it) }
             )

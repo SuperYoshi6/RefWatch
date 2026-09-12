@@ -1,6 +1,6 @@
-- [x] Research save issue
-- [x] Create implementation plan
-- [x] Refactor `GameStorageMobile.kt` to use single-call "Upsert" (`set` with merge)
-- [x] Ensure basic types in `Game.kt`'s `toSnapshotForStorage`
-- [x] Guide user on Firestore Rules
-- [ ] Final build verification
+- [x] Update mobile build.gradle.kts (versionName 1.6.2, versionCode 361160200)
+- [x] Update wear build.gradle.kts (versionName 1.6.2, versionCode 361160200)
+- [x] Add delete_all_past_games_confirm to English strings.xml
+- [x] Update SettingsScreen.kt to use the correct string resource
+- [x] Verify changes in strings-de.xml
+- [x] Build project to verify

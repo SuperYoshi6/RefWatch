@@ -83,13 +83,8 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
     }.collectAsStateWithLifecycle(null)
 
     val activeGame by gameViewModel.activeGame.collectAsStateWithLifecycle()
-    val timerState by gameViewModel.timerDisplayState.collectAsStateWithLifecycle()
     val allGames by gameViewModel.gamesList.collectAsStateWithLifecycle() // Assuming gamesList is the correct source
     val isOnline by gameViewModel.isOnline.collectAsStateWithLifecycle()
-    val timerDisplayMode by gameViewModel.timerDisplayMode.collectAsStateWithLifecycle()
-    val kickoffCountdownSeconds by gameViewModel.kickoffCountdownSeconds.collectAsStateWithLifecycle()
-    val activeDismissals by gameViewModel.activeDismissals.collectAsStateWithLifecycle()
-    val pendingReturnConfirmations by gameViewModel.pendingReturnConfirmations.collectAsStateWithLifecycle()
     val context = LocalContext.current // Get the context
     // State to track if the permission has been explicitly denied by the user.
     var showPermissionDeniedDialog by remember { mutableStateOf(false) }
@@ -244,6 +239,13 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                     },
                     onNavigateToLogin = {
                         navController.navigate(WearNavRoutes.LOGIN_SCREEN)
+                    },
+                    onLogout = {
+                        gameViewModel.signOut()
+                        navController.navigate(WearNavRoutes.GAME_LIST_SCREEN) {
+                            popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     }
                 )
             }
@@ -294,23 +296,28 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                 )
             }
             composable(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
+                // Collect tick-dependent state only inside this destination. This
+                // keeps the NavHost / list screens from recomposing every second
+                // while the match timer runs.
+                val timerDisplayMode by gameViewModel.timerDisplayMode.collectAsStateWithLifecycle()
+                val kickoffCountdownSeconds by gameViewModel.kickoffCountdownSeconds.collectAsStateWithLifecycle()
+                val activeDismissals by gameViewModel.activeDismissals.collectAsStateWithLifecycle()
+                val pendingReturnConfirmations by gameViewModel.pendingReturnConfirmations.collectAsStateWithLifecycle()
+
                 val isPlayableRegularPhase = activeGame?.currentPhase?.isPlayablePhase() == true &&
                         activeGame?.currentPhase != GamePhase.PENALTIES
                 
-                val canToggleStoppageTimer = isPlayableRegularPhase &&
-                    (timerState.isTimerRunning || timerState.isStoppageTimerRunning)
-
                 val horizontalPagerState = rememberPagerState(
                     initialPage = 1,
                     pageCount = { if (isPlayableRegularPhase) 3 else 1 })
                 val verticalPagerState =
-                    rememberPagerState(initialPage = 0, pageCount = { 2 }) // 0: Game, 1: Settings
+                    rememberPagerState(initialPage = 1, pageCount = { 3 }) // 0: Penalties, 1: Game, 2: Settings
 
                 if (activeGame != null) {
                     GameScreenWithPager(
                         modifier = Modifier.fillMaxSize(),
                         game = activeGame!!,
-                        timerState = timerState,
+                        timerStateFlow = gameViewModel.timerDisplayState,
                         isAmbient = isAmbient,
                         kickoffCountdownSeconds = kickoffCountdownSeconds,
                         activeDismissals = activeDismissals,
@@ -326,7 +333,8 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                         onSetToHavePenalties = { gameViewModel.setToHavePenalties() },
                         onToggleTimer = { gameViewModel.toggleTimer() },
                         onToggleStoppageTimer = { 
-                            if (canToggleStoppageTimer) {
+                            val serviceState = gameViewModel.timerDisplayState.value
+                            if (isPlayableRegularPhase && (serviceState.isTimerRunning || serviceState.isStoppageTimerRunning)) {
                                 gameViewModel.toggleStoppageTimer()
                             }
                         },
@@ -340,7 +348,7 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                             navController.navigate(WearNavRoutes.logSubstitutionRoute(team))
                         },
                         onQuickSubstitution = { team, outgoing, incoming ->
-                            gameViewModel.logSubstitution(team, outgoing, incoming)
+                            gameViewModel.logMultipleSubstitutions(team, outgoing, incoming)
                         },
                         onNavigateToGameLog = {
                             activeGame?.let { game ->
@@ -381,7 +389,8 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                         },
                         onPenaltyAttemptRecorded = { scored, kickerNumber ->
                             gameViewModel.recordPenaltyAttempt(scored, kickerNumber)
-                        }
+                        },
+                        onUndoLastEvent = { gameViewModel.undoLastEvent() }
                     )
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -517,8 +526,8 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                         preselectedTeam = team,
                         goalType = goalType,
                         roster = roster ?: emptyList(),
-                        onLogGoal = { loggedTeam, playerNum, loggedGoalType ->
-                            gameViewModel.addGoal(loggedTeam, playerNum, loggedGoalType)
+                        onLogGoal = { loggedTeam, scorerNum, loggedGoalType, _ ->
+                            gameViewModel.addGoal(loggedTeam, scorerNum, loggedGoalType, null)
                             navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
                                 popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
                                 launchSingleTop = true
@@ -549,7 +558,7 @@ fun NavigationRoutes(isAmbient: Boolean = false) {
                         team = team,
                         roster = roster ?: emptyList(),
                         onLogSubstitution = { outgoing, incoming ->
-                            gameViewModel.logSubstitution(team, outgoing, incoming)
+                            gameViewModel.logMultipleSubstitutions(team, outgoing, incoming)
                             navController.navigate(WearNavRoutes.GAME_IN_PROGRESS_SCREEN) {
                                 popUpTo(WearNavRoutes.GAME_LIST_SCREEN) { inclusive = false }
                                 launchSingleTop = true

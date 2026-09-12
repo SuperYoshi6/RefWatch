@@ -58,10 +58,13 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import com.databelay.refwatch.R
 import com.databelay.refwatch.common.theme.AccentGreen
 import com.databelay.refwatch.common.theme.Border
@@ -307,8 +310,18 @@ fun AuthScreen(
                             ),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Border)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                // You could add a Google logo icon here if you have one
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                // Local Google Icon
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_google_logo),
+                                    contentDescription = null,
+                                    tint = Color.Unspecified, // Keep original colors
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
                                 Text(
                                     text = stringResource(R.string.login_with_google),
                                     fontWeight = FontWeight.Medium

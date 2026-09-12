@@ -52,6 +52,7 @@ data class GoalScoredEvent(
     val teamDisplayName: String? = null,
     val goalType: GoalType = GoalType.REGULAR,
     val playerNumber: Int? = null,
+    val assistantNumber: Int? = null,
     override val timestamp: Double = System.currentTimeMillis().toDouble(),
     override val gameTimeMillis: Double,
     val homeScoreAtTime: Int,
@@ -61,17 +62,10 @@ data class GoalScoredEvent(
     @get:Exclude
     override val displayString: String
     get() {
-        val typeStr = when (goalType) {
-            GoalType.REGULAR -> "Goal"
-            GoalType.OPEN_PLAY -> "Feldtor"
-            GoalType.PENALTY -> "Strafstoß"
-            GoalType.OWN_GOAL -> "Eigentor"
-        }
-        val playerStr = if (playerNumber != null) " (Player #$playerNumber)" else ""
+        val playerStr = if (playerNumber != null) " Nr. $playerNumber" else ""
+        val assistantStr = if (assistantNumber != null) " (Assist: Nr. $assistantNumber)" else ""
         val teamStr = teamDisplayName?.takeIf { it.isNotBlank() } ?: team.name
-        return "$typeStr$playerStr: $teamStr ($homeScoreAtTime-$awayScoreAtTime) at ${
-            gameTimeMillis.toLong().formatTime()
-        }"
+        return "Tor $teamStr$playerStr$assistantStr (${homeScoreAtTime}:${awayScoreAtTime})"
     }
 }
 
@@ -102,9 +96,9 @@ data class PenaltyEvent(
     @get:Exclude
     override val displayString: String
         get() {
-            val outcome = if (scored) "SCORED" else "MISSED/SAVED"
-            val kicker = if (kickerNumber != null) " (Player #$kickerNumber)" else ""
-            return "Penalty: ${team.name}$kicker $outcome"
+            val outcome = if (scored) "GETROFFEN" else "VERGEBEN/GEHALTEN"
+            val kicker = if (kickerNumber != null) " Nr. $kickerNumber" else ""
+            return "Elfmeter: ${team.name}$kicker $outcome"
         }
 }
 
@@ -116,6 +110,7 @@ data class PenaltyEvent(
 data class CardIssuedEvent(
     override val id: String = UUID.randomUUID().toString(),
     val team: Team,
+    val teamDisplayName: String? = null,
     val playerNumber: Int,
     val cardType: CardType,
     val isOfficial: Boolean = false,
@@ -127,15 +122,15 @@ data class CardIssuedEvent(
     @get:Exclude
     override val displayString: String
         get() {
-            val typeStr = cardType.name.replaceFirstChar { it.uppercase() }
+            val typeStr = when (cardType) {
+                CardType.YELLOW -> "Gelbe"
+                CardType.RED -> "Rote"
+            }
+            val teamStr = teamDisplayName?.takeIf { it.isNotBlank() } ?: team.name
             return if (isOfficial) {
-                "$typeStr Card (Official): ${team.name}, ${officialName ?: "Staff"} at ${
-                    gameTimeMillis.toLong().formatTime()
-                }"
+                "$typeStr Karte (${officialName ?: "Offizieller"} $teamStr)"
             } else {
-                "$typeStr Card: ${team.name}, Player #$playerNumber at ${
-                    gameTimeMillis.toLong().formatTime()
-                }"
+                "$typeStr Karte: $teamStr Nr. $playerNumber"
             }
         }
 }
@@ -190,7 +185,7 @@ data class SubstitutionEvent(
     override val displayString: String
         get() {
             val name = teamDisplayName?.takeIf { it.isNotBlank() } ?: team.name
-            return "Wechsel: $name, $outgoingPlayerNumber ➡️ $incomingPlayerNumber"
+            return "Wechsel $name: $outgoingPlayerNumber ➡️ $incomingPlayerNumber"
         }
 }
 
@@ -201,6 +196,7 @@ data class SubstitutionEvent(
 data class TemporaryDismissalEvent(
     override val id: String = UUID.randomUUID().toString(),
     val team: Team,
+    val teamDisplayName: String? = null,
     val playerNumber: Int,
     val durationMinutes: Int,
     val startMatchTimeMillis: Double, // Match time when it started
@@ -210,5 +206,8 @@ data class TemporaryDismissalEvent(
 ) : GameEvent() {
     @get:Exclude
     override val displayString: String
-        get() = "Zeitstrafe ($durationMinutes min): ${team.name} Nr.$playerNumber"
+        get() {
+            val teamStr = teamDisplayName?.takeIf { it.isNotBlank() } ?: team.name
+            return "Zeitstrafe $teamStr Nr. $playerNumber ($durationMinutes min)"
+        }
 }

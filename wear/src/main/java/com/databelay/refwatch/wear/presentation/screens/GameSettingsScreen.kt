@@ -1,4 +1,4 @@
-package com.databelay.refwatch.wear.presentation.screens // Or your chosen package
+package com.databelay.refwatch.wear.presentation.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.PauseCircleFilled
 import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,11 +35,7 @@ import com.databelay.refwatch.common.theme.RefWatchWearTheme
 import com.databelay.refwatch.wear.presentation.utils.localizedName
 
 /**
- * Returns true when the current game has just ended a penalty shootout
- * (i.e. the phase was advanced to GAME_ENDED by checkShootoutEndCondition,
- * not by a normal end-of-regulation). Used to restrict the in-game settings
- * menu after a shootout — the only allowed actions are viewing the log,
- * resetting the game, or finishing it.
+ * Returns true when the current game has just ended a penalty shootout.
  */
 private fun Game.isPostShootout(): Boolean =
     currentPhase == GamePhase.GAME_ENDED &&
@@ -54,7 +52,8 @@ fun GameSettingsScreen(
     onToggleTimer: () -> Unit,
     onAttemptEndPhase: () -> Unit,
     onAttemptAbortGame: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onUndoLastEvent: () -> Unit = {},
 ) {
     val listState = rememberScalingLazyListState()
     ScreenScaffold(
@@ -64,14 +63,12 @@ fun GameSettingsScreen(
                 state = listState
             )
         },
-        modifier = modifier
-            .fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(2.dp),
     ) { contentPadding ->
         ScalingLazyColumn(
             state = listState,
-            modifier = modifier
-                .padding(horizontal = 8.dp, vertical = 0.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 0.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)
         ) {
@@ -85,34 +82,64 @@ fun GameSettingsScreen(
                 )
             }
 
-            // In-game controls are hidden once the shootout is over.
             if (!game.isPostShootout() && game.currentPhase.hasTimer()) {
                 item {
-                    Button(
-                        onClick = onToggleTimer,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (game.isTimerRunning) Color(0xFFFF6822) else Color.Green,
-                            contentColor = Color.Black
-                        ),
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (game.isTimerRunning) Icons.Filled.PauseCircleFilled else Icons.Filled.PlayCircleFilled,
-                            contentDescription = if (game.isTimerRunning) stringResource(R.string.timer_pause_content_desc) else stringResource(R.string.timer_play_content_desc),
-                        )
+                        Button(
+                            onClick = onToggleTimer,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (game.isTimerRunning) Color(0xFFFF6822) else Color.Green,
+                                contentColor = Color.Black
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = if (game.isTimerRunning) Icons.Filled.PauseCircleFilled else Icons.Filled.PlayCircleFilled,
+                                contentDescription = if (game.isTimerRunning) stringResource(R.string.timer_pause_content_desc) else stringResource(R.string.timer_play_content_desc),
+                            )
+                        }
+
+                        Button(
+                            onClick = onUndoLastEvent,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Gray.copy(alpha = 0.3f),
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Undo,
+                                contentDescription = "Undo"
+                            )
+                        }
                     }
                 }
                 item {
+                    val willMatchEnd = remember(game.homeScore, game.awayScore, game.currentPhase, game.hasExtraTime, game.hasPenalties) {
+                        val isTied = game.homeScore == game.awayScore
+                        when (game.currentPhase) {
+                            GamePhase.SECOND_HALF -> !isTied || (!game.hasExtraTime && !game.hasPenalties)
+                            GamePhase.EXTRA_TIME_SECOND_HALF -> !isTied || !game.hasPenalties
+                            GamePhase.PENALTIES -> true
+                            else -> false
+                        }
+                    }
+
                     Button(
                         onClick = onAttemptEndPhase,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            containerColor = if (willMatchEnd) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.errorContainer,
+                            contentColor = if (willMatchEnd) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onErrorContainer
                         ),
                         modifier = Modifier.fillMaxWidth(),
-
-                        ) {
+                    ) {
                         Text(
-                            text = stringResource(R.string.end_phase_action, game.currentPhase.localizedName()),
+                            text = if (willMatchEnd) stringResource(R.string.end_match_action)
+                                   else stringResource(R.string.end_phase_action, game.currentPhase.localizedName()),
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -135,16 +162,18 @@ fun GameSettingsScreen(
                 }
             }
 
-            item {
-                Button(
-                    onClick = onShowRoster,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        "Kader anzeigen",
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+            if (game.homeRoster.isNotEmpty() || game.awayRoster.isNotEmpty()) {
+                item {
+                    Button(
+                        onClick = onShowRoster,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            "Kader anzeigen",
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
 
@@ -199,154 +228,24 @@ fun GameSettingsScreen(
 
             // --- CRITICAL ACTIONS ---
 
-            item {
-                Button(
-                    onClick = onAttemptAbortGame,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    )
-                ) {
-                    Text(
-                        "Spiel abbrechen",
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+            if (game.currentPhase != GamePhase.GAME_ENDED && game.currentPhase != GamePhase.ABORTED) {
+                item {
+                    Button(
+                        onClick = onAttemptAbortGame,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        )
+                    ) {
+                        Text(
+                            stringResource(R.string.abort_match),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun PreviewableAlertDialog(
-    title: String,
-    message: String? = null,
-    confirmButtonText: String = "Yes",
-    dismissButtonText: String = "No",
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    RefWatchWearTheme { // Ensure the dialog is themed
-        UnifiedConfirmationDialog(
-            ConfirmationDialogInfo.FinishGame(
-                title = title,
-                text = message ?: "",
-                onConfirm = onConfirm,
-                onDialogClose = onDismiss
-            )
-        )
-    }
-}
-
-@Preview(
-    device = "id:wearos_small_round",
-    name = "Beende Halbzeit Protokoll nsicht",
-    showSystemUi = true,
-    backgroundColor = 0xff000000,
-    showBackground = true
-)
-@Composable
-fun PreviewSettingsEndPhaseDialog() {
-    PreviewableAlertDialog(
-        title = "1. Halbzeit beenden",
-        onConfirm = {},
-        onDismiss = {}
-    )
-}
-
-@Preview(
-    device = "id:wearos_small_round",
-    name = "Beende Spiel Protokoll Ansicht",
-    showSystemUi = true,
-    backgroundColor = 0xff000000,
-    showBackground = true
-)
-@Composable
-fun PreviewSettingsFinishGameDialog() {
-    PreviewableAlertDialog(
-        title = "Finish Game?",
-        message = "Are you sure you want to end and save this game?",
-        onConfirm = {},
-        onDismiss = {}
-    )
-}
-
-@Preview(
-    device = "id:wearos_small_round",
-    name = "Halbziet Protokoll ansicht zurücksetzen",
-    showSystemUi = true,
-    backgroundColor = 0xff000000,
-    showBackground = true
-)
-@Composable
-fun PreviewSettingsResetPeriodTimerDialog() {
-    PreviewableAlertDialog(
-        title = "Reset Timer?",
-        message = "Reset timer for First Half?",
-        onConfirm = {},
-        onDismiss = {}
-    )
-}
-
-@Preview(
-    device = "id:wearos_small_round",
-    name = "Reset Full Game Dialog Preview",
-    showSystemUi = true,
-    backgroundColor = 0xff000000,
-    showBackground = true
-)
-@Composable
-fun PreviewSettingsResetFullGameDialog() {
-    PreviewableAlertDialog(
-        title = "Spiel zurücksetzen?",
-        message = "Diese Aktion wird alle Ergebnisse und das komplette Protokoll dieses Spiels löschen.",
-        confirmButtonText = "Ja, zurücksetzen",
-        onConfirm = {},
-        onDismiss = {}
-    )
-}
-
-@Preview(
-    device = "id:wearos_small_round",
-    name = "Verlängerungs Protokoll Ansicht",
-    showSystemUi = true,
-    backgroundColor = 0xff000000,
-    showBackground = true
-)
-@Composable
-fun PreviewSettingsExtraTimeDialog() {
-    PreviewableAlertDialog(
-        title = "Verlängerung?",
-        confirmButtonText = "Ja",
-        dismissButtonText = "Nein",
-        onConfirm = {},
-        onDismiss = {}
-    )
-}
-
-
-@Preview(
-    device = "id:wearos_small_round",
-    showSystemUi = true,
-    backgroundColor = 0xff000000,
-    showBackground = true
-)
-@Composable
-fun SettingsPageContentPreview() {
-    RefWatchWearTheme {
-        GameSettingsScreen(
-            game = Game.defaults().copy(currentPhase = GamePhase.FIRST_HALF, isTimerRunning = true),
-            onAttemptFinishGame = {},
-            onAttemptResetPeriodTimer = {},
-            onAttemptResetFullGame = {},
-            onViewLog = {},
-            onShowRoster = {},
-            onToggleTimer = {},
-            onAttemptEndPhase = {},
-            onAttemptAbortGame = {},
-            modifier = Modifier.fillMaxSize()
-        )
     }
 }
